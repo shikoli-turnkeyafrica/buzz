@@ -1495,6 +1495,25 @@ pub async fn get_member_role(
     Ok(row.map(|r| r.try_get("role")).transpose()?)
 }
 
+/// Get the governance policy configured for a channel.
+///
+/// Returns `None` if no policy row exists for the (community, channel).
+pub async fn get_channel_governance_policy(
+    pool: &PgPool,
+    community_id: CommunityId,
+    channel_id: Uuid,
+) -> Result<Option<serde_json::Value>> {
+    let row = sqlx::query(
+        "SELECT policy FROM channel_governance_policy \
+         WHERE community_id = $1 AND channel_id = $2",
+    )
+    .bind(community_id.as_uuid())
+    .bind(channel_id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.map(|r| r.try_get("policy")).transpose()?)
+}
+
 /// Archive ephemeral channels whose TTL deadline has passed.
 ///
 /// Returns the `(community_id, host, channel_id)` list that was archived. Idempotent — the
@@ -2771,5 +2790,80 @@ mod tests {
             .await
             .expect("read role after restore");
         assert_eq!(restored.as_deref(), Some("owner"));
+    }
+
+    #[tokio::test]
+    #[ignore = "requires Postgres"]
+    async fn get_channel_governance_policy_round_trips_jsonb() {
+        let database_url =
+            std::env::var("BUZZ_TEST_DATABASE_URL").unwrap_or_else(|_| TEST_DB_URL.to_string());
+        let pool = PgPool::connect(&database_url)
+            .await
+            .expect("connect to test DB");
+        let community_id = make_test_community(&pool).await;
+        let community = CommunityId::from_uuid(community_id);
+        let creator = random_pubkey();
+
+        let channel = create_test_channel(
+            &pool,
+            community_id,
+            "governance-policy-round-trip",
+            ChannelType::Stream,
+            ChannelVisibility::Open,
+            None,
+            &creator,
+            None,
+        )
+        .await
+        .expect("create channel");
+
+        let policy = serde_json::json!({"quorum": 3, "roles": ["owner", "moderator"]});
+
+        sqlx::query(
+            "INSERT INTO channel_governance_policy (community_id, channel_id, policy) \
+             VALUES ($1, $2, $3)",
+        )
+        .bind(community.as_uuid())
+        .bind(channel.id)
+        .bind(&policy)
+        .execute(&pool)
+        .await
+        .expect("insert governance policy");
+
+        let fetched = get_channel_governance_policy(&pool, community, channel.id)
+            .await
+            .expect("read governance policy");
+        assert_eq!(fetched, Some(policy));
+    }
+
+    #[tokio::test]
+    #[ignore = "requires Postgres"]
+    async fn get_channel_governance_policy_is_none_when_no_row() {
+        let database_url =
+            std::env::var("BUZZ_TEST_DATABASE_URL").unwrap_or_else(|_| TEST_DB_URL.to_string());
+        let pool = PgPool::connect(&database_url)
+            .await
+            .expect("connect to test DB");
+        let community_id = make_test_community(&pool).await;
+        let community = CommunityId::from_uuid(community_id);
+        let creator = random_pubkey();
+
+        let channel = create_test_channel(
+            &pool,
+            community_id,
+            "governance-policy-absent",
+            ChannelType::Stream,
+            ChannelVisibility::Open,
+            None,
+            &creator,
+            None,
+        )
+        .await
+        .expect("create channel");
+
+        let fetched = get_channel_governance_policy(&pool, community, channel.id)
+            .await
+            .expect("read governance policy");
+        assert_eq!(fetched, None);
     }
 }

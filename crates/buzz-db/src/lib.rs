@@ -2616,6 +2616,16 @@ impl Db {
         channel::get_member_role(&self.pool, community_id, channel_id, pubkey).await
     }
 
+    /// Get the governance policy configured for a channel.
+    #[datastore_span(name = "get_channel_governance_policy", system = "postgresql")]
+    pub async fn get_channel_governance_policy(
+        &self,
+        community_id: CommunityId,
+        channel_id: Uuid,
+    ) -> Result<Option<serde_json::Value>> {
+        channel::get_channel_governance_policy(&self.pool, community_id, channel_id).await
+    }
+
     /// Archive ephemeral channels whose TTL deadline has passed.
     #[datastore_span(name = "reap_expired_ephemeral_channels", system = "postgresql")]
     pub async fn reap_expired_ephemeral_channels(
