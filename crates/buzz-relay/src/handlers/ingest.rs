@@ -2054,6 +2054,20 @@ async fn ingest_event_inner(
         )));
     }
 
+    // Cybota governed-kind policy gate (46200-46204): reject a mis-authored
+    // decision event before it ever reaches storage or command routing. The
+    // gate's own first line is a zero-cost early return for every
+    // non-governed kind, so this call is a no-op (no DB touched) for the
+    // overwhelming majority of ingest traffic. See
+    // `governed_kinds::enforce_governed_kind_policy` for the full policy.
+    super::governed_kinds::enforce_governed_kind_policy(
+        &state.db,
+        tenant.community(),
+        &event,
+        kind_u32,
+    )
+    .await?;
+
     // Command kinds are routed AFTER signature verification, timestamp check,
     // pubkey/auth match, and scope validation — never before.
     if buzz_core::kind::is_command_kind(kind_u32) {
