@@ -9,3 +9,5 @@ CREATE TABLE channel_governance_policy (
     PRIMARY KEY (community_id, channel_id),
     FOREIGN KEY (community_id, channel_id) REFERENCES channels (community_id, id)
 );
+
+SELECT attach_community_write_fence('channel_governance_policy');

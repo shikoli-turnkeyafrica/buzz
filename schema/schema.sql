@@ -160,6 +160,20 @@ CREATE TABLE channel_members (
 CREATE INDEX idx_channel_members_pubkey ON channel_members (community_id, pubkey)
     WHERE removed_at IS NULL;
 
+-- ── Channel governance policy (migration 0032) ────────────────────────────────
+-- Per-channel governance policy, keyed to the channel it governs. Deleted
+-- alongside the channel via the FK to channels (community_id, id).
+
+CREATE TABLE channel_governance_policy (
+    community_id UUID NOT NULL,
+    channel_id   UUID NOT NULL,
+    policy       JSONB NOT NULL,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (community_id, channel_id),
+    FOREIGN KEY (community_id, channel_id) REFERENCES channels (community_id, id)
+);
+
 -- ── Users ─────────────────────────────────────────────────────────────────────
 -- Conformance: "Users, profiles, NIP-05, and user search". One profile per
 -- (community, pubkey): the same key reposts kind:0 in each community it joins.
@@ -1643,6 +1657,7 @@ $$;
 SELECT attach_community_write_fence('api_tokens');
 SELECT attach_community_write_fence('archived_identities');
 SELECT attach_community_write_fence('audit_log');
+SELECT attach_community_write_fence('channel_governance_policy');
 SELECT attach_community_write_fence('channel_members');
 SELECT attach_community_write_fence('channels');
 SELECT attach_community_write_fence('community_bans');
