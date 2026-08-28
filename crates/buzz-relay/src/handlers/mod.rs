@@ -10,6 +10,10 @@ pub mod community_provisioning;
 pub mod count;
 /// EVENT handler — WS dispatcher → ingest pipeline → fan-out.
 pub mod event;
+/// Pure policy-evaluation core for Cybota governed decision kinds
+/// (46200–46204): default-open un-opted / default-closed opted-in, role and
+/// pubkey-allowlist rules, fail-closed on malformed policy.
+pub mod governed_kinds;
 /// NIP-IA identity archive request handler (kinds 9035–9036).
 pub mod identity_archive;
 /// imeta tag validation helpers.
