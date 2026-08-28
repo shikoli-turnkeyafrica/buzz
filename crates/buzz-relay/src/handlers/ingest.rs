@@ -450,6 +450,16 @@ fn required_scope_for_kind(kind: u32, event: &Event) -> Result<Scope, &'static s
         KIND_DM_OPEN | KIND_DM_ADD_MEMBER | KIND_DM_HIDE => Ok(Scope::MessagesWrite),
         KIND_WORKFLOW_DEF | KIND_WORKFLOW_TRIGGER => Ok(Scope::MessagesWrite),
         KIND_APPROVAL_GRANT | KIND_APPROVAL_DENY => Ok(Scope::MessagesWrite),
+        // Cybota governed decision kinds (46200-46204: digest/staged/advice/
+        // ratification/dissent) are message-category writes, same as
+        // approvals above — the real authorization (whether this specific
+        // author may post this specific kind into this channel) is owned
+        // entirely by the governed-kinds policy gate
+        // (`governed_kinds::enforce_governed_kind_policy`, called just below
+        // this scope check in `ingest_event_inner`), not by scope. Without
+        // this arm these kinds fell to the catch-all below as "unknown event
+        // kind" and the gate was unreachable dead code.
+        k if buzz_core::kind::is_cybota_governed_kind(k) => Ok(Scope::MessagesWrite),
         _ => Err("restricted: unknown event kind"),
     }
 }
@@ -3074,9 +3084,10 @@ mod tests {
     use super::*;
     use buzz_conformance::{TraceStep, Tracer};
     use buzz_core::kind::{
-        KIND_CANVAS, KIND_FORUM_COMMENT, KIND_FORUM_POST, KIND_FORUM_VOTE, KIND_LONG_FORM,
-        KIND_MANAGED_AGENT, KIND_PERSONA, KIND_PRESENCE_UPDATE, KIND_STREAM_MESSAGE,
-        KIND_STREAM_MESSAGE_DIFF, KIND_TEAM, KIND_USER_STATUS,
+        KIND_CANVAS, KIND_CYBOTA_ADVICE, KIND_CYBOTA_DIGEST, KIND_CYBOTA_DISSENT,
+        KIND_CYBOTA_RATIFICATION, KIND_CYBOTA_STAGED, KIND_FORUM_COMMENT, KIND_FORUM_POST,
+        KIND_FORUM_VOTE, KIND_LONG_FORM, KIND_MANAGED_AGENT, KIND_PERSONA, KIND_PRESENCE_UPDATE,
+        KIND_STREAM_MESSAGE, KIND_STREAM_MESSAGE_DIFF, KIND_TEAM, KIND_USER_STATUS,
     };
     use nostr::{EventBuilder, Kind};
 
@@ -3510,6 +3521,35 @@ mod tests {
                 required_scope_for_kind(kind, &dummy).unwrap(),
                 Scope::MessagesWrite,
                 "kind {kind} should require MessagesWrite scope"
+            );
+        }
+    }
+
+    /// Whole-branch review regression (Task 4 final fix round): the five
+    /// Cybota governed decision kinds (46200-46204) had NO arm in
+    /// `required_scope_for_kind` and fell to the catch-all
+    /// `_ => Err("restricted: unknown event kind")`. That `Err` returns from
+    /// `ingest_event_inner` before the governed-kinds policy gate is ever
+    /// called, so the gate was unreachable dead code — a valid owner
+    /// ratification would have been rejected as "unknown event kind" before
+    /// the gate could even evaluate it. This test pins the fix: each
+    /// governed kind must resolve to `Ok(Scope::MessagesWrite)`, never
+    /// `Err`, so ingest actually reaches the gate.
+    #[test]
+    fn cybota_governed_kinds_require_messages_write_scope_not_unknown_kind() {
+        let dummy = make_dummy_event();
+        for kind in [
+            KIND_CYBOTA_DIGEST,
+            KIND_CYBOTA_STAGED,
+            KIND_CYBOTA_ADVICE,
+            KIND_CYBOTA_RATIFICATION,
+            KIND_CYBOTA_DISSENT,
+        ] {
+            assert_eq!(
+                required_scope_for_kind(kind, &dummy),
+                Ok(Scope::MessagesWrite),
+                "governed kind {kind} must require MessagesWrite scope, not fall through \
+                 to the unknown-kind catch-all (that would make the policy gate unreachable)"
             );
         }
     }
