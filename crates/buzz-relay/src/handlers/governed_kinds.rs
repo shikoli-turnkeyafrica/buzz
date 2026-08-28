@@ -430,6 +430,179 @@ mod tests {
         );
     }
 
+    // ---- Hardening round (coordinator security review): committed
+    // regression tests for adversarial shapes previously proven safe only in
+    // an external review harness, not pinned by any test in this file. ----
+
+    // ---- DEFAULT-CLOSED on non-object policy shapes ----
+    //
+    // `serde_json::Value::get` returns `None` for any non-object target
+    // (Null, Array, Number, String), so a `policy: Some(...)` that isn't a
+    // JSON object at all takes the same "rule absent" branch as an object
+    // policy that simply omits the kind — default-closed once opted in,
+    // never a wrong-Allow, and never a panic. Confirmed here as committed
+    // coverage for each shape individually.
+    #[test]
+    fn default_closed_on_non_object_policy_shapes() {
+        let cases: [(&str, serde_json::Value); 5] = [
+            ("null", serde_json::Value::Null),
+            ("empty array", json!([])),
+            ("scalar number", json!(5)),
+            ("scalar string", json!("hi")),
+            ("empty object (no rule for this kind)", json!({})),
+        ];
+        for (name, policy) in cases {
+            assert_reject_containing(
+                evaluate_governed_post(
+                    KIND_CYBOTA_RATIFICATION,
+                    Some(&policy),
+                    // Even the channel owner is rejected here — this is the
+                    // default-closed/rule-absent path, not a role check.
+                    &author(Some("owner"), OWNER_PUBKEY),
+                ),
+                "is not authorized in this channel",
+            );
+            let _ = name; // case label kept for failure messages via loop position
+        }
+    }
+
+    // ---- MALFORMED rule shapes: fail-closed, never a wrong-Allow, never a panic ----
+
+    #[test]
+    fn malformed_rule_value_is_json_null() {
+        // {"46203": null} — the rule itself parses but isn't an object.
+        let policy = json!({ "46203": null });
+        assert_reject_containing(
+            evaluate_governed_post(
+                KIND_CYBOTA_RATIFICATION,
+                Some(&policy),
+                &author(Some("owner"), OWNER_PUBKEY),
+            ),
+            "policy is malformed",
+        );
+    }
+
+    #[test]
+    fn malformed_role_value_is_json_null() {
+        // {"46203": {"role": null}} — "role" key present but not a string.
+        let policy = json!({ "46203": { "role": null } });
+        assert_reject_containing(
+            evaluate_governed_post(
+                KIND_CYBOTA_RATIFICATION,
+                Some(&policy),
+                &author(Some("owner"), OWNER_PUBKEY),
+            ),
+            "policy is malformed",
+        );
+    }
+
+    #[test]
+    fn malformed_role_value_case_variants_are_unknown_not_wrong_allow() {
+        // "Owner"/"OWNER" are NOT case-normalized against the canonical
+        // lowercase "owner" — an unrecognized role value must fail closed as
+        // malformed, and must NEVER be silently treated as authorized
+        // (a wrong-Allow here would be a privilege-escalation bug).
+        for variant in ["Owner", "OWNER"] {
+            let policy = json!({ "46203": { "role": variant } });
+            assert_reject_containing(
+                evaluate_governed_post(
+                    KIND_CYBOTA_RATIFICATION,
+                    Some(&policy),
+                    &author(Some("owner"), OWNER_PUBKEY),
+                ),
+                "policy is malformed",
+            );
+        }
+    }
+
+    #[test]
+    fn malformed_role_value_trailing_space_is_unknown() {
+        // {"46203": {"role": "admin "}} — a stray trailing space makes the
+        // value an unrecognized string, not "admin". Fail closed.
+        let policy = json!({ "46203": { "role": "admin " } });
+        assert_reject_containing(
+            evaluate_governed_post(
+                KIND_CYBOTA_RATIFICATION,
+                Some(&policy),
+                &author(Some("admin"), OWNER_PUBKEY),
+            ),
+            "policy is malformed",
+        );
+    }
+
+    #[test]
+    fn malformed_pubkeys_non_string_entries_do_not_panic() {
+        // {"46202": {"pubkeys": [null]}}, [5], [{}] — each non-string entry
+        // must fail the whole rule closed via a checked `as_str()` match,
+        // never an indexing/unwrap panic.
+        for entry in [json!(null), json!(5), json!({})] {
+            let policy = json!({ "46202": { "pubkeys": [entry.clone()] } });
+            assert_reject_containing(
+                evaluate_governed_post(
+                    KIND_CYBOTA_ADVICE,
+                    Some(&policy),
+                    &author(None, EXPERT_PUBKEY),
+                ),
+                "policy is malformed",
+            );
+        }
+    }
+
+    #[test]
+    fn malformed_rule_with_both_role_and_pubkeys_present() {
+        // {"46203": {"role":"owner","pubkeys":[...]}} — an ambiguous rule
+        // that names both a role and an allowlist must fail closed rather
+        // than picking one arbitrarily.
+        let policy = json!({ "46203": { "role": "owner", "pubkeys": [EXPERT_PUBKEY] } });
+        assert_reject_containing(
+            evaluate_governed_post(
+                KIND_CYBOTA_RATIFICATION,
+                Some(&policy),
+                &author(Some("owner"), OWNER_PUBKEY),
+            ),
+            "policy is malformed",
+        );
+    }
+
+    // ---- PUBKEY empty allowlist and near-miss strings ----
+
+    #[test]
+    fn pubkeys_empty_allowlist_never_allows_anyone() {
+        // {"46202": {"pubkeys": []}} — an empty allowlist must reject every
+        // author, including the channel owner. An empty list is not the
+        // same as "no rule" and must not default-open.
+        let policy = json!({ "46202": { "pubkeys": [] } });
+        assert_reject_containing(
+            evaluate_governed_post(
+                KIND_CYBOTA_ADVICE,
+                Some(&policy),
+                &author(Some("owner"), OWNER_PUBKEY),
+            ),
+            "may only be authored by the designated author",
+        );
+    }
+
+    #[test]
+    fn pubkeys_near_miss_strings_fail_closed() {
+        // pubkeys:[X], author "0x"+X (prefixed) and " "+X (leading space) —
+        // neither is byte-equal (case-insensitively) to X, so both must
+        // reject. Proves the match is exact-modulo-case, not a substring or
+        // trimmed comparison.
+        let policy = json!({ "46202": { "pubkeys": [EXPERT_PUBKEY] } });
+        let prefixed = format!("0x{EXPERT_PUBKEY}");
+        let leading_space = format!(" {EXPERT_PUBKEY}");
+        for candidate in [prefixed, leading_space] {
+            assert_reject_containing(
+                evaluate_governed_post(
+                    KIND_CYBOTA_ADVICE,
+                    Some(&policy),
+                    &author(None, &candidate),
+                ),
+                "may only be authored by the designated author",
+            );
+        }
+    }
+
     // ---- ATTACK 1: forged ratification ----
     //
     // The core guarantee this proves: any room writer (a plain member) can
