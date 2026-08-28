@@ -253,15 +253,26 @@ pub async fn enforce_governed_kind_policy(
     // skipped: a community owner who never joined this channel must still
     // be recognized as owner, and a channel owner who holds no community
     // role must still be recognized as channel owner.
-    let community_role = db
-        .get_relay_member(community, &pubkey_hex)
-        .await
-        .map_err(|e| IngestError::Internal(format!("error: {e}")))?
-        .map(|m| m.role);
-    let channel_role = db
-        .get_member_role(community, channel_id, event.pubkey.as_bytes())
-        .await
-        .map_err(|e| IngestError::Internal(format!("error: {e}")))?;
+    //
+    // Both resolved strings are passed through `qualifying_role` before
+    // ranking: `channel_members.role` is a 5-value enum (owner/admin/member/
+    // guest/bot — `MemberRole` in buzz-core), and `guest`/`bot` are NOT
+    // authority the pure core's `role: "member"` arm may treat as
+    // `author.role.is_some()` — a read-only guest or an automated bot must
+    // never satisfy a member-gated governed-kind policy. `relay_members.role`
+    // is already 3-valued by its own DB CHECK constraint, but is filtered
+    // too, for defense in depth and so this invariant lives in one place.
+    let community_role = qualifying_role(
+        db.get_relay_member(community, &pubkey_hex)
+            .await
+            .map_err(|e| IngestError::Internal(format!("error: {e}")))?
+            .map(|m| m.role),
+    );
+    let channel_role = qualifying_role(
+        db.get_member_role(community, channel_id, event.pubkey.as_bytes())
+            .await
+            .map_err(|e| IngestError::Internal(format!("error: {e}")))?,
+    );
 
     let role = highest_role(community_role.as_deref(), channel_role.as_deref());
     let author = AuthorAuthority {
@@ -284,10 +295,41 @@ fn is_well_formed_pubkey_hex(pubkey_hex: &str) -> bool {
     pubkey_hex.len() == 64 && pubkey_hex.chars().all(|c| c.is_ascii_hexdigit())
 }
 
-/// The stronger of two resolved roles, per the community/channel role
-/// precedence `owner > admin > member > (any other channel-only role, e.g.
-/// `guest`/`bot`) > none`. Ties keep the first (community) argument; either
-/// side may be `None`.
+/// `Some(role)` only for the three role strings [`AuthorAuthority::role`]'s
+/// doc comment promises (`"owner"`, `"admin"`, `"member"`) — anything else
+/// (`"guest"`, `"bot"`, or any other unrecognized value a role column might
+/// ever hold) normalizes to `None`, i.e. "no qualifying authority".
+///
+/// This is the fix for a wrong-Allow: `channel_members.role` is a 5-value
+/// enum (`MemberRole` in buzz-core: owner/admin/member/guest/bot), and the
+/// pure core's `role: "member"` rule treats *any* `Some(_)` as satisfying
+/// membership (`author.role.is_some()`). Without this filter, a read-only
+/// `guest` or a `bot` (buzz-core's own docs: guest = "read-only external
+/// participant", bot = "not in the role hierarchy") could author a
+/// member-gated governed decision — a privilege escalation. Called on both
+/// the community-role and channel-role strings before either reaches
+/// [`highest_role`] or [`AuthorAuthority`], so an unqualified role can never
+/// be ranked, never substitutes for a real role, and never reaches the pure
+/// core at all.
+fn qualifying_role(role: Option<String>) -> Option<String> {
+    match role.as_deref() {
+        Some("owner") | Some("admin") | Some("member") => role,
+        _ => None,
+    }
+}
+
+/// The stronger of two resolved roles, per the precedence
+/// `owner > admin > member > none`. Ties keep the first (community)
+/// argument; either side may be `None`.
+///
+/// Callers MUST run both inputs through [`qualifying_role`] first: this
+/// function has no way to distinguish a legitimate role from an unqualified
+/// one (e.g. `guest`/`bot`) — the `Some(_) => 1` arm below only exists as a
+/// defense-in-depth fallback (ranked below `member`, never elevated to it)
+/// in case that invariant is ever violated by a future caller. See
+/// `gate_tests::highest_role_ranks_unqualified_strings_below_member` for
+/// what that fallback guarantees — it is not a claim that any string is a
+/// usable role.
 fn highest_role<'a>(
     community_role: Option<&'a str>,
     channel_role: Option<&'a str>,
@@ -783,8 +825,10 @@ mod tests {
 #[cfg(test)]
 mod gate_tests {
     use super::*;
-    use buzz_core::channel::{ChannelType, ChannelVisibility};
-    use buzz_core::kind::{KIND_CYBOTA_ADVICE, KIND_CYBOTA_DIGEST, KIND_CYBOTA_RATIFICATION};
+    use buzz_core::channel::{ChannelType, ChannelVisibility, MemberRole};
+    use buzz_core::kind::{
+        KIND_CYBOTA_ADVICE, KIND_CYBOTA_DIGEST, KIND_CYBOTA_RATIFICATION, KIND_CYBOTA_STAGED,
+    };
     use nostr::{EventBuilder, Keys, Kind, Tag};
     use uuid::Uuid;
 
@@ -890,10 +934,51 @@ mod gate_tests {
         assert_eq!(highest_role(None, Some("owner")), Some("owner"));
         assert_eq!(highest_role(Some("member"), None), Some("member"));
         assert_eq!(highest_role(None, None), None);
-        // A channel-only role (guest/bot) is weaker than member but still
-        // stronger than no role at all — it must not be discarded.
-        assert_eq!(highest_role(None, Some("guest")), Some("guest"));
+    }
+
+    // ---- wrong-Allow regression: guest/bot must never qualify ----
+
+    #[test]
+    fn qualifying_role_admits_only_owner_admin_member() {
+        assert_eq!(
+            qualifying_role(Some("owner".to_string())),
+            Some("owner".to_string())
+        );
+        assert_eq!(
+            qualifying_role(Some("admin".to_string())),
+            Some("admin".to_string())
+        );
+        assert_eq!(
+            qualifying_role(Some("member".to_string())),
+            Some("member".to_string())
+        );
+        // The wrong-Allow this whole fix exists for: channel_members.role
+        // also admits "guest" (read-only external participant) and "bot"
+        // (never meets any role requirement) — neither is a qualifying
+        // authority.
+        assert_eq!(qualifying_role(Some("guest".to_string())), None);
+        assert_eq!(qualifying_role(Some("bot".to_string())), None);
+        // Any other unrecognized string, and no role at all, also normalize
+        // to None rather than being passed through.
+        assert_eq!(qualifying_role(Some("emperor".to_string())), None);
+        assert_eq!(qualifying_role(None), None);
+    }
+
+    /// Defense-in-depth only (see `highest_role`'s doc comment): proves an
+    /// unqualified string can never outrank — or be mistaken for — `member`,
+    /// in case `qualifying_role` were ever skipped by a future caller. This
+    /// is NOT a claim that `"guest"`/`"bot"` are usable roles; the gate never
+    /// lets them reach `highest_role` in the first place (see
+    /// `channel_guest_and_bot_never_qualify_for_a_role_member_policy` below
+    /// for the real, end-to-end regression proof).
+    #[test]
+    fn highest_role_ranks_unqualified_strings_below_member_never_elevating_them() {
         assert_eq!(highest_role(Some("member"), Some("guest")), Some("member"));
+        assert_eq!(highest_role(Some("guest"), Some("member")), Some("member"));
+        // An unqualified string alone (no real role on either side) is still
+        // ranked above `None` here — which is exactly why `qualifying_role`
+        // MUST run first: this function alone cannot make "guest" disappear.
+        assert_eq!(highest_role(None, Some("guest")), Some("guest"));
     }
 
     // ---- DB-backed fixtures ----
@@ -1148,6 +1233,70 @@ mod gate_tests {
         assert!(
             result.is_ok(),
             "community-role owner must satisfy a role:owner policy, got {result:?}"
+        );
+    }
+
+    /// WRONG-ALLOW REGRESSION (coordinator review, fix round 1): a channel
+    /// `guest` (read-only external participant) or `bot` (never in the role
+    /// hierarchy) must be rejected under a `{"role":"member"}` policy — not
+    /// silently accepted because the pure core's member arm only checks
+    /// `author.role.is_some()`. A genuine `member` under the identical
+    /// policy is still allowed, proving the fix does not over-correct.
+    #[tokio::test]
+    #[ignore = "requires Postgres"]
+    async fn channel_guest_and_bot_never_qualify_for_a_role_member_policy() {
+        let (db, pool) = test_db_and_pool().await;
+        let community = seed_community(&db).await;
+        let owner_keys = Keys::generate();
+        let owner_bytes = owner_keys.public_key().to_bytes();
+        let channel_id = seed_channel(&db, community, &owner_bytes).await;
+
+        set_policy(
+            &pool,
+            community,
+            channel_id,
+            serde_json::json!({ "46201": { "role": "member" } }),
+        )
+        .await;
+
+        for (label, role) in [("guest", MemberRole::Guest), ("bot", MemberRole::Bot)] {
+            let keys = Keys::generate();
+            let pubkey = keys.public_key().to_bytes();
+            db.add_member(community, channel_id, &pubkey, role, Some(&owner_bytes))
+                .await
+                .unwrap_or_else(|e| panic!("add {label} member: {e}"));
+
+            let event = signed_event(&keys, KIND_CYBOTA_STAGED, vec![h_tag(channel_id)]);
+            let result =
+                enforce_governed_kind_policy(&db, community, &event, KIND_CYBOTA_STAGED).await;
+            match result {
+                Err(IngestError::Rejected(_)) => {}
+                other => panic!(
+                    "channel {label} must be Rejected under a role:member policy \
+                     (wrong-Allow regression), got {other:?}"
+                ),
+            }
+        }
+
+        // A genuine member under the identical policy is still allowed —
+        // the fix must not over-correct into rejecting real members.
+        let member_keys = Keys::generate();
+        let member_bytes = member_keys.public_key().to_bytes();
+        db.add_member(
+            community,
+            channel_id,
+            &member_bytes,
+            MemberRole::Member,
+            Some(&owner_bytes),
+        )
+        .await
+        .expect("add genuine member");
+        let member_event = signed_event(&member_keys, KIND_CYBOTA_STAGED, vec![h_tag(channel_id)]);
+        let member_result =
+            enforce_governed_kind_policy(&db, community, &member_event, KIND_CYBOTA_STAGED).await;
+        assert!(
+            member_result.is_ok(),
+            "a genuine member must still satisfy a role:member policy, got {member_result:?}"
         );
     }
 }
