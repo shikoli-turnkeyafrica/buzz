@@ -581,6 +581,18 @@ pub const KIND_WORKFLOW_APPROVAL_GRANTED: u32 = 46011;
 /// A pending workflow approval was denied.
 pub const KIND_WORKFLOW_APPROVAL_DENIED: u32 = 46012;
 
+// Cybota governed decision kinds (46200–46204)
+/// Cybota governed decision: digest (outcome ledger entry).
+pub const KIND_CYBOTA_DIGEST: u32 = 46200;
+/// Cybota governed decision: staged decision (pre-ratification).
+pub const KIND_CYBOTA_STAGED: u32 = 46201;
+/// Cybota governed decision: advice (guidance on pending decision).
+pub const KIND_CYBOTA_ADVICE: u32 = 46202;
+/// Cybota governed decision: ratification (decision acceptance).
+pub const KIND_CYBOTA_RATIFICATION: u32 = 46203;
+/// Cybota governed decision: dissent (objection to decision).
+pub const KIND_CYBOTA_DISSENT: u32 = 46204;
+
 // User groups (47000–47999)
 
 // System / admin custom range (48000–48999)
@@ -745,6 +757,11 @@ pub const ALL_KINDS: &[u32] = &[
     KIND_WORKFLOW_APPROVAL_REQUESTED,
     KIND_WORKFLOW_APPROVAL_GRANTED,
     KIND_WORKFLOW_APPROVAL_DENIED,
+    KIND_CYBOTA_DIGEST,
+    KIND_CYBOTA_STAGED,
+    KIND_CYBOTA_ADVICE,
+    KIND_CYBOTA_RATIFICATION,
+    KIND_CYBOTA_DISSENT,
     KIND_AUDIT_ENTRY,
     KIND_HUDDLE_STARTED,
     KIND_HUDDLE_PARTICIPANT_JOINED,
@@ -839,6 +856,31 @@ pub const fn is_relay_only_kind(kind: u32) -> bool {
     )
 }
 
+/// Returns `true` if `kind` is a Cybota governed decision kind (46200–46204).
+pub const fn is_cybota_governed_kind(kind: u32) -> bool {
+    matches!(
+        kind,
+        KIND_CYBOTA_DIGEST
+            | KIND_CYBOTA_STAGED
+            | KIND_CYBOTA_ADVICE
+            | KIND_CYBOTA_RATIFICATION
+            | KIND_CYBOTA_DISSENT
+    )
+}
+
+/// Returns the human-readable label for a Cybota governed decision kind.
+/// Returns `None` for non-governed kinds.
+pub const fn cybota_governed_kind_label(kind: u32) -> Option<&'static str> {
+    match kind {
+        KIND_CYBOTA_DIGEST => Some("digest"),
+        KIND_CYBOTA_STAGED => Some("staged decision"),
+        KIND_CYBOTA_ADVICE => Some("advice"),
+        KIND_CYBOTA_RATIFICATION => Some("ratification"),
+        KIND_CYBOTA_DISSENT => Some("dissent"),
+        _ => None,
+    }
+}
+
 /// Extract the kind from a nostr Event as u32.
 /// NIP-01 specifies kind as an unsigned integer; u32 covers the full range.
 pub fn event_kind_u32(event: &nostr::Event) -> u32 {
@@ -885,6 +927,19 @@ const _: () = assert!(!is_ephemeral(KIND_AGENT_TURN_METRIC));
 const _: () = assert!(!is_replaceable(KIND_AGENT_TURN_METRIC));
 const _: () = assert!(!is_parameterized_replaceable(KIND_AGENT_TURN_METRIC));
 const _: () = assert!(KIND_AGENT_TURN_METRIC <= u16::MAX as u32);
+// Cybota governed decision kinds (46200–46204) are regular stored kinds.
+const _: () = assert!(KIND_CYBOTA_DIGEST <= u16::MAX as u32);
+const _: () = assert!(KIND_CYBOTA_STAGED <= u16::MAX as u32);
+const _: () = assert!(KIND_CYBOTA_ADVICE <= u16::MAX as u32);
+const _: () = assert!(KIND_CYBOTA_RATIFICATION <= u16::MAX as u32);
+const _: () = assert!(KIND_CYBOTA_DISSENT <= u16::MAX as u32);
+const _: () = assert!(!is_ephemeral(KIND_CYBOTA_DIGEST));
+const _: () = assert!(!is_replaceable(KIND_CYBOTA_DIGEST));
+const _: () = assert!(!is_parameterized_replaceable(KIND_CYBOTA_DIGEST));
+const _: () = assert!(is_cybota_governed_kind(KIND_CYBOTA_DIGEST));
+const _: () = assert!(is_cybota_governed_kind(KIND_CYBOTA_RATIFICATION));
+const _: () = assert!(!is_cybota_governed_kind(46199));
+const _: () = assert!(!is_cybota_governed_kind(46205));
 // Moderation kinds fit u16 and are neither replaceable nor ephemeral:
 // 1984 is a regular event (persisted to the queue, never fanned out);
 // 9040–9044 are direct commands (executed, never stored).
@@ -1081,5 +1136,26 @@ mod tests {
         // from its own delegated readers.
         assert!(!is_shared_gated_kind(KIND_TEAM));
         assert!(!is_shared_gated_kind(KIND_MANAGED_AGENT));
+    }
+
+    #[test]
+    fn cybota_governed_kinds_are_recognized() {
+        for k in [46200u32, 46201, 46202, 46203, 46204] {
+            assert!(is_cybota_governed_kind(k), "kind {k} should be governed");
+            assert!(cybota_governed_kind_label(k).is_some());
+        }
+        assert!(!is_cybota_governed_kind(9));      // ordinary chat
+        assert!(!is_cybota_governed_kind(46199));  // just below the band
+        assert!(!is_cybota_governed_kind(46205));  // just above
+        assert!(cybota_governed_kind_label(9).is_none());
+    }
+
+    #[test]
+    fn cybota_kinds_do_not_collide_with_existing_bands() {
+        // 46010-46031 are Buzz workflow/approval; 46200+ must be clear.
+        for k in [KIND_CYBOTA_DIGEST, KIND_CYBOTA_STAGED, KIND_CYBOTA_ADVICE,
+                  KIND_CYBOTA_RATIFICATION, KIND_CYBOTA_DISSENT] {
+            assert!(k >= 46200 && k <= 46204);
+        }
     }
 }
