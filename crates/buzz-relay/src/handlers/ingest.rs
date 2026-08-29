@@ -14,7 +14,7 @@ use buzz_core::kind::{
     event_kind_u32, is_identity_archive_request_kind, is_parameterized_replaceable,
     is_relay_admin_kind, KIND_AGENT_ENGRAM, KIND_AGENT_PROFILE, KIND_AGENT_TURN_METRIC,
     KIND_APPROVAL_DENY, KIND_APPROVAL_GRANT, KIND_AUTH, KIND_BOOKMARK_LIST, KIND_BOOKMARK_SET,
-    KIND_CANVAS, KIND_CONTACT_LIST, KIND_DELETION, KIND_DM_ADD_MEMBER, KIND_DM_HIDE, KIND_DM_OPEN,
+    KIND_CANVAS, KIND_CONTACT_LIST, KIND_CYBOTA_SET_POLICY, KIND_DELETION, KIND_DM_ADD_MEMBER, KIND_DM_HIDE, KIND_DM_OPEN,
     KIND_EMOJI_LIST, KIND_EMOJI_SET, KIND_EVENT_REMINDER, KIND_FOLLOW_SET, KIND_FORUM_COMMENT,
     KIND_FORUM_POST, KIND_FORUM_VOTE, KIND_GIFT_WRAP, KIND_GIT_ISSUE, KIND_GIT_PATCH,
     KIND_GIT_PR_UPDATE, KIND_GIT_PULL_REQUEST, KIND_GIT_REPO_ANNOUNCEMENT, KIND_GIT_REPO_STATE,
@@ -460,6 +460,9 @@ fn required_scope_for_kind(kind: u32, event: &Event) -> Result<Scope, &'static s
         // this arm these kinds fell to the catch-all below as "unknown event
         // kind" and the gate was unreachable dead code.
         k if buzz_core::kind::is_cybota_governed_kind(k) => Ok(Scope::MessagesWrite),
+        // Cybota SET_POLICY command (46210): owner-only policy management,
+        // requires admin channel access.
+        KIND_CYBOTA_SET_POLICY => Ok(Scope::AdminChannels),
         _ => Err("restricted: unknown event kind"),
     }
 }
@@ -3552,6 +3555,15 @@ mod tests {
                  to the unknown-kind catch-all (that would make the policy gate unreachable)"
             );
         }
+    }
+
+    #[test]
+    fn set_policy_requires_admin_channels_scope() {
+        let dummy = make_dummy_event();
+        assert_eq!(
+            required_scope_for_kind(KIND_CYBOTA_SET_POLICY, &dummy).unwrap(),
+            Scope::AdminChannels
+        );
     }
 
     #[test]

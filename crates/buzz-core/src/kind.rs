@@ -593,6 +593,10 @@ pub const KIND_CYBOTA_RATIFICATION: u32 = 46203;
 /// Cybota governed decision: dissent (objection to decision).
 pub const KIND_CYBOTA_DISSENT: u32 = 46204;
 
+// Cybota command kinds (46210+)
+/// Buzz rung 1b — owner-only governance policy set/clear command; routes via command_executor, NOT a governed decision kind.
+pub const KIND_CYBOTA_SET_POLICY: u32 = 46210;
+
 // User groups (47000–47999)
 
 // System / admin custom range (48000–48999)
@@ -762,6 +766,7 @@ pub const ALL_KINDS: &[u32] = &[
     KIND_CYBOTA_ADVICE,
     KIND_CYBOTA_RATIFICATION,
     KIND_CYBOTA_DISSENT,
+    KIND_CYBOTA_SET_POLICY,
     KIND_AUDIT_ENTRY,
     KIND_HUDDLE_STARTED,
     KIND_HUDDLE_PARTICIPANT_JOINED,
@@ -839,6 +844,7 @@ pub const fn is_command_kind(kind: u32) -> bool {
             | KIND_WORKFLOW_TRIGGER
             | KIND_APPROVAL_GRANT
             | KIND_APPROVAL_DENY
+            | KIND_CYBOTA_SET_POLICY
     )
 }
 
@@ -1157,5 +1163,12 @@ mod tests {
                   KIND_CYBOTA_RATIFICATION, KIND_CYBOTA_DISSENT] {
             assert!(k >= 46200 && k <= 46204);
         }
+    }
+
+    #[test]
+    fn set_policy_is_a_command_kind_not_a_governed_kind() {
+        assert!(is_command_kind(KIND_CYBOTA_SET_POLICY));
+        assert!(!is_cybota_governed_kind(KIND_CYBOTA_SET_POLICY)); // gate must ignore it
+        assert_eq!(KIND_CYBOTA_SET_POLICY, 46210);
     }
 }
