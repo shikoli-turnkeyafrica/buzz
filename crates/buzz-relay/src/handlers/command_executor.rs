@@ -1375,6 +1375,18 @@ async fn handle_approval_deny(
 /// (mirroring `handle_dm_open`'s pre-persist validation and
 /// `handle_workflow_trigger`'s pre-persist ownership check) — a rejected
 /// command is never written to the event log at all.
+///
+/// ## Rung 2: the `minute_book` tag (one-way append-only latch)
+///
+/// A `["minute_book", "true"|"false"]` tag rides the SAME owner authz above
+/// — no separate check, so a non-owner can never latch a channel. `"false"`
+/// is rejected immediately (before any DB write): the latch is one-way by
+/// design (Task 1's `channels` trigger also refuses true→false at the
+/// storage layer as the ultimate guarantee). `"true"` COMPOSES with a
+/// policy SET — a command can carry both the tag and policy `content`, and
+/// both apply — and is independent of `clear`: a minute_book-only command
+/// (the tag, empty content, no `clear`) sets the latch without touching the
+/// policy row, and `clear` never reads or resets minute_book.
 async fn handle_set_policy(
     tenant: &TenantContext,
     state: &Arc<AppState>,
@@ -1403,9 +1415,30 @@ async fn handle_set_policy(
         ));
     }
 
+    // 2.5. Minute-book tag (`["minute_book", "true"|"false"]`) — rides the
+    // SAME owner authz above (a non-owner never reaches this point, so the
+    // latch can never be set by anyone but the owner). `false` is a request
+    // to un-latch: the latch is one-way by design (the DB trigger from Task
+    // 1 also refuses this at the storage layer), so reject it here, before
+    // any DB write — no persist, no domain mutation.
+    let minute_book_tag = event.tags.iter().find_map(|t| {
+        (t.kind().to_string() == "minute_book").then(|| t.content().unwrap_or("").to_string())
+    });
+    if minute_book_tag.as_deref() == Some("false") {
+        return Err(IngestError::Rejected(
+            "restricted: minute-book mode is a one-way latch and cannot be disabled".into(),
+        ));
+    }
+
     // 3. Mode + validation, both before persisting anything.
     let is_clear = event.tags.iter().any(|t| t.kind().to_string() == "clear");
-    let policy: Option<serde_json::Value> = if is_clear {
+    // A minute_book-only command (the tag, no policy content, no clear)
+    // just sets the latch — it must not be forced to also carry a policy
+    // body. The tag COMPOSES with a real policy SET: if content is present,
+    // it's still parsed and validated as normal, and applied alongside the
+    // latch.
+    let minute_book_only = minute_book_tag.is_some() && !is_clear && event.content.trim().is_empty();
+    let policy: Option<serde_json::Value> = if is_clear || minute_book_only {
         None
     } else {
         let parsed: serde_json::Value = serde_json::from_str(&event.content).map_err(|_| {
@@ -1434,28 +1467,43 @@ async fn handle_set_policy(
         PersistResult::Inserted(tx) => tx,
     };
 
-    // 4. Execute: set (upsert) or clear (delete) the policy row. Domain
-    // mutation runs on the pool via `state.db`, not inside `tx` — the same
-    // pattern `persist_command_event`'s module doc describes for every
-    // other command handler.
-    match &policy {
-        Some(policy) => state
-            .db
-            .set_channel_governance_policy(tenant.community(), channel_id, policy)
-            .await
-            .map_err(|e| {
-                IngestError::Internal(format!("error: db set_channel_governance_policy: {e}"))
-            })?,
-        None => state
+    // 4. Execute: set (upsert), clear (delete), or neither (a
+    // minute_book-only command touches no policy row at all) — then, if the
+    // tag requested it, latch minute_book. Both mutations run on the pool
+    // via `state.db`, not inside `tx` — the same pattern
+    // `persist_command_event`'s module doc describes for every other
+    // command handler. The two mutations are independent: clear never
+    // reads or resets minute_book (it deletes a `channel_governance_policy`
+    // row; the latch lives on `channels`), and a latch-only command never
+    // touches the policy row.
+    if is_clear {
+        state
             .db
             .clear_channel_governance_policy(tenant.community(), channel_id)
             .await
             .map_err(|e| {
                 IngestError::Internal(format!("error: db clear_channel_governance_policy: {e}"))
-            })?,
+            })?;
+    } else if let Some(policy) = &policy {
+        state
+            .db
+            .set_channel_governance_policy(tenant.community(), channel_id, policy)
+            .await
+            .map_err(|e| {
+                IngestError::Internal(format!("error: db set_channel_governance_policy: {e}"))
+            })?;
     }
 
-    // Commit: event + policy mutation succeeded atomically.
+    let minute_book_set = minute_book_tag.as_deref() == Some("true");
+    if minute_book_set {
+        state
+            .db
+            .set_minute_book(tenant.community(), channel_id)
+            .await
+            .map_err(|e| IngestError::Internal(format!("error: db set_minute_book: {e}")))?;
+    }
+
+    // Commit: event + mutation(s) succeeded atomically.
     tx.commit()
         .await
         .map_err(|e| IngestError::Internal(format!("error: commit transaction: {e}")))?;
@@ -1469,6 +1517,7 @@ async fn handle_set_policy(
             serde_json::json!({
                 "channel_id": channel_id.to_string(),
                 "cleared": is_clear,
+                "minute_book_set": minute_book_set,
             })
         ),
     })
@@ -1875,6 +1924,10 @@ mod tests {
             Tag::parse(["clear"]).expect("valid clear tag")
         }
 
+        fn minute_book_tag(value: &str) -> Tag {
+            Tag::parse(["minute_book", value]).expect("valid minute_book tag")
+        }
+
         fn set_policy_event(keys: &Keys, channel_id: Uuid, content: &str) -> Event {
             EventBuilder::new(Kind::Custom(KIND_CYBOTA_SET_POLICY as u16), content)
                 .tags(vec![h_tag(channel_id)])
@@ -1888,6 +1941,28 @@ mod tests {
                 .sign_with_keys(keys)
                 .expect("sign clear-policy event")
         }
+
+        /// A minute_book-only command: the tag, no policy content, no clear.
+        fn minute_book_only_event(keys: &Keys, channel_id: Uuid, value: &str) -> Event {
+            EventBuilder::new(Kind::Custom(KIND_CYBOTA_SET_POLICY as u16), "")
+                .tags(vec![h_tag(channel_id), minute_book_tag(value)])
+                .sign_with_keys(keys)
+                .expect("sign minute-book-only event")
+        }
+
+        /// A minute_book tag composed with a policy SET (both applied).
+        fn minute_book_with_policy_event(
+            keys: &Keys,
+            channel_id: Uuid,
+            value: &str,
+            content: &str,
+        ) -> Event {
+            EventBuilder::new(Kind::Custom(KIND_CYBOTA_SET_POLICY as u16), content)
+                .tags(vec![h_tag(channel_id), minute_book_tag(value)])
+                .sign_with_keys(keys)
+                .expect("sign minute-book+policy event")
+        }
+
 
         fn rejection_message(result: Result<IngestResult, IngestError>) -> String {
             match result {
@@ -2137,6 +2212,246 @@ mod tests {
             assert!(
                 msg.contains("requires a channel"),
                 "unexpected message: {msg:?}"
+            );
+        }
+
+        // ---- Rung 2: minute_book tag on handle_set_policy ----
+
+        // ---- (h) owner posts minute_book:true only (no policy content) -> Ok; latch set ----
+
+        #[tokio::test]
+        #[ignore = "requires Postgres"]
+        async fn owner_minute_book_only_sets_latch_no_policy_required() {
+            let (state, tenant) = set_policy_test_state().await;
+            let owner_keys = Keys::generate();
+            let owner_bytes = owner_keys.public_key().to_bytes().to_vec();
+            let channel_id = seed_channel(&state, &tenant, &owner_bytes).await;
+
+            let event = minute_book_only_event(&owner_keys, channel_id, "true");
+            let auth = auth_for(&owner_keys);
+
+            let result = handle_set_policy(&tenant, &state, &event, &auth).await;
+            assert!(result.is_ok(), "expected Ok, got {}", describe(result));
+
+            let latched = state
+                .db
+                .is_minute_book(tenant.community(), channel_id)
+                .await
+                .expect("read minute_book");
+            assert!(latched, "minute_book must be latched true");
+
+            let row = state
+                .db
+                .get_channel_governance_policy(tenant.community(), channel_id)
+                .await
+                .expect("read policy row");
+            assert_eq!(
+                row, None,
+                "a minute_book-only command must not create a policy row"
+            );
+        }
+
+        // ---- (i) non-owner (member, admin) posts minute_book:true -> Rejected; latch NOT set ----
+
+        #[tokio::test]
+        #[ignore = "requires Postgres"]
+        async fn member_cannot_set_minute_book() {
+            let (state, tenant) = set_policy_test_state().await;
+            let owner_keys = Keys::generate();
+            let owner_bytes = owner_keys.public_key().to_bytes().to_vec();
+            let channel_id = seed_channel(&state, &tenant, &owner_bytes).await;
+
+            let member_keys = Keys::generate();
+            let member_bytes = member_keys.public_key().to_bytes();
+            state
+                .db
+                .add_member(
+                    tenant.community(),
+                    channel_id,
+                    &member_bytes,
+                    MemberRole::Member,
+                    Some(&owner_bytes),
+                )
+                .await
+                .expect("add member");
+
+            let event = minute_book_only_event(&member_keys, channel_id, "true");
+            let auth = auth_for(&member_keys);
+
+            let msg = rejection_message(handle_set_policy(&tenant, &state, &event, &auth).await);
+            assert!(
+                msg.contains("only the channel owner"),
+                "unexpected message: {msg:?}"
+            );
+
+            let latched = state
+                .db
+                .is_minute_book(tenant.community(), channel_id)
+                .await
+                .expect("read minute_book");
+            assert!(
+                !latched,
+                "a rejected set must never latch minute_book — authz gates the latch too"
+            );
+        }
+
+        #[tokio::test]
+        #[ignore = "requires Postgres"]
+        async fn admin_cannot_set_minute_book() {
+            let (state, tenant) = set_policy_test_state().await;
+            let owner_keys = Keys::generate();
+            let owner_bytes = owner_keys.public_key().to_bytes().to_vec();
+            let channel_id = seed_channel(&state, &tenant, &owner_bytes).await;
+
+            let admin_keys = Keys::generate();
+            let admin_bytes = admin_keys.public_key().to_bytes();
+            state
+                .db
+                .add_member(
+                    tenant.community(),
+                    channel_id,
+                    &admin_bytes,
+                    MemberRole::Admin,
+                    Some(&owner_bytes),
+                )
+                .await
+                .expect("add admin");
+
+            let event = minute_book_only_event(&admin_keys, channel_id, "true");
+            let auth = auth_for(&admin_keys);
+
+            let msg = rejection_message(handle_set_policy(&tenant, &state, &event, &auth).await);
+            assert!(
+                msg.contains("only the channel owner"),
+                "admin must be rejected by the same owner-only message: {msg:?}"
+            );
+
+            let latched = state
+                .db
+                .is_minute_book(tenant.community(), channel_id)
+                .await
+                .expect("read minute_book");
+            assert!(
+                !latched,
+                "admin must never be able to latch minute_book (admin is excluded, same as policy)"
+            );
+        }
+
+        // ---- (j) owner posts minute_book:false -> Rejected("...one-way latch..."); unchanged ----
+
+        #[tokio::test]
+        #[ignore = "requires Postgres"]
+        async fn owner_minute_book_false_is_rejected_one_way_latch() {
+            let (state, tenant) = set_policy_test_state().await;
+            let owner_keys = Keys::generate();
+            let owner_bytes = owner_keys.public_key().to_bytes().to_vec();
+            let channel_id = seed_channel(&state, &tenant, &owner_bytes).await;
+
+            state
+                .db
+                .set_minute_book(tenant.community(), channel_id)
+                .await
+                .expect("pre-latch channel");
+
+            let event = minute_book_only_event(&owner_keys, channel_id, "false");
+            let auth = auth_for(&owner_keys);
+
+            let msg = rejection_message(handle_set_policy(&tenant, &state, &event, &auth).await);
+            assert!(
+                msg.contains("one-way latch"),
+                "unexpected message: {msg:?}"
+            );
+
+            let latched = state
+                .db
+                .is_minute_book(tenant.community(), channel_id)
+                .await
+                .expect("read minute_book");
+            assert!(latched, "minute_book must remain latched true");
+        }
+
+        // ---- (k) owner posts minute_book:true alongside a valid policy -> BOTH applied ----
+
+        #[tokio::test]
+        #[ignore = "requires Postgres"]
+        async fn owner_minute_book_true_composes_with_policy_set() {
+            let (state, tenant) = set_policy_test_state().await;
+            let owner_keys = Keys::generate();
+            let owner_bytes = owner_keys.public_key().to_bytes().to_vec();
+            let channel_id = seed_channel(&state, &tenant, &owner_bytes).await;
+
+            let policy = json!({ "46203": { "role": "owner" } });
+            let event = minute_book_with_policy_event(
+                &owner_keys,
+                channel_id,
+                "true",
+                &policy.to_string(),
+            );
+            let auth = auth_for(&owner_keys);
+
+            let result = handle_set_policy(&tenant, &state, &event, &auth).await;
+            assert!(result.is_ok(), "expected Ok, got {}", describe(result));
+
+            let latched = state
+                .db
+                .is_minute_book(tenant.community(), channel_id)
+                .await
+                .expect("read minute_book");
+            assert!(latched, "minute_book must be latched true");
+
+            let row = state
+                .db
+                .get_channel_governance_policy(tenant.community(), channel_id)
+                .await
+                .expect("read policy row");
+            assert_eq!(row, Some(policy), "the policy set must also apply");
+        }
+
+        // ---- (l) owner posts ["clear"] on a minute_book=true channel -> policy row deleted, latch unchanged ----
+
+        #[tokio::test]
+        #[ignore = "requires Postgres"]
+        async fn owner_clear_does_not_touch_minute_book_latch() {
+            let (state, tenant) = set_policy_test_state().await;
+            let owner_keys = Keys::generate();
+            let owner_bytes = owner_keys.public_key().to_bytes().to_vec();
+            let channel_id = seed_channel(&state, &tenant, &owner_bytes).await;
+
+            state
+                .db
+                .set_channel_governance_policy(
+                    tenant.community(),
+                    channel_id,
+                    &json!({ "46203": { "role": "owner" } }),
+                )
+                .await
+                .expect("seed existing policy");
+            state
+                .db
+                .set_minute_book(tenant.community(), channel_id)
+                .await
+                .expect("pre-latch channel");
+
+            let event = clear_policy_event(&owner_keys, channel_id);
+            let auth = auth_for(&owner_keys);
+            let result = handle_set_policy(&tenant, &state, &event, &auth).await;
+            assert!(result.is_ok(), "expected Ok, got {}", describe(result));
+
+            let row = state
+                .db
+                .get_channel_governance_policy(tenant.community(), channel_id)
+                .await
+                .expect("read policy row");
+            assert_eq!(row, None, "clear must delete the policy row");
+
+            let latched = state
+                .db
+                .is_minute_book(tenant.community(), channel_id)
+                .await
+                .expect("read minute_book");
+            assert!(
+                latched,
+                "clear must NOT touch minute_book — the latch is independent of governance clear"
             );
         }
     }
