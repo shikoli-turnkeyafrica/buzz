@@ -256,6 +256,56 @@ pub async fn validate_standard_deletion_event(
         {
             return Err(anyhow::anyhow!("must be event author"));
         }
+
+        // A minute-book channel must reject every deletion, including
+        // addressable (a-tag) NIP-09 deletions — the e-tag path above only
+        // sees deletions that target a concrete event id; a parameterized-
+        // replaceable event (kind 30000-39999) carrying an h tag can also
+        // live in a channel (ingest assigns it a channel_id via the h tag),
+        // and its coordinate-keyed delete must be gated the same way.
+        //
+        // Resolve the coordinate's current live row (if the a-tag's kind
+        // parses) to get its channel_id, and — belt and suspenders — also
+        // check the deletion event's own h tag if it carries one. Either
+        // channel being a minute book is enough to reject: a malformed or
+        // partial a-tag must never be a way to bypass the latch.
+        let coordinate_channel_id = match parts[0].parse::<i32>() {
+            Ok(kind_num) => {
+                let d_tag = parts.get(2).copied().unwrap_or("");
+                state
+                    .db
+                    .query_events(&buzz_db::event::EventQuery {
+                        kinds: Some(vec![kind_num]),
+                        pubkey: Some(target_pubkey_bytes.clone()),
+                        d_tag: Some(d_tag.to_string()),
+                        limit: Some(1),
+                        ..buzz_db::event::EventQuery::for_community(tenant.community())
+                    })
+                    .await
+                    .map_err(|_| anyhow::anyhow!("failed to resolve a-tag deletion target"))?
+                    .into_iter()
+                    .next()
+                    .and_then(|e| e.channel_id)
+            }
+            Err(_) => None,
+        };
+
+        for channel_id in coordinate_channel_id
+            .into_iter()
+            .chain(extract_h_tag_channel(event))
+        {
+            if state
+                .db
+                .is_minute_book(tenant.community(), channel_id)
+                .await
+                .map_err(|_| anyhow::anyhow!("failed to check channel minute-book status"))?
+            {
+                return Err(anyhow::anyhow!(
+                    "restricted: channel is an append-only minute book; deletions are not permitted"
+                ));
+            }
+        }
+
         return Ok(());
     }
 
@@ -3736,6 +3786,52 @@ mod tests {
                 .expect("sign kind-9005 admin delete")
         }
 
+        /// A parameterized-replaceable (NIP-33) kind, 30000-39999, carrying an
+        /// `h` tag — ingest assigns such an event a `channel_id` (see
+        /// `ingest.rs`'s h-tag `extract_channel_id` path), so it can live in a
+        /// channel exactly like an ordinary message. Inserted directly (like
+        /// `seed_message`) so the test controls `channel_id` precisely rather
+        /// than depending on ingest's channel-scoping rules.
+        const PARAM_REPLACEABLE_KIND: u32 = 30078;
+
+        async fn seed_param_replaceable(
+            state: &Arc<AppState>,
+            tenant: &TenantContext,
+            channel_id: Uuid,
+            keys: &Keys,
+            d_tag_value: &str,
+        ) -> Event {
+            let event = EventBuilder::new(
+                Kind::Custom(PARAM_REPLACEABLE_KIND as u16),
+                "minute-book target param-replaceable content",
+            )
+            .tags([
+                Tag::parse(["d", d_tag_value]).expect("valid d tag"),
+                Tag::parse(["h", &channel_id.to_string()]).expect("valid h tag"),
+            ])
+            .sign_with_keys(keys)
+            .expect("sign param-replaceable event");
+            state
+                .db
+                .insert_event(tenant.community(), &event, Some(channel_id))
+                .await
+                .expect("insert target param-replaceable event");
+            event
+        }
+
+        /// A NIP-09 a-tag (coordinate) deletion of `kind:pubkey:d_tag`, signed
+        /// by `keys` (self-delete of the coordinate's own author).
+        fn kind5_a_tag_delete(keys: &Keys, d_tag_value: &str) -> Event {
+            let a_value = format!(
+                "{PARAM_REPLACEABLE_KIND}:{}:{d_tag_value}",
+                keys.public_key().to_hex()
+            );
+            EventBuilder::new(Kind::Custom(5), "")
+                .tags([Tag::parse(["a", &a_value]).expect("valid a tag")])
+                .sign_with_keys(keys)
+                .expect("sign kind-5 a-tag deletion")
+        }
+
         #[tokio::test]
         #[ignore = "requires Postgres"]
         async fn kind5_self_delete_rejected_in_minute_book_channel() {
@@ -3836,6 +3932,72 @@ mod tests {
             assert!(
                 result.is_ok(),
                 "ordinary channel admin-deletion must be unaffected: {result:?}"
+            );
+        }
+
+        // ---- Fix round 1: a-tag (coordinate) deletion gate ----
+        //
+        // The e-tag path above only sees deletions naming a concrete event
+        // id. NIP-09 also allows deleting a parameterized-replaceable event
+        // by its `kind:pubkey:d_tag` coordinate via an `a` tag — a
+        // channel-scoped coordinate (kind 30000-39999 carrying an h tag) must
+        // be gated the same way as an e-tag delete.
+
+        #[tokio::test]
+        #[ignore = "requires Postgres"]
+        async fn kind5_a_tag_delete_rejected_in_minute_book_channel() {
+            let (state, tenant) = minute_book_test_state().await;
+            let author_keys = Keys::generate();
+            let author_bytes = author_keys.public_key().to_bytes();
+            let channel_id = seed_channel(&state, &tenant, &author_bytes).await;
+            state
+                .db
+                .set_minute_book(tenant.community(), channel_id)
+                .await
+                .expect("latch channel");
+
+            let d_tag_value = "minute-book-coordinate-target";
+            let target =
+                seed_param_replaceable(&state, &tenant, channel_id, &author_keys, d_tag_value)
+                    .await;
+            let deletion = kind5_a_tag_delete(&author_keys, d_tag_value);
+
+            let result = validate_standard_deletion_event(&tenant, &deletion, &state).await;
+            let err =
+                result.expect_err("a-tag deletion in a minute-book channel must be rejected");
+            assert!(
+                err.to_string().contains("append-only minute book"),
+                "unexpected error: {err}"
+            );
+
+            let still_present = state
+                .db
+                .get_event_by_id(tenant.community(), target.id.as_bytes())
+                .await
+                .expect("query target event")
+                .expect("target event must still be present");
+            assert_eq!(still_present.event.id, target.id);
+        }
+
+        #[tokio::test]
+        #[ignore = "requires Postgres"]
+        async fn kind5_a_tag_delete_ok_in_non_minute_book_channel() {
+            let (state, tenant) = minute_book_test_state().await;
+            let author_keys = Keys::generate();
+            let author_bytes = author_keys.public_key().to_bytes();
+            let channel_id = seed_channel(&state, &tenant, &author_bytes).await;
+            // No set_minute_book call: latch stays false — this is the control.
+
+            let d_tag_value = "non-minute-book-coordinate-target";
+            let _target =
+                seed_param_replaceable(&state, &tenant, channel_id, &author_keys, d_tag_value)
+                    .await;
+            let deletion = kind5_a_tag_delete(&author_keys, d_tag_value);
+
+            let result = validate_standard_deletion_event(&tenant, &deletion, &state).await;
+            assert!(
+                result.is_ok(),
+                "ordinary channel a-tag deletion must be unaffected: {result:?}"
             );
         }
     }
