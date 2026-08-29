@@ -1514,6 +1514,51 @@ pub async fn get_channel_governance_policy(
     Ok(row.map(|r| r.try_get("policy")).transpose()?)
 }
 
+/// Set (full-replace) the governance policy for a channel — upsert keyed on
+/// the table's `(community_id, channel_id)` primary key. `policy` is stored
+/// verbatim; `{}` is a valid, meaningful value (lock-down: every governed
+/// kind becomes default-closed) and is NOT treated as "no policy" — callers
+/// wanting to un-govern the channel must call
+/// [`clear_channel_governance_policy`] instead.
+pub async fn set_channel_governance_policy(
+    pool: &PgPool,
+    community_id: CommunityId,
+    channel_id: Uuid,
+    policy: &serde_json::Value,
+) -> Result<()> {
+    sqlx::query(
+        "INSERT INTO channel_governance_policy (community_id, channel_id, policy) \
+         VALUES ($1, $2, $3) \
+         ON CONFLICT (community_id, channel_id) \
+         DO UPDATE SET policy = EXCLUDED.policy, updated_at = NOW()",
+    )
+    .bind(community_id.as_uuid())
+    .bind(channel_id)
+    .bind(policy)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Clear (delete) the governance policy row for a channel — un-governs it,
+/// reverting every governed kind to default-open (ruling D1) the next time
+/// [`get_channel_governance_policy`] returns `None`. Idempotent: deleting an
+/// already-absent row is not an error.
+pub async fn clear_channel_governance_policy(
+    pool: &PgPool,
+    community_id: CommunityId,
+    channel_id: Uuid,
+) -> Result<()> {
+    sqlx::query(
+        "DELETE FROM channel_governance_policy WHERE community_id = $1 AND channel_id = $2",
+    )
+    .bind(community_id.as_uuid())
+    .bind(channel_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 /// Archive ephemeral channels whose TTL deadline has passed.
 ///
 /// Returns the `(community_id, host, channel_id)` list that was archived. Idempotent — the

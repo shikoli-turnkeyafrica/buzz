@@ -27,6 +27,7 @@ use buzz_workflow::executor::TriggerContext;
 use crate::state::AppState;
 use crate::webhook_secret;
 
+use super::governed_kinds::validate_policy;
 use super::ingest::{extract_channel_id, IngestAuth, IngestError, IngestResult};
 use super::side_effects::{
     emit_group_discovery_events, emit_membership_notification, emit_system_message,
@@ -70,6 +71,7 @@ pub async fn handle_command(
         KIND_WORKFLOW_TRIGGER => handle_workflow_trigger(tenant, state, &event, &auth).await,
         KIND_APPROVAL_GRANT => handle_approval_grant(tenant, state, &event, &auth).await,
         KIND_APPROVAL_DENY => handle_approval_deny(tenant, state, &event, &auth).await,
+        KIND_CYBOTA_SET_POLICY => handle_set_policy(tenant, state, &event, &auth).await,
         _ => Err(IngestError::Rejected(format!(
             "unknown command kind: {kind}"
         ))),
@@ -1341,6 +1343,137 @@ async fn handle_approval_deny(
     })
 }
 
+/// Rung 1b (`KIND_CYBOTA_SET_POLICY`, 46210): the owner-gated command that
+/// authors/replaces or clears a channel's Cybota governance policy — the
+/// SET-time counterpart to `governed_kinds::enforce_governed_kind_policy`'s
+/// read-time gate. This handler is the ONLY place in the relay that writes
+/// `channel_governance_policy`; every write is a signed, persisted command
+/// event, never hand-seeded SQL.
+///
+/// ## Owner-only authorization (SECURITY — the reason this handler exists)
+///
+/// Governance is the channel OWNER's alone. Admin is deliberately EXCLUDED:
+/// an admin who could grant themselves (or anyone) authorship rights over
+/// ratifications/advice/etc. could self-escalate past the owner. The role
+/// check below is tenant-fenced (`tenant.community()` is the server-bound
+/// community, never client-supplied) and channel-scoped
+/// (`state.db.get_member_role`, the exact same read
+/// `enforce_governed_kind_policy`'s channel-role resolution uses). Rejection
+/// messages name the role requirement, never the caller's or anyone else's
+/// identity.
+///
+/// ## Set vs. clear
+///
+/// - A `["clear"]` tag deletes the policy row — un-governs the channel, so
+///   every governed kind reverts to default-open (ruling D1).
+/// - Otherwise this is a full-replace SET: `event.content` must parse as
+///   JSON and pass [`validate_policy`] (the pure, total write-time
+///   validator — this handler is the only IO around it). `{}` is a valid,
+///   meaningful SET (explicit lock-down), distinct from `clear`.
+///
+/// Validation and authorization both happen BEFORE `persist_command_event`
+/// (mirroring `handle_dm_open`'s pre-persist validation and
+/// `handle_workflow_trigger`'s pre-persist ownership check) — a rejected
+/// command is never written to the event log at all.
+async fn handle_set_policy(
+    tenant: &TenantContext,
+    state: &Arc<AppState>,
+    event: &Event,
+    auth: &IngestAuth,
+) -> Result<IngestResult, IngestError> {
+    // 1. Governance policy is always channel-scoped — the `h` tag is
+    // mandatory.
+    let Some(channel_id) = extract_channel_id(event) else {
+        return Err(IngestError::Rejected(
+            "restricted: policy command requires a channel".into(),
+        ));
+    };
+
+    // 2. Owner authz, tenant-fenced. Admin is deliberately excluded — see
+    // this function's doc comment.
+    let self_bytes = auth.pubkey().to_bytes().to_vec();
+    let role = state
+        .db
+        .get_member_role(tenant.community(), channel_id, &self_bytes)
+        .await
+        .map_err(|e| IngestError::Internal(format!("error: role check: {e}")))?;
+    if role.as_deref() != Some("owner") {
+        return Err(IngestError::Rejected(
+            "restricted: only the channel owner may set governance policy".into(),
+        ));
+    }
+
+    // 3. Mode + validation, both before persisting anything.
+    let is_clear = event.tags.iter().any(|t| t.kind().to_string() == "clear");
+    let policy: Option<serde_json::Value> = if is_clear {
+        None
+    } else {
+        let parsed: serde_json::Value = serde_json::from_str(&event.content).map_err(|_| {
+            IngestError::Rejected(
+                "restricted: invalid governance policy: content is not valid JSON".into(),
+            )
+        })?;
+        validate_policy(&parsed).map_err(|reason| {
+            IngestError::Rejected(format!("restricted: invalid governance policy: {reason}"))
+        })?;
+        Some(parsed)
+    };
+
+    // Persist the command event — the change is on the record. Returns an
+    // open transaction the handler commits after the domain mutation below
+    // (mirroring every sibling handler's persist-then-mutate-then-commit
+    // shape).
+    let tx = match persist_command_event(&state.db, tenant, event, Some(channel_id)).await? {
+        PersistResult::Duplicate => {
+            return Ok(IngestResult {
+                event_id: event.id.to_hex(),
+                accepted: true,
+                message: "duplicate: already processed".into(),
+            });
+        }
+        PersistResult::Inserted(tx) => tx,
+    };
+
+    // 4. Execute: set (upsert) or clear (delete) the policy row. Domain
+    // mutation runs on the pool via `state.db`, not inside `tx` — the same
+    // pattern `persist_command_event`'s module doc describes for every
+    // other command handler.
+    match &policy {
+        Some(policy) => state
+            .db
+            .set_channel_governance_policy(tenant.community(), channel_id, policy)
+            .await
+            .map_err(|e| {
+                IngestError::Internal(format!("error: db set_channel_governance_policy: {e}"))
+            })?,
+        None => state
+            .db
+            .clear_channel_governance_policy(tenant.community(), channel_id)
+            .await
+            .map_err(|e| {
+                IngestError::Internal(format!("error: db clear_channel_governance_policy: {e}"))
+            })?,
+    }
+
+    // Commit: event + policy mutation succeeded atomically.
+    tx.commit()
+        .await
+        .map_err(|e| IngestError::Internal(format!("error: commit transaction: {e}")))?;
+
+    // 5. Return response.
+    Ok(IngestResult {
+        event_id: event.id.to_hex(),
+        accepted: true,
+        message: format!(
+            "response:{}",
+            serde_json::json!({
+                "channel_id": channel_id.to_string(),
+                "cleared": is_clear,
+            })
+        ),
+    })
+}
+
 /// Resume a suspended workflow run after an approval gate has been granted.
 async fn resume_workflow_after_approval(
     engine: Arc<buzz_workflow::WorkflowEngine>,
@@ -1635,5 +1768,376 @@ mod tests {
     #[test]
     fn revision_tag_does_not_change_other_command_kinds() {
         assert!(validate_workflow_revision(KIND_DM_OPEN as i32, Some("not-hex"), None).is_ok());
+    }
+
+    // ---- Rung 1b: handle_set_policy (owner-gated governance policy set/clear) ----
+    //
+    // DB-backed, `#[ignore]`. Builds a full `Arc<AppState>` (rather than a bare
+    // `buzz_db::Db`, since `handle_set_policy` — like every sibling command
+    // handler — takes `&Arc<AppState>`) pointed at the real migrated test
+    // Postgres; every other AppState dependency (redis, media/S3, workflow
+    // engine) is constructed the same "never actually dialed" way
+    // `state::tests::test_state()` uses, because this handler's code path
+    // never touches them — only `state.db`.
+    mod set_policy_tests {
+        use super::*;
+        use crate::handlers::ingest::HttpAuthMethod;
+        use buzz_core::channel::{ChannelType, ChannelVisibility, MemberRole};
+        use serde_json::json;
+
+        async fn set_policy_test_state() -> (Arc<AppState>, TenantContext) {
+            let url = std::env::var("BUZZ_TEST_DATABASE_URL")
+                .or_else(|_| std::env::var("TEST_DATABASE_URL"))
+                .unwrap_or_else(|_| "postgres://buzz:buzz_dev@localhost:55432/buzz".to_string()); // sadscan:disable np.postgres.1 -- local test-only credentials
+            let pool = sqlx::PgPool::connect(&url)
+                .await
+                .expect("connect set_policy test database");
+            let db = buzz_db::Db::from_pool(pool.clone());
+            db.migrate().await.expect("migrate set_policy test database");
+
+            let mut config = crate::config::Config::from_env().expect("default config loads");
+            config.require_relay_membership = false;
+            config.redis_url = "redis://127.0.0.1:1".to_string();
+            let redis_pool = deadpool_redis::Config::from_url(&config.redis_url)
+                .create_pool(Some(deadpool_redis::Runtime::Tokio1))
+                .expect("redis pool");
+            let pubsub = Arc::new(
+                buzz_pubsub::PubSubManager::new(&config.redis_url, redis_pool.clone())
+                    .await
+                    .expect("pubsub manager"),
+            );
+            let audit = buzz_audit::AuditService::new(pool.clone());
+            let auth = buzz_auth::AuthService::new(config.auth.clone());
+            let search = buzz_search::SearchService::new(pool.clone());
+            let workflow_engine = Arc::new(buzz_workflow::WorkflowEngine::new(
+                db.clone(),
+                buzz_workflow::WorkflowConfig::default(),
+            ));
+            let media_storage =
+                buzz_media::MediaStorage::new(&config.media).expect("media storage");
+            let (state, _audit_shutdown) = AppState::new(
+                config,
+                db,
+                redis_pool,
+                audit,
+                pubsub,
+                auth,
+                search,
+                workflow_engine,
+                nostr::Keys::generate(),
+                media_storage,
+            );
+            let state = Arc::new(state);
+
+            let host = format!("set-policy-cmd-{}.example", Uuid::new_v4().simple());
+            let community = state
+                .db
+                .ensure_configured_community(&host)
+                .await
+                .expect("seed set_policy test community")
+                .id;
+            (state, TenantContext::resolved(community, host))
+        }
+
+        /// Creates a channel whose creator is the channel owner (matches
+        /// `governed_kinds::gate_tests::seed_channel`'s pattern — channel
+        /// creation implicitly grants the creator the owner role).
+        async fn seed_channel(state: &Arc<AppState>, tenant: &TenantContext, creator: &[u8]) -> Uuid {
+            state
+                .db
+                .create_channel(
+                    tenant.community(),
+                    "set-policy-cmd-channel",
+                    ChannelType::Stream,
+                    ChannelVisibility::Open,
+                    None,
+                    creator,
+                    None,
+                )
+                .await
+                .expect("create channel")
+                .id
+        }
+
+        fn auth_for(keys: &Keys) -> IngestAuth {
+            IngestAuth::Http {
+                pubkey: keys.public_key(),
+                scopes: vec![],
+                auth_method: HttpAuthMethod::DevPubkey,
+            }
+        }
+
+        fn h_tag(channel_id: Uuid) -> Tag {
+            Tag::parse(["h", &channel_id.to_string()]).expect("valid h tag")
+        }
+
+        fn clear_tag() -> Tag {
+            Tag::parse(["clear"]).expect("valid clear tag")
+        }
+
+        fn set_policy_event(keys: &Keys, channel_id: Uuid, content: &str) -> Event {
+            EventBuilder::new(Kind::Custom(KIND_CYBOTA_SET_POLICY as u16), content)
+                .tags(vec![h_tag(channel_id)])
+                .sign_with_keys(keys)
+                .expect("sign set-policy event")
+        }
+
+        fn clear_policy_event(keys: &Keys, channel_id: Uuid) -> Event {
+            EventBuilder::new(Kind::Custom(KIND_CYBOTA_SET_POLICY as u16), "")
+                .tags(vec![h_tag(channel_id), clear_tag()])
+                .sign_with_keys(keys)
+                .expect("sign clear-policy event")
+        }
+
+        fn rejection_message(result: Result<IngestResult, IngestError>) -> String {
+            match result {
+                Err(IngestError::Rejected(message)) => message,
+                other => panic!("expected Rejected, got {}", describe(other)),
+            }
+        }
+
+        fn describe(result: Result<IngestResult, IngestError>) -> String {
+            match result {
+                Ok(r) => format!("Ok(accepted={}, message={:?})", r.accepted, r.message),
+                Err(e) => format!("Err({e:?})"),
+            }
+        }
+
+        // ---- (a) owner sets a valid policy -> Ok; row == the policy ----
+
+        #[tokio::test]
+        #[ignore = "requires Postgres"]
+        async fn owner_set_valid_policy_is_ok_and_row_matches() {
+            let (state, tenant) = set_policy_test_state().await;
+            let owner_keys = Keys::generate();
+            let owner_bytes = owner_keys.public_key().to_bytes().to_vec();
+            let channel_id = seed_channel(&state, &tenant, &owner_bytes).await;
+
+            let policy = json!({ "46203": { "role": "owner" } });
+            let event = set_policy_event(&owner_keys, channel_id, &policy.to_string());
+            let auth = auth_for(&owner_keys);
+
+            let result = handle_set_policy(&tenant, &state, &event, &auth).await;
+            assert!(result.is_ok(), "expected Ok, got {}", describe(result));
+
+            let row = state
+                .db
+                .get_channel_governance_policy(tenant.community(), channel_id)
+                .await
+                .expect("read policy row");
+            assert_eq!(row, Some(policy));
+        }
+
+        // ---- (b) member sets -> Rejected("...only the channel owner..."); no row ----
+
+        #[tokio::test]
+        #[ignore = "requires Postgres"]
+        async fn member_cannot_set_policy() {
+            let (state, tenant) = set_policy_test_state().await;
+            let owner_keys = Keys::generate();
+            let owner_bytes = owner_keys.public_key().to_bytes().to_vec();
+            let channel_id = seed_channel(&state, &tenant, &owner_bytes).await;
+
+            let member_keys = Keys::generate();
+            let member_bytes = member_keys.public_key().to_bytes();
+            state
+                .db
+                .add_member(
+                    tenant.community(),
+                    channel_id,
+                    &member_bytes,
+                    MemberRole::Member,
+                    Some(&owner_bytes),
+                )
+                .await
+                .expect("add member");
+
+            let policy = json!({ "46203": { "role": "owner" } });
+            let event = set_policy_event(&member_keys, channel_id, &policy.to_string());
+            let auth = auth_for(&member_keys);
+
+            let msg = rejection_message(handle_set_policy(&tenant, &state, &event, &auth).await);
+            assert!(
+                msg.contains("only the channel owner"),
+                "unexpected message: {msg:?}"
+            );
+            assert!(
+                !msg.contains(&hex::encode(&member_bytes)),
+                "message must never leak an identity: {msg:?}"
+            );
+
+            let row = state
+                .db
+                .get_channel_governance_policy(tenant.community(), channel_id)
+                .await
+                .expect("read policy row");
+            assert_eq!(row, None, "a rejected set must never create a policy row");
+        }
+
+        // ---- (c) admin sets -> Rejected (admin excluded); no row ----
+
+        #[tokio::test]
+        #[ignore = "requires Postgres"]
+        async fn admin_cannot_set_policy_admin_is_excluded() {
+            let (state, tenant) = set_policy_test_state().await;
+            let owner_keys = Keys::generate();
+            let owner_bytes = owner_keys.public_key().to_bytes().to_vec();
+            let channel_id = seed_channel(&state, &tenant, &owner_bytes).await;
+
+            let admin_keys = Keys::generate();
+            let admin_bytes = admin_keys.public_key().to_bytes();
+            state
+                .db
+                .add_member(
+                    tenant.community(),
+                    channel_id,
+                    &admin_bytes,
+                    MemberRole::Admin,
+                    Some(&owner_bytes),
+                )
+                .await
+                .expect("add admin");
+
+            let policy = json!({ "46203": { "role": "owner" } });
+            let event = set_policy_event(&admin_keys, channel_id, &policy.to_string());
+            let auth = auth_for(&admin_keys);
+
+            let msg = rejection_message(handle_set_policy(&tenant, &state, &event, &auth).await);
+            assert!(
+                msg.contains("only the channel owner"),
+                "admin must be rejected by the same owner-only message: {msg:?}"
+            );
+
+            let row = state
+                .db
+                .get_channel_governance_policy(tenant.community(), channel_id)
+                .await
+                .expect("read policy row");
+            assert_eq!(row, None, "admin must never be able to install a policy");
+        }
+
+        // ---- (d) owner clears an existing policy -> row deleted ----
+
+        #[tokio::test]
+        #[ignore = "requires Postgres"]
+        async fn owner_clear_deletes_existing_policy_row() {
+            let (state, tenant) = set_policy_test_state().await;
+            let owner_keys = Keys::generate();
+            let owner_bytes = owner_keys.public_key().to_bytes().to_vec();
+            let channel_id = seed_channel(&state, &tenant, &owner_bytes).await;
+
+            state
+                .db
+                .set_channel_governance_policy(
+                    tenant.community(),
+                    channel_id,
+                    &json!({ "46203": { "role": "owner" } }),
+                )
+                .await
+                .expect("seed existing policy");
+
+            let event = clear_policy_event(&owner_keys, channel_id);
+            let auth = auth_for(&owner_keys);
+            let result = handle_set_policy(&tenant, &state, &event, &auth).await;
+            assert!(result.is_ok(), "expected Ok, got {}", describe(result));
+
+            let row = state
+                .db
+                .get_channel_governance_policy(tenant.community(), channel_id)
+                .await
+                .expect("read policy row");
+            assert_eq!(row, None, "clear must delete the policy row");
+        }
+
+        // ---- (e) owner sets a malformed policy -> Rejected; prior row unchanged ----
+
+        #[tokio::test]
+        #[ignore = "requires Postgres"]
+        async fn owner_set_malformed_policy_is_rejected_and_does_not_clobber_existing_row() {
+            let (state, tenant) = set_policy_test_state().await;
+            let owner_keys = Keys::generate();
+            let owner_bytes = owner_keys.public_key().to_bytes().to_vec();
+            let channel_id = seed_channel(&state, &tenant, &owner_bytes).await;
+
+            let prior = json!({ "46203": { "role": "owner" } });
+            state
+                .db
+                .set_channel_governance_policy(tenant.community(), channel_id, &prior)
+                .await
+                .expect("seed existing policy");
+
+            // Malformed: unknown role value — validate_policy must reject it.
+            let malformed = json!({ "46203": { "role": "emperor" } });
+            let event = set_policy_event(&owner_keys, channel_id, &malformed.to_string());
+            let auth = auth_for(&owner_keys);
+
+            let msg = rejection_message(handle_set_policy(&tenant, &state, &event, &auth).await);
+            assert!(
+                msg.contains("invalid governance policy"),
+                "unexpected message: {msg:?}"
+            );
+
+            let row = state
+                .db
+                .get_channel_governance_policy(tenant.community(), channel_id)
+                .await
+                .expect("read policy row");
+            assert_eq!(
+                row,
+                Some(prior),
+                "a rejected malformed set must leave the prior policy row untouched"
+            );
+        }
+
+        // ---- (f) owner sets {} -> row present with {} (lock-down, not deleted) ----
+
+        #[tokio::test]
+        #[ignore = "requires Postgres"]
+        async fn owner_set_empty_object_locks_down_distinct_from_clear() {
+            let (state, tenant) = set_policy_test_state().await;
+            let owner_keys = Keys::generate();
+            let owner_bytes = owner_keys.public_key().to_bytes().to_vec();
+            let channel_id = seed_channel(&state, &tenant, &owner_bytes).await;
+
+            let event = set_policy_event(&owner_keys, channel_id, "{}");
+            let auth = auth_for(&owner_keys);
+            let result = handle_set_policy(&tenant, &state, &event, &auth).await;
+            assert!(result.is_ok(), "expected Ok, got {}", describe(result));
+
+            let row = state
+                .db
+                .get_channel_governance_policy(tenant.community(), channel_id)
+                .await
+                .expect("read policy row");
+            assert_eq!(
+                row,
+                Some(json!({})),
+                "{{}} must be stored as a present, meaningful lock-down policy — not absent"
+            );
+        }
+
+        // ---- (g) no h tag -> Rejected ----
+
+        #[tokio::test]
+        #[ignore = "requires Postgres"]
+        async fn missing_h_tag_is_rejected() {
+            let (state, tenant) = set_policy_test_state().await;
+            let owner_keys = Keys::generate();
+
+            let policy = json!({ "46203": { "role": "owner" } });
+            let event = EventBuilder::new(
+                Kind::Custom(KIND_CYBOTA_SET_POLICY as u16),
+                policy.to_string(),
+            )
+            .sign_with_keys(&owner_keys)
+            .expect("sign event without h tag");
+            let auth = auth_for(&owner_keys);
+
+            let msg = rejection_message(handle_set_policy(&tenant, &state, &event, &auth).await);
+            assert!(
+                msg.contains("requires a channel"),
+                "unexpected message: {msg:?}"
+            );
+        }
     }
 }

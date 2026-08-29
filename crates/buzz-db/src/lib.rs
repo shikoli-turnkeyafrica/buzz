@@ -2626,6 +2626,27 @@ impl Db {
         channel::get_channel_governance_policy(&self.pool, community_id, channel_id).await
     }
 
+    /// Set (full-replace) the governance policy for a channel.
+    #[datastore_span(name = "set_channel_governance_policy", system = "postgresql")]
+    pub async fn set_channel_governance_policy(
+        &self,
+        community_id: CommunityId,
+        channel_id: Uuid,
+        policy: &serde_json::Value,
+    ) -> Result<()> {
+        channel::set_channel_governance_policy(&self.pool, community_id, channel_id, policy).await
+    }
+
+    /// Clear (delete) the governance policy row for a channel.
+    #[datastore_span(name = "clear_channel_governance_policy", system = "postgresql")]
+    pub async fn clear_channel_governance_policy(
+        &self,
+        community_id: CommunityId,
+        channel_id: Uuid,
+    ) -> Result<()> {
+        channel::clear_channel_governance_policy(&self.pool, community_id, channel_id).await
+    }
+
     /// Archive ephemeral channels whose TTL deadline has passed.
     #[datastore_span(name = "reap_expired_ephemeral_channels", system = "postgresql")]
     pub async fn reap_expired_ephemeral_channels(

@@ -193,6 +193,123 @@ fn malformed(label: &str) -> GovernedDecision {
     GovernedDecision::Reject(format!("restricted: {label} policy is malformed"))
 }
 
+/// Rung 1b: PURE, TOTAL. The WRITE-time twin of [`evaluate_rule`] — validates
+/// a whole policy JSON value (the shape a `KIND_CYBOTA_SET_POLICY` command
+/// wants to install) rather than evaluating one already-installed rule
+/// against an author. `Ok(())` iff:
+///
+/// - the top level is a JSON object;
+/// - every key parses to one of the five governed kinds 46200–46204 (via
+///   [`is_cybota_governed_kind`] — the same predicate the read-time gate
+///   uses, so a key this function accepts can never be a kind the gate
+///   would silently ignore or misclassify);
+/// - every value is a well-formed rule in [`validate_rule_shape`]'s sense;
+/// - `{}` (empty object) is valid — an explicit lock-down that opts the
+///   channel in with no kind authorized.
+///
+/// ## Relationship to the read-time gate ([`evaluate_rule`])
+///
+/// This function's `role`/`pubkeys`-XOR shape check mirrors
+/// [`evaluate_rule`]'s understanding exactly: unknown role, both keys
+/// present, neither key present, or a non-object rule are ALL rejected here
+/// exactly as they fail closed (never Allow) there. In that sense, every
+/// policy this function accepts is one [`evaluate_rule`] will never treat as
+/// malformed.
+///
+/// It is deliberately STRICTER than [`evaluate_rule`] in two ways that do
+/// not endanger that guarantee — both are write-time hygiene the read path
+/// doesn't need, because the read path only ever compares strings, never
+/// trusts their shape:
+/// 1. `pubkeys` entries must be exactly 64 lowercase hex characters here;
+///    [`evaluate_rule`] accepts any string entry (it just won't match a
+///    real pubkey unless it happens to be a case-insensitive equal hex
+///    string). Rejecting non-hex entries at write time catches a config
+///    typo before it becomes a silently-useless allowlist entry.
+/// 2. `pubkeys` must be non-empty here; an empty array is well-formed to
+///    [`evaluate_rule`] (it fails closed, rejecting every author, which is
+///    exactly correct) but is never a policy anyone should be allowed to
+///    *write* — it can only ever have been a mistake.
+///
+/// Because both restrictions only ever REMOVE inputs this function accepts
+/// (never add ones [`evaluate_rule`] would call malformed), the property
+/// this exists for holds: nothing `validate_policy` accepts can ever be
+/// rejected by the read-time gate as malformed.
+///
+/// The Err string names the shape/category only — it must NEVER include an
+/// identity or pubkey value from the input (a malicious or malformed policy
+/// could otherwise be used to smuggle an attacker-chosen string into a
+/// client-visible error message).
+pub fn validate_policy(policy: &serde_json::Value) -> Result<(), String> {
+    let Some(obj) = policy.as_object() else {
+        return Err("policy must be a JSON object".to_string());
+    };
+
+    for (key, rule) in obj {
+        let kind: u32 = key
+            .parse()
+            .map_err(|_| format!("unknown governed kind {key}"))?;
+        if !is_cybota_governed_kind(kind) {
+            return Err(format!("unknown governed kind {kind}"));
+        }
+        validate_rule_shape(rule)?;
+    }
+
+    Ok(())
+}
+
+/// The rule-shape half of [`validate_policy`]. Split out for readability,
+/// mirroring how [`evaluate_rule`] is split out of [`evaluate_governed_post`]
+/// — still pure, still total, still never echoes an identity value.
+fn validate_rule_shape(rule: &serde_json::Value) -> Result<(), String> {
+    let Some(obj) = rule.as_object() else {
+        return Err("rule must be a JSON object".to_string());
+    };
+
+    let has_role = obj.contains_key("role");
+    let has_pubkeys = obj.contains_key("pubkeys");
+
+    match (has_role, has_pubkeys) {
+        (true, false) => {
+            let Some(role) = obj.get("role").and_then(|v| v.as_str()) else {
+                return Err("role must be a string".to_string());
+            };
+            match role {
+                "owner" | "admin" | "member" => Ok(()),
+                _ => Err("unknown role".to_string()),
+            }
+        }
+        (false, true) => {
+            let Some(pubkeys) = obj.get("pubkeys").and_then(|v| v.as_array()) else {
+                return Err("pubkeys must be an array".to_string());
+            };
+            if pubkeys.is_empty() {
+                return Err("pubkeys must be non-empty".to_string());
+            }
+            for entry in pubkeys {
+                let Some(s) = entry.as_str() else {
+                    return Err("pubkeys entries must be strings".to_string());
+                };
+                if !is_well_formed_lowercase_pubkey_hex(s) {
+                    return Err("pubkeys entries must be 64-char lowercase hex".to_string());
+                }
+            }
+            Ok(())
+        }
+        _ => Err("rule must have exactly one of role or pubkeys".to_string()),
+    }
+}
+
+/// `true` iff `s` is exactly 64 LOWERCASE hex chars — the write-time hex
+/// check used by [`validate_rule_shape`]. Deliberately stricter than
+/// [`is_well_formed_pubkey_hex`] (which the read-time gate uses only to
+/// sanity-check the *author's own* derived pubkey, and which accepts either
+/// case): a policy written through this path is canonicalized to lowercase
+/// so it always matches [`evaluate_rule`]'s case-insensitive comparison
+/// without relying on that case-insensitivity.
+fn is_well_formed_lowercase_pubkey_hex(s: &str) -> bool {
+    s.len() == 64 && s.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
+}
+
 /// Task 4: the async ingest-time gate. This is the only place the pure core
 /// above is called from production code — it resolves the three DB-backed
 /// inputs (`extract_channel_id`, `get_channel_governance_policy`, and the
@@ -809,6 +926,228 @@ mod tests {
         );
         assert!(!msg.to_lowercase().contains(&OWNER_PUBKEY.to_lowercase()));
         assert!(!msg.to_lowercase().contains(&EXPERT_PUBKEY.to_lowercase()));
+    }
+}
+
+/// Rung 1b: table-driven tests for the pure, total write-time validator
+/// [`validate_policy`]. Every INVALID case asserts the Err message names a
+/// shape/category and never echoes a pubkey/identity value from the input.
+#[cfg(test)]
+mod validate_policy_tests {
+    use super::*;
+    use serde_json::json;
+
+    /// A real-shaped 64-char lowercase hex pubkey (`"ab" * 32`).
+    fn hex_pubkey() -> String {
+        "ab".repeat(32)
+    }
+
+    fn assert_valid(policy: serde_json::Value) {
+        assert_eq!(
+            validate_policy(&policy),
+            Ok(()),
+            "expected Ok for {policy:?}"
+        );
+    }
+
+    /// Assert `Err`, and that the message never leaks an identity/pubkey
+    /// value present in the input policy.
+    fn assert_invalid(policy: serde_json::Value) -> String {
+        let err = validate_policy(&policy).expect_err(&format!("expected Err for {policy:?}"));
+        assert!(!err.is_empty(), "error message must not be empty");
+        let flat = policy.to_string();
+        // Any 64-hex-looking substring embedded in the input must never
+        // appear verbatim in the error message.
+        if flat.contains(&hex_pubkey()) {
+            assert!(
+                !err.contains(&hex_pubkey()),
+                "error message must never echo a pubkey: {err:?}"
+            );
+        }
+        err
+    }
+
+    // ---- VALID ----
+
+    #[test]
+    fn empty_object_is_valid_lock_down() {
+        assert_valid(json!({}));
+    }
+
+    #[test]
+    fn single_kind_role_rule_is_valid() {
+        assert_valid(json!({ "46203": { "role": "owner" } }));
+    }
+
+    #[test]
+    fn single_kind_pubkeys_rule_is_valid() {
+        assert_valid(json!({ "46202": { "pubkeys": [hex_pubkey()] } }));
+    }
+
+    #[test]
+    fn all_five_governed_kinds_mixed_with_valid_rules_is_valid() {
+        assert_valid(json!({
+            "46200": { "role": "member" },
+            "46201": { "role": "admin" },
+            "46202": { "pubkeys": [hex_pubkey()] },
+            "46203": { "role": "owner" },
+            "46204": { "role": "member" },
+        }));
+    }
+
+    #[test]
+    fn multiple_pubkeys_entries_are_valid() {
+        let other = "cd".repeat(32);
+        assert_valid(json!({ "46202": { "pubkeys": [hex_pubkey(), other] } }));
+    }
+
+    // ---- INVALID: non-governed key ----
+
+    #[test]
+    fn non_governed_key_is_rejected() {
+        let msg = assert_invalid(json!({ "9": { "role": "owner" } }));
+        assert!(msg.contains("9"), "expected kind named in message: {msg:?}");
+        assert!(
+            msg.to_lowercase().contains("governed"),
+            "expected a 'governed kind' category message: {msg:?}"
+        );
+    }
+
+    #[test]
+    fn kind_just_outside_the_governed_band_is_rejected() {
+        assert_invalid(json!({ "46199": { "role": "owner" } }));
+        assert_invalid(json!({ "46205": { "role": "owner" } }));
+    }
+
+    #[test]
+    fn non_numeric_key_is_rejected() {
+        assert_invalid(json!({ "not-a-kind": { "role": "owner" } }));
+    }
+
+    // ---- INVALID: role shape ----
+
+    #[test]
+    fn unknown_role_value_is_rejected() {
+        assert_invalid(json!({ "46203": { "role": "emperor" } }));
+    }
+
+    #[test]
+    fn non_string_role_value_is_rejected() {
+        assert_invalid(json!({ "46203": { "role": 5 } }));
+    }
+
+    // ---- INVALID: pubkeys shape ----
+
+    #[test]
+    fn empty_pubkeys_array_is_rejected() {
+        assert_invalid(json!({ "46202": { "pubkeys": [] } }));
+    }
+
+    #[test]
+    fn non_hex_pubkeys_entry_is_rejected() {
+        assert_invalid(json!({ "46202": { "pubkeys": ["xyz"] } }));
+    }
+
+    #[test]
+    fn non_string_pubkeys_entry_is_rejected() {
+        assert_invalid(json!({ "46202": { "pubkeys": [5] } }));
+    }
+
+    #[test]
+    fn uppercase_pubkeys_entry_is_rejected() {
+        // Write-time canonicalizes to lowercase — deliberately stricter than
+        // the read-time gate's case-insensitive comparison (see
+        // `validate_policy`'s doc comment).
+        assert_invalid(json!({ "46202": { "pubkeys": [hex_pubkey().to_uppercase()] } }));
+    }
+
+    #[test]
+    fn short_pubkeys_entry_is_rejected() {
+        assert_invalid(json!({ "46202": { "pubkeys": ["ab"] } }));
+    }
+
+    // ---- INVALID: ambiguous / bare rule shapes ----
+
+    #[test]
+    fn both_role_and_pubkeys_present_is_rejected() {
+        let msg = assert_invalid(json!({
+            "46203": { "role": "owner", "pubkeys": [hex_pubkey()] }
+        }));
+        assert!(
+            !msg.contains(&hex_pubkey()),
+            "must never echo the pubkey: {msg:?}"
+        );
+    }
+
+    #[test]
+    fn bare_string_rule_value_is_rejected() {
+        assert_invalid(json!({ "46203": "owner" }));
+    }
+
+    #[test]
+    fn neither_role_nor_pubkeys_present_is_rejected() {
+        assert_invalid(json!({ "46203": { "nonsense": true } }));
+    }
+
+    #[test]
+    fn null_rule_value_is_rejected() {
+        assert_invalid(json!({ "46203": null }));
+    }
+
+    // ---- INVALID: non-object top-level shapes ----
+
+    #[test]
+    fn non_object_top_level_shapes_are_all_rejected() {
+        for policy in [json!([]), json!(5), json!("s"), json!(null)] {
+            assert_invalid(policy);
+        }
+    }
+
+    // ---- Consistency with the read-time gate ----
+
+    /// Every ACCEPT here must be a shape `evaluate_rule` (the read-time
+    /// gate's per-rule evaluator) treats as well-formed for every rule value
+    /// in the policy — i.e. never returns the "policy is malformed" message,
+    /// regardless of author. This is the property the module doc comment on
+    /// `validate_policy` claims; pin it here so a future edit to either
+    /// function that breaks the relationship fails a test, not just a review.
+    #[test]
+    fn every_accepted_policy_is_well_formed_to_the_read_time_gate() {
+        let accepted = [
+            json!({}),
+            json!({ "46203": { "role": "owner" } }),
+            json!({ "46202": { "pubkeys": [hex_pubkey()] } }),
+            json!({
+                "46200": { "role": "member" },
+                "46201": { "role": "admin" },
+                "46202": { "pubkeys": [hex_pubkey()] },
+                "46203": { "role": "owner" },
+                "46204": { "role": "member" },
+            }),
+        ];
+        let dummy_pubkey_hex = "0".repeat(64);
+        let author = AuthorAuthority {
+            role: None,
+            pubkey_hex: &dummy_pubkey_hex,
+        };
+        for policy in accepted {
+            assert_eq!(validate_policy(&policy), Ok(()));
+            let Some(obj) = policy.as_object() else {
+                continue;
+            };
+            for (key, rule) in obj {
+                let kind: u32 = key.parse().expect("valid policy key parses");
+                let label = cybota_governed_kind_label(kind).unwrap_or("decision");
+                let decision = evaluate_rule(rule, label, &author);
+                if let GovernedDecision::Reject(msg) = decision {
+                    assert!(
+                        !msg.contains("policy is malformed"),
+                        "validate_policy accepted a shape evaluate_rule calls malformed: \
+                         rule={rule:?} msg={msg:?}"
+                    );
+                }
+            }
+        }
     }
 }
 
