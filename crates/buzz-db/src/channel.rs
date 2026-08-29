@@ -9,6 +9,7 @@ use sqlx::{PgPool, Postgres, Row, Transaction};
 use uuid::Uuid;
 
 use crate::error::{DbError, Result};
+use buzz_core::kind::KIND_CYBOTA_CHECKPOINT;
 use buzz_core::CommunityId;
 
 // Re-export the canonical enum definitions from buzz-core.
@@ -1598,6 +1599,55 @@ pub async fn set_minute_book(
     Ok(())
 }
 
+/// Fetch a channel's stored event ids up to (and including) `as_of`, for the
+/// Buzz rung 3 completeness checkpoint (`compute_checkpoint_hash` in
+/// `buzz-relay`).
+///
+/// Returns the raw 32-byte id of every event with `channel_id = channel_id`,
+/// `community_id = community_id` (tenant-fenced), and `created_at <= as_of`,
+/// EXCLUDING checkpoint events themselves (`kind <> 46220`/
+/// [`KIND_CYBOTA_CHECKPOINT`]) — a checkpoint attests to the events that
+/// preceded it, never to itself or to later/other checkpoints.
+///
+/// Deliberately includes soft-deleted events (no `deleted_at IS NULL`
+/// filter): the checkpoint's completeness claim is about what the relay
+/// ever stored, not what is currently visible, so a deletion must not let an
+/// omission slip past an auditor unnoticed.
+///
+/// Order is whatever Postgres returns (no `ORDER BY`) — the caller
+/// (`compute_checkpoint_hash`) sorts the ids itself, so fetch order is
+/// irrelevant to the resulting hash.
+pub async fn channel_event_ids_through(
+    pool: &PgPool,
+    community_id: CommunityId,
+    channel_id: Uuid,
+    as_of: DateTime<Utc>,
+) -> Result<Vec<[u8; 32]>> {
+    let rows = sqlx::query(
+        "SELECT id FROM events \
+         WHERE community_id = $1 AND channel_id = $2 AND created_at <= $3 AND kind <> $4",
+    )
+    .bind(community_id.as_uuid())
+    .bind(channel_id)
+    .bind(as_of)
+    .bind(KIND_CYBOTA_CHECKPOINT as i32)
+    .fetch_all(pool)
+    .await?;
+
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        let id_bytes: Vec<u8> = row.try_get("id")?;
+        let len = id_bytes.len();
+        let id: [u8; 32] = id_bytes.try_into().map_err(|_| {
+            DbError::InvalidData(format!(
+                "event id has invalid length {len} (expected 32 bytes)"
+            ))
+        })?;
+        out.push(id);
+    }
+    Ok(out)
+}
+
 /// Archive ephemeral channels whose TTL deadline has passed.
 ///
 /// Returns the `(community_id, host, channel_id)` list that was archived. Idempotent — the
@@ -3089,5 +3139,91 @@ mod tests {
             .await
             .expect("read after rejected unlatch");
         assert!(latched, "minute_book must remain true after the rejected unlatch");
+    }
+
+    async fn insert_test_event(
+        pool: &PgPool,
+        community_id: Uuid,
+        channel_id: Uuid,
+        pubkey: &[u8],
+        kind: i32,
+        created_at: DateTime<Utc>,
+    ) -> [u8; 32] {
+        let id_vec = random_pubkey();
+        sqlx::query(
+            "INSERT INTO events              (community_id, id, pubkey, created_at, kind, tags, content, sig, received_at, channel_id)              VALUES ($1, $2, $3, $4, $5, '[]'::jsonb, '', $6, NOW(), $7)",
+        )
+        .bind(community_id)
+        .bind(&id_vec)
+        .bind(pubkey)
+        .bind(created_at)
+        .bind(kind)
+        .bind(vec![0u8; 64])
+        .bind(channel_id)
+        .execute(pool)
+        .await
+        .expect("insert test event");
+        id_vec.try_into().expect("event id is 32 bytes")
+    }
+
+    #[tokio::test]
+    #[ignore = "requires Postgres"]
+    async fn channel_event_ids_through_excludes_checkpoints_and_future_events() {
+        let database_url =
+            std::env::var("BUZZ_TEST_DATABASE_URL").unwrap_or_else(|_| TEST_DB_URL.to_string());
+        let pool = PgPool::connect(&database_url)
+            .await
+            .expect("connect to test DB");
+        let community_id = make_test_community(&pool).await;
+        let community = CommunityId::from_uuid(community_id);
+        let creator = random_pubkey();
+
+        let channel = create_test_channel(
+            &pool,
+            community_id,
+            "checkpoint-event-fetch",
+            ChannelType::Stream,
+            ChannelVisibility::Open,
+            None,
+            &creator,
+            None,
+        )
+        .await
+        .expect("create channel");
+
+        let base = Utc::now();
+        let t_minus_2 = base - chrono::Duration::minutes(2);
+        let t_minus_1 = base - chrono::Duration::minutes(1);
+        let t = base;
+        let t_plus_1 = base + chrono::Duration::minutes(1);
+
+        // Three ordinary events at/under T — must all be returned.
+        let e1 = insert_test_event(&pool, community_id, channel.id, &creator, 1, t_minus_2).await;
+        let e2 = insert_test_event(&pool, community_id, channel.id, &creator, 1, t_minus_1).await;
+        let e3 = insert_test_event(&pool, community_id, channel.id, &creator, 1, t).await;
+        // A checkpoint event at/under T — must be excluded even though its
+        // created_at qualifies, because kind = KIND_CYBOTA_CHECKPOINT.
+        let _checkpoint = insert_test_event(
+            &pool,
+            community_id,
+            channel.id,
+            &creator,
+            KIND_CYBOTA_CHECKPOINT as i32,
+            t_minus_1,
+        )
+        .await;
+        // An ordinary event strictly after T — must be excluded.
+        let _future = insert_test_event(&pool, community_id, channel.id, &creator, 1, t_plus_1).await;
+
+        let ids = channel_event_ids_through(&pool, community, channel.id, t)
+            .await
+            .expect("fetch event ids through T");
+
+        let got: std::collections::HashSet<[u8; 32]> = ids.into_iter().collect();
+        let expected: std::collections::HashSet<[u8; 32]> = [e1, e2, e3].into_iter().collect();
+        assert_eq!(
+            got, expected,
+            "must return exactly the non-checkpoint ids with created_at <= T, order-independent"
+        );
     }
 }

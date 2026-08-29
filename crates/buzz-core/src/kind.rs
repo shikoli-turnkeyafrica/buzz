@@ -597,6 +597,9 @@ pub const KIND_CYBOTA_DISSENT: u32 = 46204;
 /// Buzz rung 1b — owner-only governance policy set/clear command; routes via command_executor, NOT a governed decision kind.
 pub const KIND_CYBOTA_SET_POLICY: u32 = 46210;
 
+/// Buzz rung 3 — relay-signed completeness checkpoint; RELAY-ONLY, not governed, not a command.
+pub const KIND_CYBOTA_CHECKPOINT: u32 = 46220;
+
 // User groups (47000–47999)
 
 // System / admin custom range (48000–48999)
@@ -767,6 +770,7 @@ pub const ALL_KINDS: &[u32] = &[
     KIND_CYBOTA_RATIFICATION,
     KIND_CYBOTA_DISSENT,
     KIND_CYBOTA_SET_POLICY,
+    KIND_CYBOTA_CHECKPOINT,
     KIND_AUDIT_ENTRY,
     KIND_HUDDLE_STARTED,
     KIND_HUDDLE_PARTICIPANT_JOINED,
@@ -859,6 +863,7 @@ pub const fn is_relay_only_kind(kind: u32) -> bool {
             | KIND_DM_VISIBILITY
             | KIND_THREAD_SUMMARY
             | KIND_WINDOW_BOUNDS
+            | KIND_CYBOTA_CHECKPOINT
     )
 }
 
@@ -946,6 +951,14 @@ const _: () = assert!(is_cybota_governed_kind(KIND_CYBOTA_DIGEST));
 const _: () = assert!(is_cybota_governed_kind(KIND_CYBOTA_RATIFICATION));
 const _: () = assert!(!is_cybota_governed_kind(46199));
 const _: () = assert!(!is_cybota_governed_kind(46205));
+// Cybota rung 3 checkpoint kind (46220) is relay-only, not governed, not a command.
+const _: () = assert!(KIND_CYBOTA_CHECKPOINT <= u16::MAX as u32);
+const _: () = assert!(!is_ephemeral(KIND_CYBOTA_CHECKPOINT));
+const _: () = assert!(!is_replaceable(KIND_CYBOTA_CHECKPOINT));
+const _: () = assert!(!is_parameterized_replaceable(KIND_CYBOTA_CHECKPOINT));
+const _: () = assert!(is_relay_only_kind(KIND_CYBOTA_CHECKPOINT));
+const _: () = assert!(!is_cybota_governed_kind(KIND_CYBOTA_CHECKPOINT));
+const _: () = assert!(!is_command_kind(KIND_CYBOTA_CHECKPOINT));
 // Moderation kinds fit u16 and are neither replaceable nor ephemeral:
 // 1984 is a regular event (persisted to the queue, never fanned out);
 // 9040–9044 are direct commands (executed, never stored).
@@ -1170,5 +1183,13 @@ mod tests {
         assert!(is_command_kind(KIND_CYBOTA_SET_POLICY));
         assert!(!is_cybota_governed_kind(KIND_CYBOTA_SET_POLICY)); // gate must ignore it
         assert_eq!(KIND_CYBOTA_SET_POLICY, 46210);
+    }
+
+    #[test]
+    fn checkpoint_is_relay_only_not_governed_not_command() {
+        assert!(is_relay_only_kind(KIND_CYBOTA_CHECKPOINT));
+        assert!(!is_cybota_governed_kind(KIND_CYBOTA_CHECKPOINT));
+        assert!(!is_command_kind(KIND_CYBOTA_CHECKPOINT));
+        assert_eq!(KIND_CYBOTA_CHECKPOINT, 46220);
     }
 }

@@ -1,5 +1,7 @@
 /// NIP-42 authentication handler.
 pub mod auth;
+/// Buzz rung 3 — completeness checkpoint hash (pure, DB-free).
+pub mod checkpoint;
 /// Subscription close (CLOSE) handler.
 pub mod close;
 /// Command executor — transactional processing for command kinds.
