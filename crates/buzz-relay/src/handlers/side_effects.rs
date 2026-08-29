@@ -266,6 +266,19 @@ pub async fn validate_standard_deletion_event(
             .await?
             .ok_or_else(|| anyhow::anyhow!("target event not found"))?;
 
+        if let Some(channel_id) = target_event.channel_id {
+            if state
+                .db
+                .is_minute_book(tenant.community(), channel_id)
+                .await
+                .map_err(|_| anyhow::anyhow!("failed to check channel minute-book status"))?
+            {
+                return Err(anyhow::anyhow!(
+                    "restricted: channel is an append-only minute book; deletions are not permitted"
+                ));
+            }
+        }
+
         let target_author =
             effective_message_author(&target_event.event, &state.relay_keypair.public_key());
         if target_author != actor_bytes
@@ -670,6 +683,20 @@ pub async fn validate_admin_event(
                     return Err(anyhow::anyhow!("target event has no channel"));
                 }
                 _ => {} // Same channel — OK
+            }
+
+            // Append-only minute-book channels reject every deletion, regardless
+            // of who is asking — checked before the authorship/role checks below
+            // so the channel state gates the request first.
+            if state
+                .db
+                .is_minute_book(tenant.community(), channel_id)
+                .await
+                .map_err(|_| anyhow::anyhow!("failed to check channel minute-book status"))?
+            {
+                return Err(anyhow::anyhow!(
+                    "restricted: channel is an append-only minute book; deletions are not permitted"
+                ));
             }
 
             // Check if actor is the event author.
@@ -3583,5 +3610,233 @@ mod tests {
         }];
 
         assert!(actor_is_channel_owner_or_admin(&members, &actor));
+    }
+
+    // ---- Task 3: minute-book deletion gate (kind 5 + kind 9005) ----
+    //
+    // DB-backed, `#[ignore]`. Drives `validate_standard_deletion_event` and
+    // `validate_admin_event` directly against a real migrated test Postgres —
+    // mirrors `command_executor.rs`'s `set_policy_tests::set_policy_test_state`
+    // (this code path never touches redis/media/workflow, only `state.db` and
+    // `state.relay_keypair`, but every `AppState` dependency is still
+    // constructed the same "never actually dialed" way so `AppState::new`
+    // succeeds).
+    mod minute_book_deletion_tests {
+        use super::*;
+        use buzz_core::channel::{ChannelType, ChannelVisibility};
+        use nostr::Keys;
+
+        async fn minute_book_test_state() -> (Arc<AppState>, TenantContext) {
+            let url = std::env::var("BUZZ_TEST_DATABASE_URL")
+                .or_else(|_| std::env::var("TEST_DATABASE_URL"))
+                .unwrap_or_else(|_| "postgres://buzz:buzz_dev@localhost:55432/buzz".to_string()); // sadscan:disable np.postgres.1 -- local test-only credentials
+            let pool = sqlx::PgPool::connect(&url)
+                .await
+                .expect("connect minute-book test database");
+            let db = buzz_db::Db::from_pool(pool.clone());
+            db.migrate().await.expect("migrate minute-book test database");
+
+            let mut config = crate::config::Config::from_env().expect("default config loads");
+            config.require_relay_membership = false;
+            config.redis_url = "redis://127.0.0.1:1".to_string();
+            let redis_pool = deadpool_redis::Config::from_url(&config.redis_url)
+                .create_pool(Some(deadpool_redis::Runtime::Tokio1))
+                .expect("redis pool");
+            let pubsub = Arc::new(
+                buzz_pubsub::PubSubManager::new(&config.redis_url, redis_pool.clone())
+                    .await
+                    .expect("pubsub manager"),
+            );
+            let audit = buzz_audit::AuditService::new(pool.clone());
+            let auth = buzz_auth::AuthService::new(config.auth.clone());
+            let search = buzz_search::SearchService::new(pool.clone());
+            let workflow_engine = Arc::new(buzz_workflow::WorkflowEngine::new(
+                db.clone(),
+                buzz_workflow::WorkflowConfig::default(),
+            ));
+            let media_storage =
+                buzz_media::MediaStorage::new(&config.media).expect("media storage");
+            let (state, _audit_shutdown) = AppState::new(
+                config,
+                db,
+                redis_pool,
+                audit,
+                pubsub,
+                auth,
+                search,
+                workflow_engine,
+                nostr::Keys::generate(),
+                media_storage,
+            );
+            let state = Arc::new(state);
+
+            let host = format!("minute-book-del-{}.example", Uuid::new_v4().simple());
+            let community = state
+                .db
+                .ensure_configured_community(&host)
+                .await
+                .expect("seed minute-book test community")
+                .id;
+            (state, TenantContext::resolved(community, host))
+        }
+
+        async fn seed_channel(
+            state: &Arc<AppState>,
+            tenant: &TenantContext,
+            creator: &[u8],
+        ) -> Uuid {
+            state
+                .db
+                .create_channel(
+                    tenant.community(),
+                    "minute-book-del-channel",
+                    ChannelType::Stream,
+                    ChannelVisibility::Open,
+                    None,
+                    creator,
+                    None,
+                )
+                .await
+                .expect("create channel")
+                .id
+        }
+
+        /// Inserts a plain kind:1 message, self-signed by `keys`, into `channel_id`.
+        async fn seed_message(
+            state: &Arc<AppState>,
+            tenant: &TenantContext,
+            channel_id: Uuid,
+            keys: &Keys,
+        ) -> Event {
+            let event = EventBuilder::new(Kind::TextNote, "minute-book target message")
+                .sign_with_keys(keys)
+                .expect("sign message");
+            state
+                .db
+                .insert_event(tenant.community(), &event, Some(channel_id))
+                .await
+                .expect("insert target message");
+            event
+        }
+
+        fn kind5_self_delete(keys: &Keys, target: &Event) -> Event {
+            EventBuilder::new(Kind::Custom(5), "")
+                .tags([Tag::parse(["e", &target.id.to_hex()]).expect("valid e tag")])
+                .sign_with_keys(keys)
+                .expect("sign kind-5 deletion")
+        }
+
+        fn kind9005_admin_delete(keys: &Keys, channel_id: Uuid, target: &Event) -> Event {
+            EventBuilder::new(Kind::Custom(9005), "")
+                .tags([
+                    Tag::parse(["h", &channel_id.to_string()]).expect("valid h tag"),
+                    Tag::parse(["e", &target.id.to_hex()]).expect("valid e tag"),
+                ])
+                .sign_with_keys(keys)
+                .expect("sign kind-9005 admin delete")
+        }
+
+        #[tokio::test]
+        #[ignore = "requires Postgres"]
+        async fn kind5_self_delete_rejected_in_minute_book_channel() {
+            let (state, tenant) = minute_book_test_state().await;
+            let author_keys = Keys::generate();
+            let author_bytes = author_keys.public_key().to_bytes();
+            let channel_id = seed_channel(&state, &tenant, &author_bytes).await;
+            state
+                .db
+                .set_minute_book(tenant.community(), channel_id)
+                .await
+                .expect("latch channel");
+
+            let target = seed_message(&state, &tenant, channel_id, &author_keys).await;
+            let deletion = kind5_self_delete(&author_keys, &target);
+
+            let result = validate_standard_deletion_event(&tenant, &deletion, &state).await;
+            let err = result.expect_err("deletion in a minute-book channel must be rejected");
+            assert!(
+                err.to_string().contains("append-only minute book"),
+                "unexpected error: {err}"
+            );
+
+            let still_present = state
+                .db
+                .get_event_by_id(tenant.community(), target.id.as_bytes())
+                .await
+                .expect("query target event")
+                .expect("target event must still be present");
+            assert_eq!(still_present.event.id, target.id);
+        }
+
+        #[tokio::test]
+        #[ignore = "requires Postgres"]
+        async fn kind9005_admin_delete_rejected_in_minute_book_channel() {
+            let (state, tenant) = minute_book_test_state().await;
+            let author_keys = Keys::generate();
+            let author_bytes = author_keys.public_key().to_bytes();
+            let channel_id = seed_channel(&state, &tenant, &author_bytes).await;
+            state
+                .db
+                .set_minute_book(tenant.community(), channel_id)
+                .await
+                .expect("latch channel");
+
+            let target = seed_message(&state, &tenant, channel_id, &author_keys).await;
+            let deletion = kind9005_admin_delete(&author_keys, channel_id, &target);
+
+            let result = validate_admin_event(&tenant, 9005, &deletion, &state).await;
+            let err =
+                result.expect_err("admin-deletion in a minute-book channel must be rejected");
+            assert!(
+                err.to_string().contains("append-only minute book"),
+                "unexpected error: {err}"
+            );
+
+            let still_present = state
+                .db
+                .get_event_by_id(tenant.community(), target.id.as_bytes())
+                .await
+                .expect("query target event")
+                .expect("target event must still be present");
+            assert_eq!(still_present.event.id, target.id);
+        }
+
+        #[tokio::test]
+        #[ignore = "requires Postgres"]
+        async fn kind5_self_delete_ok_in_non_minute_book_channel() {
+            let (state, tenant) = minute_book_test_state().await;
+            let author_keys = Keys::generate();
+            let author_bytes = author_keys.public_key().to_bytes();
+            let channel_id = seed_channel(&state, &tenant, &author_bytes).await;
+            // No set_minute_book call: latch stays false — this is the control.
+
+            let target = seed_message(&state, &tenant, channel_id, &author_keys).await;
+            let deletion = kind5_self_delete(&author_keys, &target);
+
+            let result = validate_standard_deletion_event(&tenant, &deletion, &state).await;
+            assert!(
+                result.is_ok(),
+                "ordinary channel deletion must be unaffected: {result:?}"
+            );
+        }
+
+        #[tokio::test]
+        #[ignore = "requires Postgres"]
+        async fn kind9005_admin_delete_ok_in_non_minute_book_channel() {
+            let (state, tenant) = minute_book_test_state().await;
+            let author_keys = Keys::generate();
+            let author_bytes = author_keys.public_key().to_bytes();
+            let channel_id = seed_channel(&state, &tenant, &author_bytes).await;
+            // No set_minute_book call: latch stays false — this is the control.
+
+            let target = seed_message(&state, &tenant, channel_id, &author_keys).await;
+            let deletion = kind9005_admin_delete(&author_keys, channel_id, &target);
+
+            let result = validate_admin_event(&tenant, 9005, &deletion, &state).await;
+            assert!(
+                result.is_ok(),
+                "ordinary channel admin-deletion must be unaffected: {result:?}"
+            );
+        }
     }
 }
