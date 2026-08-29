@@ -101,6 +101,7 @@ CREATE TABLE channels (
     participant_hash BYTEA,
     ttl_seconds     INT,
     ttl_deadline    TIMESTAMPTZ,
+    minute_book     BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (community_id, id),
     CONSTRAINT chk_channels_id_not_nil CHECK (id <> '00000000-0000-0000-0000-000000000000'::uuid)
 );
@@ -138,6 +139,20 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_channels_community_id_immutable
     BEFORE UPDATE ON channels
     FOR EACH ROW EXECUTE FUNCTION channels_community_id_immutable();
+
+-- channels.minute_book is a one-way latch (migration 0033): once TRUE, a
+-- channel can never be un-marked as the minute book.
+CREATE OR REPLACE FUNCTION forbid_minute_book_unlatch() RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'minute_book is a one-way latch and cannot be disabled';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_forbid_minute_book_unlatch
+    BEFORE UPDATE ON channels
+    FOR EACH ROW
+    WHEN (OLD.minute_book IS TRUE AND NEW.minute_book IS FALSE)
+    EXECUTE FUNCTION forbid_minute_book_unlatch();
 
 -- ── Channel members ───────────────────────────────────────────────────────────
 -- Conformance: "Channels and channel membership". PK leads with community_id.

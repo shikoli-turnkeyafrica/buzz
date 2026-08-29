@@ -2647,6 +2647,26 @@ impl Db {
         channel::clear_channel_governance_policy(&self.pool, community_id, channel_id).await
     }
 
+    /// Check whether a channel is latched as the community's minute book.
+    #[datastore_span(name = "is_minute_book", system = "postgresql")]
+    pub async fn is_minute_book(
+        &self,
+        community_id: CommunityId,
+        channel_id: Uuid,
+    ) -> Result<bool> {
+        channel::is_minute_book(&self.pool, community_id, channel_id).await
+    }
+
+    /// Latch a channel as the community's minute book (one-way; see migration 0033).
+    #[datastore_span(name = "set_minute_book", system = "postgresql")]
+    pub async fn set_minute_book(
+        &self,
+        community_id: CommunityId,
+        channel_id: Uuid,
+    ) -> Result<()> {
+        channel::set_minute_book(&self.pool, community_id, channel_id).await
+    }
+
     /// Archive ephemeral channels whose TTL deadline has passed.
     #[datastore_span(name = "reap_expired_ephemeral_channels", system = "postgresql")]
     pub async fn reap_expired_ephemeral_channels(

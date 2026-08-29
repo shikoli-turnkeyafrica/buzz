@@ -1559,6 +1559,45 @@ pub async fn clear_channel_governance_policy(
     Ok(())
 }
 
+/// Check whether a channel is latched as the community's minute book.
+///
+/// Returns `false` if no channel row exists for the (community, channel).
+pub async fn is_minute_book(
+    pool: &PgPool,
+    community_id: CommunityId,
+    channel_id: Uuid,
+) -> Result<bool> {
+    let row = sqlx::query(
+        "SELECT minute_book FROM channels \
+         WHERE community_id = $1 AND id = $2",
+    )
+    .bind(community_id.as_uuid())
+    .bind(channel_id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row
+        .map(|r| r.try_get("minute_book"))
+        .transpose()?
+        .unwrap_or(false))
+}
+
+/// Latch a channel as the community's minute book. One-way: the database
+/// trigger `trg_forbid_minute_book_unlatch` (migration 0033) rejects any
+/// attempt to flip `minute_book` back to `false` once set. Idempotent:
+/// latching an already-latched channel is not an error.
+pub async fn set_minute_book(
+    pool: &PgPool,
+    community_id: CommunityId,
+    channel_id: Uuid,
+) -> Result<()> {
+    sqlx::query("UPDATE channels SET minute_book = TRUE WHERE community_id = $1 AND id = $2")
+        .bind(community_id.as_uuid())
+        .bind(channel_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 /// Archive ephemeral channels whose TTL deadline has passed.
 ///
 /// Returns the `(community_id, host, channel_id)` list that was archived. Idempotent — the
@@ -2910,5 +2949,145 @@ mod tests {
             .await
             .expect("read governance policy");
         assert_eq!(fetched, None);
+    }
+
+    #[tokio::test]
+    #[ignore = "requires Postgres"]
+    async fn is_minute_book_is_false_by_default() {
+        let database_url =
+            std::env::var("BUZZ_TEST_DATABASE_URL").unwrap_or_else(|_| TEST_DB_URL.to_string());
+        let pool = PgPool::connect(&database_url)
+            .await
+            .expect("connect to test DB");
+        let community_id = make_test_community(&pool).await;
+        let community = CommunityId::from_uuid(community_id);
+        let creator = random_pubkey();
+
+        let channel = create_test_channel(
+            &pool,
+            community_id,
+            "minute-book-default-false",
+            ChannelType::Stream,
+            ChannelVisibility::Open,
+            None,
+            &creator,
+            None,
+        )
+        .await
+        .expect("create channel");
+
+        let latched = is_minute_book(&pool, community, channel.id)
+            .await
+            .expect("read minute_book");
+        assert!(!latched, "a fresh channel must not be the minute book");
+    }
+
+    #[tokio::test]
+    #[ignore = "requires Postgres"]
+    async fn set_minute_book_latches_and_is_idempotent() {
+        let database_url =
+            std::env::var("BUZZ_TEST_DATABASE_URL").unwrap_or_else(|_| TEST_DB_URL.to_string());
+        let pool = PgPool::connect(&database_url)
+            .await
+            .expect("connect to test DB");
+        let community_id = make_test_community(&pool).await;
+        let community = CommunityId::from_uuid(community_id);
+        let creator = random_pubkey();
+
+        let channel = create_test_channel(
+            &pool,
+            community_id,
+            "minute-book-set-idempotent",
+            ChannelType::Stream,
+            ChannelVisibility::Open,
+            None,
+            &creator,
+            None,
+        )
+        .await
+        .expect("create channel");
+
+        set_minute_book(&pool, community, channel.id)
+            .await
+            .expect("first latch");
+        assert!(
+            is_minute_book(&pool, community, channel.id)
+                .await
+                .expect("read after first latch")
+        );
+
+        set_minute_book(&pool, community, channel.id)
+            .await
+            .expect("second latch (idempotent)");
+        assert!(
+            is_minute_book(&pool, community, channel.id)
+                .await
+                .expect("read after second latch")
+        );
+    }
+
+    #[tokio::test]
+    #[ignore = "requires Postgres"]
+    async fn minute_book_is_a_one_way_latch() {
+        let database_url =
+            std::env::var("BUZZ_TEST_DATABASE_URL").unwrap_or_else(|_| TEST_DB_URL.to_string());
+        let pool = PgPool::connect(&database_url)
+            .await
+            .expect("connect to test DB");
+        let community_id = make_test_community(&pool).await;
+        let community = CommunityId::from_uuid(community_id);
+        let creator = random_pubkey();
+
+        let channel = create_test_channel(
+            &pool,
+            community_id,
+            "minute-book-latch-raises",
+            ChannelType::Stream,
+            ChannelVisibility::Open,
+            None,
+            &creator,
+            None,
+        )
+        .await
+        .expect("create channel");
+
+        // false → true succeeds; the trigger must not fire on this transition.
+        let up = sqlx::query(
+            "UPDATE channels SET minute_book = true WHERE community_id = $1 AND id = $2",
+        )
+        .bind(community.as_uuid())
+        .bind(channel.id)
+        .execute(&pool)
+        .await;
+        assert!(up.is_ok(), "false -> true must succeed: {up:?}");
+
+        // true → true succeeds; the trigger must not fire on this transition either.
+        let noop = sqlx::query(
+            "UPDATE channels SET minute_book = true WHERE community_id = $1 AND id = $2",
+        )
+        .bind(community.as_uuid())
+        .bind(channel.id)
+        .execute(&pool)
+        .await;
+        assert!(noop.is_ok(), "true -> true must succeed: {noop:?}");
+
+        // true → false RAISES — the one-way latch guarantee, enforced in the DB.
+        let down = sqlx::query(
+            "UPDATE channels SET minute_book = false WHERE community_id = $1 AND id = $2",
+        )
+        .bind(community.as_uuid())
+        .bind(channel.id)
+        .execute(&pool)
+        .await;
+        assert!(
+            down.is_err(),
+            "true -> false must be rejected by the DB trigger, got {down:?}"
+        );
+
+        // The latch must still read true — the rejected UPDATE did not partially apply.
+        let latched = is_minute_book(&pool, community, channel.id)
+            .await
+            .expect("read after rejected unlatch");
+        assert!(latched, "minute_book must remain true after the rejected unlatch");
     }
 }
