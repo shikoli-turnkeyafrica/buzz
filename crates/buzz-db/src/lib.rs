@@ -2702,6 +2702,42 @@ impl Db {
         channel::list_minute_book_channel_ids(&self.pool, community_id).await
     }
 
+    /// Atomically claim the right to emit one Buzz rung 3 completeness
+    /// checkpoint for a channel in the current window, and store it. See
+    /// [`channel::claim_and_store_checkpoint`] for the full contract
+    /// (advisory lock keyed on the channel + window dedupe + tie-broken
+    /// `prev`, all inside one transaction that never leaves the underlying
+    /// call). `build_event` is invoked synchronously with the resolved
+    /// `prev` id (or `None` for the channel's first checkpoint) once it is
+    /// safe to construct and sign the event; returning `Err` rolls back the
+    /// transaction, so a failed signature never leaves a partial checkpoint
+    /// stored.
+    ///
+    /// Not annotated with `#[datastore_span]` (unlike its siblings above) —
+    /// the macro is written for a fixed argument shape and this method's
+    /// generic `build_event` closure parameter doesn't fit it cleanly; the
+    /// underlying query still runs through the ordinary pool/transaction
+    /// path, so nothing about correctness depends on the span.
+    pub async fn claim_and_store_checkpoint<F>(
+        &self,
+        community_id: CommunityId,
+        channel_id: Uuid,
+        window_start: DateTime<Utc>,
+        build_event: F,
+    ) -> Result<Option<nostr::Event>>
+    where
+        F: FnOnce(Option<[u8; 32]>) -> Result<nostr::Event>,
+    {
+        channel::claim_and_store_checkpoint(
+            &self.pool,
+            community_id,
+            channel_id,
+            window_start,
+            build_event,
+        )
+        .await
+    }
+
     /// Archive ephemeral channels whose TTL deadline has passed.
     #[datastore_span(name = "reap_expired_ephemeral_channels", system = "postgresql")]
     pub async fn reap_expired_ephemeral_channels(

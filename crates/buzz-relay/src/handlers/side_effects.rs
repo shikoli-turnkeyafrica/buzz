@@ -871,6 +871,17 @@ pub async fn emit_system_message(
     Ok(())
 }
 
+/// Build one `["name", value]` tag for a checkpoint event, converting a
+/// malformed tag into a [`buzz_db::DbError`] (rather than `anyhow::Error`)
+/// so it can be `?`-propagated from inside
+/// [`emit_checkpoint_for_channel`]'s `build_event` closure, whose return
+/// type is pinned to `buzz_db::Result` by
+/// [`buzz_db::Db::claim_and_store_checkpoint`]'s generic bound.
+fn checkpoint_tag(name: &str, value: &str) -> buzz_db::Result<Tag> {
+    Tag::parse([name, value])
+        .map_err(|e| buzz_db::DbError::InvalidData(format!("{name} tag: {e}")))
+}
+
 /// Emit a relay-signed completeness checkpoint (`kind:46220`,
 /// [`KIND_CYBOTA_CHECKPOINT`]) for one minute-book channel — Buzz rung 3.
 ///
@@ -880,6 +891,29 @@ pub async fn emit_system_message(
 /// (both from [`super::checkpoint`] — the pure, independently-reproducible
 /// contract). The checkpoint is prev-chained: `prev` is the channel's most
 /// recent existing checkpoint id, or `""` for the channel's first checkpoint.
+///
+/// **Multi-pod coordination.** This deployment runs 5-15 replicas under an
+/// HPA (`deploy/charts/buzz/values.yaml`); every pod independently spawns
+/// the checkpoint interval and calls this function for the same channel. A
+/// naive "read `prev`, then insert" would race: two pods could read the same
+/// chain head and both insert a checkpoint claiming it, forking the chain.
+/// `prev` resolution and the insert therefore happen together, atomically,
+/// inside [`buzz_db::Db::claim_and_store_checkpoint`] — a Postgres advisory
+/// transaction lock keyed on the channel serializes concurrent callers
+/// (cluster-wide, not just within one process), and a check against
+/// `window_start` skips emission if the channel already has a checkpoint
+/// from the current window, so N pods produce at most one checkpoint per
+/// window rather than N. `window_start` is the caller's window cutoff
+/// (`run_checkpoint_cycle` passes `now - interval`); this function itself
+/// does no windowing math. `Ok(None)` means "skipped, another caller already
+/// claimed this window" — not an error.
+///
+/// The event's `created_at` is pinned to `as_of` via `custom_created_at`
+/// (rather than left to the builder's own `now()`) so the stored row's
+/// `created_at` — what `claim_and_store_checkpoint`'s window check and
+/// [`buzz_db::channel::latest_checkpoint_event_id`]'s ordering both compare
+/// against — exactly matches the instant this checkpoint's hash was
+/// computed over.
 ///
 /// Signing mirrors [`emit_system_message`] exactly — only the relay keypair
 /// ever signs a 46220 (`is_relay_only_kind` rejects a client-submitted one at
@@ -895,7 +929,8 @@ pub async fn emit_checkpoint_for_channel(
     tenant: &TenantContext,
     state: &Arc<AppState>,
     channel_id: Uuid,
-) -> anyhow::Result<Event> {
+    window_start: DateTime<Utc>,
+) -> anyhow::Result<Option<Event>> {
     let as_of: DateTime<Utc> = Utc::now();
 
     let ids = state
@@ -904,42 +939,51 @@ pub async fn emit_checkpoint_for_channel(
         .await?;
     let event_count = ids.len();
     let checkpoint_hash = hex::encode(super::checkpoint::compute_checkpoint_hash(&ids));
-
-    let prev = state
-        .db
-        .latest_checkpoint_event_id(tenant.community(), channel_id)
-        .await?
-        .map(hex::encode)
-        .unwrap_or_default();
-
     let as_of_str = as_of.timestamp().to_string();
+    let channel_id_str = channel_id.to_string();
+    let relay_keypair = state.relay_keypair.clone();
 
-    let content = serde_json::json!({
-        "h": channel_id.to_string(),
-        "checkpoint_hash": checkpoint_hash,
-        "event_count": event_count.to_string(),
-        "as_of": as_of_str,
-        "prev": prev,
-    });
-
-    let event = EventBuilder::new(Kind::Custom(KIND_CYBOTA_CHECKPOINT as u16), content.to_string())
-        .tags([
-            Tag::parse(["h", &channel_id.to_string()])?,
-            Tag::parse(["checkpoint_hash", &checkpoint_hash])?,
-            Tag::parse(["event_count", &event_count.to_string()])?,
-            Tag::parse(["as_of", &as_of_str])?,
-            Tag::parse(["prev", &prev])?,
-        ])
-        .sign_with_keys(&state.relay_keypair)
-        .map_err(|e| anyhow::anyhow!("failed to sign checkpoint: {e}"))?;
-
-    // Unlike emit_system_message, a failed insert here is a hard error (see
-    // doc comment above) — never silently produce a signed-but-unstored
-    // checkpoint.
-    state
+    let claimed = state
         .db
-        .insert_event(tenant.community(), &event, Some(channel_id))
+        .claim_and_store_checkpoint(
+            tenant.community(),
+            channel_id,
+            window_start,
+            move |prev_id| {
+                let prev = prev_id.map(hex::encode).unwrap_or_default();
+                let event_count_str = event_count.to_string();
+
+                let content = serde_json::json!({
+                    "h": channel_id_str,
+                    "checkpoint_hash": checkpoint_hash,
+                    "event_count": event_count_str,
+                    "as_of": as_of_str,
+                    "prev": prev,
+                });
+
+                EventBuilder::new(Kind::Custom(KIND_CYBOTA_CHECKPOINT as u16), content.to_string())
+                    .custom_created_at(nostr::Timestamp::from_secs(as_of.timestamp() as u64))
+                    .tags([
+                        checkpoint_tag("h", &channel_id_str)?,
+                        checkpoint_tag("checkpoint_hash", &checkpoint_hash)?,
+                        checkpoint_tag("event_count", &event_count_str)?,
+                        checkpoint_tag("as_of", &as_of_str)?,
+                        checkpoint_tag("prev", &prev)?,
+                    ])
+                    .sign_with_keys(&relay_keypair)
+                    .map_err(|e| buzz_db::DbError::InvalidData(format!(
+                        "failed to sign checkpoint: {e}"
+                    )))
+            },
+        )
         .await?;
+
+    let Some(event) = claimed else {
+        // Another caller (this pod's own earlier claim, or another pod)
+        // already emitted a checkpoint for this channel within the current
+        // window. Not an error — nothing new to fan out.
+        return Ok(None);
+    };
 
     if let Err(e) = state
         .pubsub
@@ -949,7 +993,7 @@ pub async fn emit_checkpoint_for_channel(
         warn!(channel = %channel_id, "checkpoint fan-out failed: {e}");
     }
 
-    Ok(event)
+    Ok(Some(event))
 }
 
 /// Sign and fan out a fresh relay-signed `kind:39005` thread-summary overlay
@@ -4240,9 +4284,11 @@ mod tests {
                     .into_iter()
                     .collect();
 
-            let emitted = emit_checkpoint_for_channel(&tenant, &state, channel_id)
+            let window_start = Utc::now();
+            let emitted = emit_checkpoint_for_channel(&tenant, &state, channel_id, window_start)
                 .await
-                .expect("emit checkpoint");
+                .expect("emit checkpoint")
+                .expect("channel has no prior checkpoint in this window: must not be skipped");
 
             assert_eq!(
                 emitted.pubkey,
@@ -4276,7 +4322,7 @@ mod tests {
 
         #[tokio::test]
         #[ignore = "requires Postgres"]
-        async fn emit_checkpoint_for_channel_chains_prev_and_excludes_the_prior_checkpoint() {
+        async fn emit_checkpoint_for_channel_chains_prev_across_different_windows() {
             let (state, tenant) = checkpoint_test_state().await;
             let author_keys = Keys::generate();
             let author_bytes = author_keys.public_key().to_bytes();
@@ -4291,16 +4337,33 @@ mod tests {
             let _e1 = seed_message(&state, &tenant, channel_id, &author_keys).await;
             let _e2 = seed_message(&state, &tenant, channel_id, &author_keys).await;
 
-            let first = emit_checkpoint_for_channel(&tenant, &state, channel_id)
+            let first_window = Utc::now();
+            let first = emit_checkpoint_for_channel(&tenant, &state, channel_id, first_window)
                 .await
-                .expect("emit first checkpoint");
+                .expect("emit first checkpoint")
+                .expect("first checkpoint must not be skipped: no prior checkpoint exists");
 
-            // No new non-checkpoint events between the two emits: N is
-            // unchanged for the second checkpoint, and its hash must exclude
-            // the first checkpoint event itself (kind <> 46220 in the fetch).
-            let second = emit_checkpoint_for_channel(&tenant, &state, channel_id)
+            // A window_start pushed 2 seconds into the future relative to
+            // the first checkpoint's creation — models a later tick (a
+            // different pod's tick, or this same pod's next one, some
+            // `interval` later), not a retry within the same window. Using a
+            // real `Utc::now()` here would be flaky: the window-dedupe check
+            // floors both sides to whole seconds (see
+            // `claim_and_store_checkpoint`'s `window_start_floored`), so two
+            // calls made microseconds apart — as these are, in a fast test —
+            // would floor to the SAME second and be treated as the SAME
+            // window, which is correct in general but not what this test
+            // means to exercise. No new non-checkpoint events between the two
+            // emits: N is unchanged for the second checkpoint, and its hash
+            // must exclude the first checkpoint event itself (kind <> 46220
+            // in the fetch).
+            let second_window = Utc::now() + chrono::Duration::seconds(2);
+            let second = emit_checkpoint_for_channel(&tenant, &state, channel_id, second_window)
                 .await
-                .expect("emit second checkpoint");
+                .expect("emit second checkpoint")
+                .expect(
+                    "second checkpoint is in a later window than the first: must not be skipped",
+                );
 
             assert_ne!(first.id, second.id);
             assert_eq!(
@@ -4316,6 +4379,58 @@ mod tests {
 
             let checkpoints = fetch_checkpoints(&state, &tenant, channel_id).await;
             assert_eq!(checkpoints.len(), 2, "both checkpoints stored");
+        }
+
+        #[tokio::test]
+        #[ignore = "requires Postgres"]
+        async fn emit_checkpoint_for_channel_skips_a_second_call_within_the_same_window() {
+            let (state, tenant) = checkpoint_test_state().await;
+            let author_keys = Keys::generate();
+            let author_bytes = author_keys.public_key().to_bytes();
+            let channel_id = seed_channel(
+                &state,
+                &tenant,
+                "checkpoint-window-dedupe-channel",
+                &author_bytes,
+            )
+            .await;
+            state
+                .db
+                .set_minute_book(tenant.community(), channel_id)
+                .await
+                .expect("latch minute book");
+            seed_message(&state, &tenant, channel_id, &author_keys).await;
+
+            // The SAME window_start reused for both calls — models two
+            // concurrent pods (or one pod retrying) both acting within one
+            // periodic-cycle window. This is the direct regression test for
+            // the multi-pod race: without the advisory-lock + window-dedupe
+            // fix, both calls would read the same `prev` and each insert a
+            // checkpoint, forking the chain; with the fix, the second call
+            // must see the first's checkpoint already lands in-window and
+            // skip.
+            let window_start = Utc::now();
+
+            let first = emit_checkpoint_for_channel(&tenant, &state, channel_id, window_start)
+                .await
+                .expect("emit checkpoint")
+                .expect("first call in an empty window must not be skipped");
+
+            let second = emit_checkpoint_for_channel(&tenant, &state, channel_id, window_start)
+                .await
+                .expect("second call must not error, only skip");
+            assert!(
+                second.is_none(),
+                "a second call within the SAME window must be skipped (Ok(None)), not produce a competing checkpoint"
+            );
+
+            let checkpoints = fetch_checkpoints(&state, &tenant, channel_id).await;
+            assert_eq!(
+                checkpoints.len(),
+                1,
+                "exactly one checkpoint must exist after two same-window calls"
+            );
+            assert_eq!(checkpoints[0].id, first.id);
         }
 
         #[tokio::test]
@@ -4339,9 +4454,13 @@ mod tests {
             // No set_minute_book call: this channel is out of scope.
             seed_message(&state, &tenant, non_minute_book_channel, &author_keys).await;
 
-            let emitted = crate::checkpoint_task::run_checkpoint_cycle(&tenant, &state)
-                .await
-                .expect("run checkpoint cycle");
+            let emitted = crate::checkpoint_task::run_checkpoint_cycle(
+                &tenant,
+                &state,
+                std::time::Duration::from_secs(60),
+            )
+            .await
+            .expect("run checkpoint cycle");
             assert_eq!(emitted, 1, "exactly one minute-book channel checkpointed");
 
             let mb_checkpoints = fetch_checkpoints(&state, &tenant, minute_book_channel).await;

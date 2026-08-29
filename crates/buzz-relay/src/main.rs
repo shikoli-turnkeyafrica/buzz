@@ -614,6 +614,7 @@ async fn main() -> anyhow::Result<()> {
                 match buzz_relay::checkpoint_task::run_checkpoint_cycle(
                     &tenant,
                     &checkpoint_state,
+                    std::time::Duration::from_secs(interval_secs),
                 )
                 .await
                 {

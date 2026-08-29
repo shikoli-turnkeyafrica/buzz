@@ -5,6 +5,7 @@
 //! - `private`: hidden, invite-only
 
 use chrono::{DateTime, Utc};
+use nostr::Event;
 use sqlx::{PgPool, Postgres, Row, Transaction};
 use uuid::Uuid;
 
@@ -1648,39 +1649,206 @@ pub async fn channel_event_ids_through(
     Ok(out)
 }
 
+/// Decode a `SELECT id FROM events ...` row's `id` column into the fixed
+/// 32-byte array Buzz event ids are, failing closed (rather than truncating
+/// or panicking) on an unexpected length. Shared by
+/// [`latest_checkpoint_event_id`] and [`claim_and_store_checkpoint`]'s
+/// transaction-scoped equivalent so the two decode paths can't drift.
+fn checkpoint_id_from_row(row: sqlx::postgres::PgRow) -> Result<[u8; 32]> {
+    let id_bytes: Vec<u8> = row.try_get("id")?;
+    let len = id_bytes.len();
+    id_bytes.try_into().map_err(|_| {
+        DbError::InvalidData(format!(
+            "checkpoint event id has invalid length {len} (expected 32 bytes)"
+        ))
+    })
+}
+
+/// The `SELECT` this file uses everywhere it needs "the channel's current
+/// checkpoint chain head": the most recent `KIND_CYBOTA_CHECKPOINT` event,
+/// tie-broken by `id` when two checkpoints share the same `created_at`.
+///
+/// The tie-break matters: `created_at` is stored with second granularity
+/// (`insert_event` in `buzz-db::event` floors to whole seconds), so without
+/// it, two checkpoints landing in the same second would leave "the chain
+/// head" undefined — a plain `ORDER BY created_at DESC LIMIT 1` could
+/// nondeterministically return either row, and could even flip between two
+/// queries run moments apart as Postgres's row-visibility/plan choices vary.
+/// `id DESC` gives a total, deterministic order regardless.
+const LATEST_CHECKPOINT_QUERY: &str = "SELECT id FROM events      WHERE community_id = $1 AND channel_id = $2 AND kind = $3      ORDER BY created_at DESC, id DESC LIMIT 1";
+
 /// Fetch the id of a channel's most recently created `KIND_CYBOTA_CHECKPOINT`
 /// event, for the Buzz rung 3 checkpoint chain's `prev` link.
 ///
 /// Returns `None` when the channel has never had a checkpoint emitted — the
 /// caller (`emit_checkpoint_for_channel` in `buzz-relay`) treats that as the
 /// chain's first link and stamps an empty `prev` tag.
+///
+/// This is a plain, unlocked read — useful for display/audit purposes
+/// ("what's the latest checkpoint right now"). It is deliberately NOT used
+/// internally by the emitter to decide `prev`: see
+/// [`claim_and_store_checkpoint`], which reads the same chain head but
+/// atomically, under an advisory lock, in the same transaction as the
+/// insert that follows — closing the read-then-write race a plain read here
+/// would leave open under concurrent emitters.
 pub async fn latest_checkpoint_event_id(
     pool: &PgPool,
     community_id: CommunityId,
     channel_id: Uuid,
 ) -> Result<Option<[u8; 32]>> {
-    let row = sqlx::query(
-        "SELECT id FROM events \
-         WHERE community_id = $1 AND channel_id = $2 AND kind = $3 \
-         ORDER BY created_at DESC LIMIT 1",
-    )
-    .bind(community_id.as_uuid())
-    .bind(channel_id)
-    .bind(KIND_CYBOTA_CHECKPOINT as i32)
-    .fetch_optional(pool)
-    .await?;
+    let row = sqlx::query(LATEST_CHECKPOINT_QUERY)
+        .bind(community_id.as_uuid())
+        .bind(channel_id)
+        .bind(KIND_CYBOTA_CHECKPOINT as i32)
+        .fetch_optional(pool)
+        .await?;
 
     let Some(row) = row else {
         return Ok(None);
     };
-    let id_bytes: Vec<u8> = row.try_get("id")?;
-    let len = id_bytes.len();
-    let id: [u8; 32] = id_bytes.try_into().map_err(|_| {
-        DbError::InvalidData(format!(
-            "checkpoint event id has invalid length {len} (expected 32 bytes)"
+    Ok(Some(checkpoint_id_from_row(row)?))
+}
+
+/// Namespace for the per-channel Buzz rung 3 checkpoint-emission advisory
+/// lock. See [`claim_and_store_checkpoint`].
+const CHECKPOINT_EMIT_LOCK_NAMESPACE: &str = "buzz_checkpoint_emit:";
+
+/// Atomically claim the right to emit one Buzz rung 3 completeness
+/// checkpoint (`kind:46220`) for `channel_id` in the current window, and
+/// store it — coordinating across an HPA'd multi-pod deployment where every
+/// pod independently runs the periodic checkpoint cycle against the same
+/// Postgres (`deploy/charts/buzz/values.yaml` scales this to 5-15
+/// replicas).
+///
+/// **The race this closes:** a plain "SELECT the latest checkpoint (for
+/// `prev`), then INSERT a new one" is a classic read-then-write race under
+/// concurrent callers — two pods can both read the same chain head and both
+/// insert a checkpoint claiming it as `prev`, forking the chain and
+/// breaking the tamper-evidence the chain exists to provide.
+///
+/// Mirrors this file's own `add_member`/`acquire_channel_membership_lock`
+/// pattern (see above): the entire check-then-write sequence for one
+/// channel runs inside a single transaction, opened and committed *here* —
+/// the lock and the transaction never leave this function, matching this
+/// module's established convention for lock-guarded multi-step writes.
+///
+/// 1. Opens a transaction and takes a Postgres advisory *transaction* lock
+///    keyed on `(community_id, channel_id)` (`pg_advisory_xact_lock`,
+///    auto-released at commit or rollback) as the FIRST statement —
+///    cluster-wide, coordinated by Postgres itself, so this serializes
+///    concurrent pods, not just concurrent tasks within one process.
+/// 2. While holding the lock, checks whether the channel already has a
+///    checkpoint at or after `window_start`. If so, some caller (this pod
+///    or another) already emitted for this window: rolls back — releasing
+///    the lock with nothing changed — and returns `Ok(None)`. This is what
+///    turns "N pods, N ticks" into "one checkpoint per window": the lock
+///    alone would only prevent a *fork* (two competing `prev`s); this check
+///    also prevents a *redundant linear chain entry* every tick.
+/// 3. Otherwise reads the chain head via [`LATEST_CHECKPOINT_QUERY`] and
+///    passes its id as `prev` to `build_event`.
+/// 4. Calls `build_event(prev)` — synchronous, no I/O expected (Buzz's
+///    `EventBuilder` construction and `sign_with_keys` are both pure,
+///    CPU-only operations) — and inserts the returned, already-signed
+///    event through this same transaction, still holding the lock, then
+///    commits (releasing the lock).
+///
+/// Returns `Ok(None)` when the window was already claimed (skip, not an
+/// error — the caller should not treat this as a failure). Returns
+/// `Ok(Some(event))` with the freshly stored, signed checkpoint otherwise.
+/// `build_event` failing (e.g. signing fails) rolls back the transaction
+/// (no partial checkpoint is ever stored) and propagates the error.
+pub async fn claim_and_store_checkpoint<F>(
+    pool: &PgPool,
+    community_id: CommunityId,
+    channel_id: Uuid,
+    window_start: DateTime<Utc>,
+    build_event: F,
+) -> Result<Option<Event>>
+where
+    F: FnOnce(Option<[u8; 32]>) -> Result<Event>,
+{
+    let mut tx = pool.begin().await?;
+
+    // First statement: serialize the whole check-then-write sequence below
+    // against a concurrent caller (this process or another pod) targeting
+    // the same channel.
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+        .bind(format!(
+            "{CHECKPOINT_EMIT_LOCK_NAMESPACE}{}:{}",
+            community_id.as_uuid(),
+            channel_id
         ))
-    })?;
-    Ok(Some(id))
+        .execute(&mut *tx)
+        .await?;
+
+    // Stored `created_at` is always floored to whole seconds (mirroring
+    // `event::insert_event`'s convention, and this function's own INSERT
+    // below), but `window_start` is typically a fresh `Utc::now()` with
+    // sub-second precision. Comparing them un-floored is a genuine boundary
+    // bug, not a cosmetic one: a checkpoint created a moment ago floors down
+    // to the START of its second, which can land before a `window_start`
+    // captured microseconds later in that same second, so the "already
+    // claimed" check would miss it and let a second caller through in what
+    // is, in wall-clock terms, the same window. Flooring `window_start` here
+    // too makes the comparison apples-to-apples.
+    let window_start_floored =
+        DateTime::from_timestamp(window_start.timestamp(), 0).unwrap_or(window_start);
+
+    let already_claimed = sqlx::query(
+        "SELECT 1 FROM events WHERE community_id = $1 AND channel_id = $2 AND kind = $3 AND created_at >= $4 LIMIT 1",
+    )
+    .bind(community_id.as_uuid())
+    .bind(channel_id)
+    .bind(KIND_CYBOTA_CHECKPOINT as i32)
+    .bind(window_start_floored)
+    .fetch_optional(&mut *tx)
+    .await?
+    .is_some();
+
+    if already_claimed {
+        tx.rollback().await?;
+        return Ok(None);
+    }
+
+    let row = sqlx::query(LATEST_CHECKPOINT_QUERY)
+        .bind(community_id.as_uuid())
+        .bind(channel_id)
+        .bind(KIND_CYBOTA_CHECKPOINT as i32)
+        .fetch_optional(&mut *tx)
+        .await?;
+    let prev = row.map(checkpoint_id_from_row).transpose()?;
+
+    let event = build_event(prev)?;
+
+    let id_bytes = event.id.as_bytes();
+    let pubkey_bytes = event.pubkey.to_bytes();
+    let sig_bytes = event.sig.serialize();
+    let tags_json = serde_json::to_value(&event.tags)?;
+    let kind_i32 = i32::from(event.kind.as_u16());
+    let created_at_secs = event.created_at.as_secs() as i64;
+    let created_at = DateTime::from_timestamp(created_at_secs, 0)
+        .ok_or(DbError::InvalidTimestamp(created_at_secs))?;
+    let received_at = Utc::now();
+
+    sqlx::query(
+        "INSERT INTO events              (community_id, id, pubkey, created_at, kind, tags, content, sig, received_at, channel_id)          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)          ON CONFLICT DO NOTHING",
+    )
+    .bind(community_id.as_uuid())
+    .bind(id_bytes.as_slice())
+    .bind(pubkey_bytes.as_slice())
+    .bind(created_at)
+    .bind(kind_i32)
+    .bind(&tags_json)
+    .bind(&event.content)
+    .bind(sig_bytes.as_slice())
+    .bind(received_at)
+    .bind(channel_id)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
+    Ok(Some(event))
 }
 
 /// List the ids of every channel latched as a minute book in `community_id`
@@ -3221,6 +3389,143 @@ mod tests {
         .await
         .expect("insert test event");
         id_vec.try_into().expect("event id is 32 bytes")
+    }
+
+    /// Like [`insert_test_event`] but with a caller-chosen 32-byte id, so a
+    /// test can control which of two same-`created_at` rows is
+    /// lexicographically larger — needed to exercise
+    /// [`latest_checkpoint_event_id`]'s `id DESC` tie-break deterministically
+    /// rather than relying on `random_pubkey()` to land the right way.
+    async fn insert_test_event_with_id(
+        pool: &PgPool,
+        community_id: Uuid,
+        channel_id: Uuid,
+        pubkey: &[u8],
+        kind: i32,
+        created_at: DateTime<Utc>,
+        id: [u8; 32],
+    ) {
+        sqlx::query(
+            "INSERT INTO events              (community_id, id, pubkey, created_at, kind, tags, content, sig, received_at, channel_id)              VALUES ($1, $2, $3, $4, $5, '[]'::jsonb, '', $6, NOW(), $7)",
+        )
+        .bind(community_id)
+        .bind(id.as_slice())
+        .bind(pubkey)
+        .bind(created_at)
+        .bind(kind)
+        .bind(vec![0u8; 64])
+        .bind(channel_id)
+        .execute(pool)
+        .await
+        .expect("insert test event with explicit id");
+    }
+
+    #[tokio::test]
+    #[ignore = "requires Postgres"]
+    async fn latest_checkpoint_event_id_tie_breaks_on_id_when_created_at_matches() {
+        let database_url =
+            std::env::var("BUZZ_TEST_DATABASE_URL").unwrap_or_else(|_| TEST_DB_URL.to_string());
+        let pool = PgPool::connect(&database_url)
+            .await
+            .expect("connect to test DB");
+        let community_id = make_test_community(&pool).await;
+        let community = CommunityId::from_uuid(community_id);
+        let creator = random_pubkey();
+
+        let channel = create_test_channel(
+            &pool,
+            community_id,
+            "checkpoint-tie-break",
+            ChannelType::Stream,
+            ChannelVisibility::Open,
+            None,
+            &creator,
+            None,
+        )
+        .await
+        .expect("create channel");
+
+        // Two checkpoints at the EXACT same created_at (full timestamptz
+        // precision, not just the same second) — a genuine tie. Without the
+        // `id DESC` tie-break, "the chain head" is undefined between them.
+        let same_instant = Utc::now();
+        let lower_id = [0x01_u8; 32];
+        let higher_id = [0x02_u8; 32];
+        insert_test_event_with_id(
+            &pool,
+            community_id,
+            channel.id,
+            &creator,
+            KIND_CYBOTA_CHECKPOINT as i32,
+            same_instant,
+            lower_id,
+        )
+        .await;
+        insert_test_event_with_id(
+            &pool,
+            community_id,
+            channel.id,
+            &creator,
+            KIND_CYBOTA_CHECKPOINT as i32,
+            same_instant,
+            higher_id,
+        )
+        .await;
+
+        let head = latest_checkpoint_event_id(&pool, community, channel.id)
+            .await
+            .expect("fetch chain head")
+            .expect("a checkpoint exists");
+        assert_eq!(
+            head, higher_id,
+            "same-created_at tie must resolve deterministically to the higher id"
+        );
+
+        // The order the two rows were inserted in must not matter — flip it
+        // and confirm the same deterministic winner.
+        let channel2 = create_test_channel(
+            &pool,
+            community_id,
+            "checkpoint-tie-break-reverse-insert",
+            ChannelType::Stream,
+            ChannelVisibility::Open,
+            None,
+            &creator,
+            None,
+        )
+        .await
+        .expect("create second channel");
+        // Distinct ids from the first pair: the events primary key is
+        // (community_id, created_at, id) — NOT scoped by channel — so
+        // reusing lower_id/higher_id here (same community, same
+        // same_instant) would collide with the rows already inserted above.
+        let lower_id2 = [0x03_u8; 32];
+        let higher_id2 = [0x04_u8; 32];
+        insert_test_event_with_id(
+            &pool,
+            community_id,
+            channel2.id,
+            &creator,
+            KIND_CYBOTA_CHECKPOINT as i32,
+            same_instant,
+            higher_id2,
+        )
+        .await;
+        insert_test_event_with_id(
+            &pool,
+            community_id,
+            channel2.id,
+            &creator,
+            KIND_CYBOTA_CHECKPOINT as i32,
+            same_instant,
+            lower_id2,
+        )
+        .await;
+        let head2 = latest_checkpoint_event_id(&pool, community, channel2.id)
+            .await
+            .expect("fetch chain head")
+            .expect("a checkpoint exists");
+        assert_eq!(head2, higher_id2, "insertion order must not affect the tie-break");
     }
 
     #[tokio::test]
