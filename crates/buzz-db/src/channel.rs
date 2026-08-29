@@ -1648,6 +1648,63 @@ pub async fn channel_event_ids_through(
     Ok(out)
 }
 
+/// Fetch the id of a channel's most recently created `KIND_CYBOTA_CHECKPOINT`
+/// event, for the Buzz rung 3 checkpoint chain's `prev` link.
+///
+/// Returns `None` when the channel has never had a checkpoint emitted — the
+/// caller (`emit_checkpoint_for_channel` in `buzz-relay`) treats that as the
+/// chain's first link and stamps an empty `prev` tag.
+pub async fn latest_checkpoint_event_id(
+    pool: &PgPool,
+    community_id: CommunityId,
+    channel_id: Uuid,
+) -> Result<Option<[u8; 32]>> {
+    let row = sqlx::query(
+        "SELECT id FROM events \
+         WHERE community_id = $1 AND channel_id = $2 AND kind = $3 \
+         ORDER BY created_at DESC LIMIT 1",
+    )
+    .bind(community_id.as_uuid())
+    .bind(channel_id)
+    .bind(KIND_CYBOTA_CHECKPOINT as i32)
+    .fetch_optional(pool)
+    .await?;
+
+    let Some(row) = row else {
+        return Ok(None);
+    };
+    let id_bytes: Vec<u8> = row.try_get("id")?;
+    let len = id_bytes.len();
+    let id: [u8; 32] = id_bytes.try_into().map_err(|_| {
+        DbError::InvalidData(format!(
+            "checkpoint event id has invalid length {len} (expected 32 bytes)"
+        ))
+    })?;
+    Ok(Some(id))
+}
+
+/// List the ids of every channel latched as a minute book in `community_id`
+/// (`minute_book = TRUE`, not soft-deleted) — the scope of one completeness
+/// checkpoint cycle (`run_checkpoint_cycle` in `buzz-relay`). A channel that
+/// has never called [`set_minute_book`] is never included, so a non-minute-
+/// book channel is never checkpointed.
+pub async fn list_minute_book_channel_ids(
+    pool: &PgPool,
+    community_id: CommunityId,
+) -> Result<Vec<Uuid>> {
+    let rows = sqlx::query(
+        "SELECT id FROM channels \
+         WHERE community_id = $1 AND minute_book AND deleted_at IS NULL",
+    )
+    .bind(community_id.as_uuid())
+    .fetch_all(pool)
+    .await?;
+
+    rows.into_iter()
+        .map(|row| row.try_get::<Uuid, _>("id").map_err(DbError::from))
+        .collect()
+}
+
 /// Archive ephemeral channels whose TTL deadline has passed.
 ///
 /// Returns the `(community_id, host, channel_id)` list that was archived. Idempotent — the

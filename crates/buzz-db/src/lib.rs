@@ -2667,6 +2667,41 @@ impl Db {
         channel::set_minute_book(&self.pool, community_id, channel_id).await
     }
 
+    /// Fetch a channel's stored event ids with `created_at <= as_of`,
+    /// excluding checkpoint events themselves — the Buzz rung 3 completeness
+    /// checkpoint's input set (`compute_checkpoint_hash` in `buzz-relay`).
+    #[datastore_span(name = "channel_event_ids_through", system = "postgresql")]
+    pub async fn channel_event_ids_through(
+        &self,
+        community_id: CommunityId,
+        channel_id: Uuid,
+        as_of: DateTime<Utc>,
+    ) -> Result<Vec<[u8; 32]>> {
+        channel::channel_event_ids_through(&self.pool, community_id, channel_id, as_of).await
+    }
+
+    /// Fetch the id of a channel's most recent checkpoint event (kind 46220),
+    /// or `None` if the channel has never had one — the rung 3 checkpoint
+    /// chain's `prev` link.
+    #[datastore_span(name = "latest_checkpoint_event_id", system = "postgresql")]
+    pub async fn latest_checkpoint_event_id(
+        &self,
+        community_id: CommunityId,
+        channel_id: Uuid,
+    ) -> Result<Option<[u8; 32]>> {
+        channel::latest_checkpoint_event_id(&self.pool, community_id, channel_id).await
+    }
+
+    /// List the ids of every channel latched as a minute book in
+    /// `community_id` — the scope of one rung 3 checkpoint cycle.
+    #[datastore_span(name = "list_minute_book_channel_ids", system = "postgresql")]
+    pub async fn list_minute_book_channel_ids(
+        &self,
+        community_id: CommunityId,
+    ) -> Result<Vec<Uuid>> {
+        channel::list_minute_book_channel_ids(&self.pool, community_id).await
+    }
+
     /// Archive ephemeral channels whose TTL deadline has passed.
     #[datastore_span(name = "reap_expired_ephemeral_channels", system = "postgresql")]
     pub async fn reap_expired_ephemeral_channels(

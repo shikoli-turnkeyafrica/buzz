@@ -2,16 +2,17 @@
 
 use std::sync::Arc;
 
+use chrono::{DateTime, Utc};
 use nostr::{Event, EventBuilder, Kind, Tag};
 use tracing::{info, warn};
 use uuid::Uuid;
 
 use buzz_core::kind::{
-    event_kind_u32, is_parameterized_replaceable, KIND_AGENT_PROFILE, KIND_DM_VISIBILITY,
-    KIND_GIT_REPO_ANNOUNCEMENT, KIND_IA_ARCHIVED, KIND_IA_ARCHIVED_LIST, KIND_IA_UNARCHIVED,
-    KIND_MEMBER_ADDED_NOTIFICATION, KIND_MEMBER_REMOVED_NOTIFICATION, KIND_NIP29_GROUP_ADMINS,
-    KIND_NIP29_GROUP_MEMBERS, KIND_NIP29_GROUP_METADATA, KIND_NIP43_MEMBERSHIP_LIST, KIND_REACTION,
-    KIND_THREAD_SUMMARY,
+    event_kind_u32, is_parameterized_replaceable, KIND_AGENT_PROFILE, KIND_CYBOTA_CHECKPOINT,
+    KIND_DM_VISIBILITY, KIND_GIT_REPO_ANNOUNCEMENT, KIND_IA_ARCHIVED, KIND_IA_ARCHIVED_LIST,
+    KIND_IA_UNARCHIVED, KIND_MEMBER_ADDED_NOTIFICATION, KIND_MEMBER_REMOVED_NOTIFICATION,
+    KIND_NIP29_GROUP_ADMINS, KIND_NIP29_GROUP_MEMBERS, KIND_NIP29_GROUP_METADATA,
+    KIND_NIP43_MEMBERSHIP_LIST, KIND_REACTION, KIND_THREAD_SUMMARY,
 };
 use buzz_core::StoredEvent;
 use buzz_db::channel::{MemberRecord, MemberRole};
@@ -868,6 +869,87 @@ pub async fn emit_system_message(
     }
 
     Ok(())
+}
+
+/// Emit a relay-signed completeness checkpoint (`kind:46220`,
+/// [`KIND_CYBOTA_CHECKPOINT`]) for one minute-book channel — Buzz rung 3.
+///
+/// Captures a single `as_of = now()` timestamp, fetches the channel's stored
+/// event ids through that instant (`channel_event_ids_through`, excludes
+/// checkpoints themselves), and hashes them with `compute_checkpoint_hash`
+/// (both from [`super::checkpoint`] — the pure, independently-reproducible
+/// contract). The checkpoint is prev-chained: `prev` is the channel's most
+/// recent existing checkpoint id, or `""` for the channel's first checkpoint.
+///
+/// Signing mirrors [`emit_system_message`] exactly — only the relay keypair
+/// ever signs a 46220 (`is_relay_only_kind` rejects a client-submitted one at
+/// ingest), so a forged checkpoint is impossible. Unlike a system message,
+/// storage failure here is propagated as an error rather than merely logged:
+/// a checkpoint that is signed but never stored is invisible to
+/// `channel_event_ids_through` and to any auditor fetching the channel's
+/// 46220 history, which would silently defeat the completeness proof.
+///
+/// `content` mirrors the tags as a JSON object so a reader has the same data
+/// whether it reads tags or content.
+pub async fn emit_checkpoint_for_channel(
+    tenant: &TenantContext,
+    state: &Arc<AppState>,
+    channel_id: Uuid,
+) -> anyhow::Result<Event> {
+    let as_of: DateTime<Utc> = Utc::now();
+
+    let ids = state
+        .db
+        .channel_event_ids_through(tenant.community(), channel_id, as_of)
+        .await?;
+    let event_count = ids.len();
+    let checkpoint_hash = hex::encode(super::checkpoint::compute_checkpoint_hash(&ids));
+
+    let prev = state
+        .db
+        .latest_checkpoint_event_id(tenant.community(), channel_id)
+        .await?
+        .map(hex::encode)
+        .unwrap_or_default();
+
+    let as_of_str = as_of.timestamp().to_string();
+
+    let content = serde_json::json!({
+        "h": channel_id.to_string(),
+        "checkpoint_hash": checkpoint_hash,
+        "event_count": event_count.to_string(),
+        "as_of": as_of_str,
+        "prev": prev,
+    });
+
+    let event = EventBuilder::new(Kind::Custom(KIND_CYBOTA_CHECKPOINT as u16), content.to_string())
+        .tags([
+            Tag::parse(["h", &channel_id.to_string()])?,
+            Tag::parse(["checkpoint_hash", &checkpoint_hash])?,
+            Tag::parse(["event_count", &event_count.to_string()])?,
+            Tag::parse(["as_of", &as_of_str])?,
+            Tag::parse(["prev", &prev])?,
+        ])
+        .sign_with_keys(&state.relay_keypair)
+        .map_err(|e| anyhow::anyhow!("failed to sign checkpoint: {e}"))?;
+
+    // Unlike emit_system_message, a failed insert here is a hard error (see
+    // doc comment above) — never silently produce a signed-but-unstored
+    // checkpoint.
+    state
+        .db
+        .insert_event(tenant.community(), &event, Some(channel_id))
+        .await?;
+
+    if let Err(e) = state
+        .pubsub
+        .publish_event(tenant, EventTopic::Channel(channel_id), &event)
+        .await
+    {
+        warn!(channel = %channel_id, "checkpoint fan-out failed: {e}");
+    }
+
+    Ok(event)
 }
 
 /// Sign and fan out a fresh relay-signed `kind:39005` thread-summary overlay
@@ -3998,6 +4080,282 @@ mod tests {
             assert!(
                 result.is_ok(),
                 "ordinary channel a-tag deletion must be unaffected: {result:?}"
+            );
+        }
+    }
+
+    // ---- Task 2: periodic checkpoint emitter (rung 3, kind 46220) ----
+    //
+    // DB-backed, `#[ignore]`. Reuses the `minute_book_deletion_tests` harness
+    // shape (real migrated Postgres, `AppState::new` with never-dialed
+    // redis/media/search deps) since `emit_checkpoint_for_channel` and
+    // `run_checkpoint_cycle` touch nothing else.
+    mod checkpoint_emit_tests {
+        use super::*;
+        use buzz_core::channel::{ChannelType, ChannelVisibility};
+        use nostr::Keys;
+        use std::collections::HashSet;
+
+        async fn checkpoint_test_state() -> (Arc<AppState>, TenantContext) {
+            let url = std::env::var("BUZZ_TEST_DATABASE_URL")
+                .or_else(|_| std::env::var("TEST_DATABASE_URL"))
+                .unwrap_or_else(|_| "postgres://buzz:buzz_dev@localhost:55432/buzz".to_string()); // sadscan:disable np.postgres.1 -- local test-only credentials
+            let pool = sqlx::PgPool::connect(&url)
+                .await
+                .expect("connect checkpoint test database");
+            let db = buzz_db::Db::from_pool(pool.clone());
+            db.migrate().await.expect("migrate checkpoint test database");
+
+            let mut config = crate::config::Config::from_env().expect("default config loads");
+            config.require_relay_membership = false;
+            config.redis_url = "redis://127.0.0.1:1".to_string();
+            let redis_pool = deadpool_redis::Config::from_url(&config.redis_url)
+                .create_pool(Some(deadpool_redis::Runtime::Tokio1))
+                .expect("redis pool");
+            let pubsub = Arc::new(
+                buzz_pubsub::PubSubManager::new(&config.redis_url, redis_pool.clone())
+                    .await
+                    .expect("pubsub manager"),
+            );
+            let audit = buzz_audit::AuditService::new(pool.clone());
+            let auth = buzz_auth::AuthService::new(config.auth.clone());
+            let search = buzz_search::SearchService::new(pool.clone());
+            let workflow_engine = Arc::new(buzz_workflow::WorkflowEngine::new(
+                db.clone(),
+                buzz_workflow::WorkflowConfig::default(),
+            ));
+            let media_storage =
+                buzz_media::MediaStorage::new(&config.media).expect("media storage");
+            let (state, _audit_shutdown) = AppState::new(
+                config,
+                db,
+                redis_pool,
+                audit,
+                pubsub,
+                auth,
+                search,
+                workflow_engine,
+                nostr::Keys::generate(),
+                media_storage,
+            );
+            let state = Arc::new(state);
+
+            let host = format!("checkpoint-emit-{}.example", Uuid::new_v4().simple());
+            let community = state
+                .db
+                .ensure_configured_community(&host)
+                .await
+                .expect("seed checkpoint test community")
+                .id;
+            (state, TenantContext::resolved(community, host))
+        }
+
+        async fn seed_channel(
+            state: &Arc<AppState>,
+            tenant: &TenantContext,
+            name: &str,
+            creator: &[u8],
+        ) -> Uuid {
+            state
+                .db
+                .create_channel(
+                    tenant.community(),
+                    name,
+                    ChannelType::Stream,
+                    ChannelVisibility::Open,
+                    None,
+                    creator,
+                    None,
+                )
+                .await
+                .expect("create channel")
+                .id
+        }
+
+        /// Inserts a plain kind:1 message, self-signed by `keys`, into `channel_id`.
+        ///
+        /// Content is nonce-suffixed (a fresh UUID per call): a Nostr event id
+        /// is a hash of (pubkey, created_at, kind, tags, content), and
+        /// `created_at` only has second granularity — two calls with
+        /// otherwise-identical fields within the same second would hash to the
+        /// *same* event id and collide against `insert_event`'s
+        /// `ON CONFLICT DO NOTHING` (event.rs), silently deduping to one row.
+        /// The nonce guarantees each seeded message is a genuinely distinct
+        /// stored event, which is what these tests need to count N correctly.
+        async fn seed_message(
+            state: &Arc<AppState>,
+            tenant: &TenantContext,
+            channel_id: Uuid,
+            keys: &Keys,
+        ) -> Event {
+            let content = format!("checkpoint emitter target message {}", Uuid::new_v4());
+            let event = EventBuilder::new(Kind::TextNote, content)
+                .sign_with_keys(keys)
+                .expect("sign message");
+            state
+                .db
+                .insert_event(tenant.community(), &event, Some(channel_id))
+                .await
+                .expect("insert target message");
+            event
+        }
+
+        /// Fetch a channel's stored `kind:46220` checkpoint events.
+        async fn fetch_checkpoints(
+            state: &Arc<AppState>,
+            tenant: &TenantContext,
+            channel_id: Uuid,
+        ) -> Vec<Event> {
+            let stored = state
+                .db
+                .query_events(&buzz_db::event::EventQuery {
+                    channel_id: Some(channel_id),
+                    kinds: Some(vec![KIND_CYBOTA_CHECKPOINT as i32]),
+                    ..buzz_db::event::EventQuery::for_community(tenant.community())
+                })
+                .await
+                .expect("query checkpoint events");
+            stored.into_iter().map(|s| s.event).collect()
+        }
+
+        #[tokio::test]
+        #[ignore = "requires Postgres"]
+        async fn emit_checkpoint_for_channel_produces_a_relay_signed_first_checkpoint() {
+            let (state, tenant) = checkpoint_test_state().await;
+            let author_keys = Keys::generate();
+            let author_bytes = author_keys.public_key().to_bytes();
+            let channel_id =
+                seed_channel(&state, &tenant, "checkpoint-emit-channel", &author_bytes).await;
+            state
+                .db
+                .set_minute_book(tenant.community(), channel_id)
+                .await
+                .expect("latch minute book");
+
+            let e1 = seed_message(&state, &tenant, channel_id, &author_keys).await;
+            let e2 = seed_message(&state, &tenant, channel_id, &author_keys).await;
+            let e3 = seed_message(&state, &tenant, channel_id, &author_keys).await;
+            let known_ids: HashSet<[u8; 32]> =
+                [e1.id.to_bytes(), e2.id.to_bytes(), e3.id.to_bytes()]
+                    .into_iter()
+                    .collect();
+
+            let emitted = emit_checkpoint_for_channel(&tenant, &state, channel_id)
+                .await
+                .expect("emit checkpoint");
+
+            assert_eq!(
+                emitted.pubkey,
+                state.relay_keypair.public_key(),
+                "checkpoint must be signed by the relay keypair"
+            );
+
+            let checkpoints = fetch_checkpoints(&state, &tenant, channel_id).await;
+            assert_eq!(checkpoints.len(), 1, "exactly one checkpoint stored");
+            let stored = &checkpoints[0];
+            assert_eq!(stored.id, emitted.id);
+
+            let expected_hash = hex::encode(crate::handlers::checkpoint::compute_checkpoint_hash(
+                &known_ids.into_iter().collect::<Vec<_>>(),
+            ));
+            assert_eq!(
+                extract_tag_value(stored, "checkpoint_hash").as_deref(),
+                Some(expected_hash.as_str())
+            );
+            assert_eq!(
+                extract_tag_value(stored, "event_count").as_deref(),
+                Some("3")
+            );
+            assert!(extract_tag_value(stored, "as_of").is_some());
+            assert_eq!(
+                extract_tag_value(stored, "prev").as_deref(),
+                Some(""),
+                "the channel's first checkpoint has an empty prev"
+            );
+        }
+
+        #[tokio::test]
+        #[ignore = "requires Postgres"]
+        async fn emit_checkpoint_for_channel_chains_prev_and_excludes_the_prior_checkpoint() {
+            let (state, tenant) = checkpoint_test_state().await;
+            let author_keys = Keys::generate();
+            let author_bytes = author_keys.public_key().to_bytes();
+            let channel_id =
+                seed_channel(&state, &tenant, "checkpoint-chain-channel", &author_bytes).await;
+            state
+                .db
+                .set_minute_book(tenant.community(), channel_id)
+                .await
+                .expect("latch minute book");
+
+            let _e1 = seed_message(&state, &tenant, channel_id, &author_keys).await;
+            let _e2 = seed_message(&state, &tenant, channel_id, &author_keys).await;
+
+            let first = emit_checkpoint_for_channel(&tenant, &state, channel_id)
+                .await
+                .expect("emit first checkpoint");
+
+            // No new non-checkpoint events between the two emits: N is
+            // unchanged for the second checkpoint, and its hash must exclude
+            // the first checkpoint event itself (kind <> 46220 in the fetch).
+            let second = emit_checkpoint_for_channel(&tenant, &state, channel_id)
+                .await
+                .expect("emit second checkpoint");
+
+            assert_ne!(first.id, second.id);
+            assert_eq!(
+                extract_tag_value(&second, "prev").as_deref(),
+                Some(first.id.to_hex().as_str()),
+                "the second checkpoint must chain to the first checkpoint's id"
+            );
+            assert_eq!(
+                extract_tag_value(&second, "event_count").as_deref(),
+                Some("2"),
+                "N unchanged: the first checkpoint itself must not count toward N"
+            );
+
+            let checkpoints = fetch_checkpoints(&state, &tenant, channel_id).await;
+            assert_eq!(checkpoints.len(), 2, "both checkpoints stored");
+        }
+
+        #[tokio::test]
+        #[ignore = "requires Postgres"]
+        async fn run_checkpoint_cycle_only_checkpoints_minute_book_channels() {
+            let (state, tenant) = checkpoint_test_state().await;
+            let author_keys = Keys::generate();
+            let author_bytes = author_keys.public_key().to_bytes();
+
+            let minute_book_channel =
+                seed_channel(&state, &tenant, "checkpoint-cycle-mb", &author_bytes).await;
+            state
+                .db
+                .set_minute_book(tenant.community(), minute_book_channel)
+                .await
+                .expect("latch minute book");
+            seed_message(&state, &tenant, minute_book_channel, &author_keys).await;
+
+            let non_minute_book_channel =
+                seed_channel(&state, &tenant, "checkpoint-cycle-non-mb", &author_bytes).await;
+            // No set_minute_book call: this channel is out of scope.
+            seed_message(&state, &tenant, non_minute_book_channel, &author_keys).await;
+
+            let emitted = crate::checkpoint_task::run_checkpoint_cycle(&tenant, &state)
+                .await
+                .expect("run checkpoint cycle");
+            assert_eq!(emitted, 1, "exactly one minute-book channel checkpointed");
+
+            let mb_checkpoints = fetch_checkpoints(&state, &tenant, minute_book_channel).await;
+            assert_eq!(
+                mb_checkpoints.len(),
+                1,
+                "minute-book channel got a checkpoint"
+            );
+
+            let non_mb_checkpoints =
+                fetch_checkpoints(&state, &tenant, non_minute_book_channel).await;
+            assert!(
+                non_mb_checkpoints.is_empty(),
+                "non-minute-book channel must never be checkpointed"
             );
         }
     }

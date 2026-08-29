@@ -576,6 +576,60 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
+    // Buzz rung 3: periodic completeness checkpoints (kind 46220) for every
+    // minute-book channel. Optional feature, like the NIP-43 reconciler above:
+    // unset or `0` means the emitter never spawns.
+    let checkpoint_interval_secs = std::env::var("BUZZ_CHECKPOINT_INTERVAL_SECS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|&secs| secs > 0);
+    if let Some(interval_secs) = checkpoint_interval_secs {
+        let checkpoint_state = Arc::clone(&state);
+        let relay_url = config.relay_url.clone();
+        tokio::spawn(async move {
+            // Resolve the deployment's community from the configured relay URL
+            // host, same as the channel reconciler below — the checkpoint
+            // cycle is community-scoped, so there is no global "all
+            // channels" sweep.
+            let tenant = match buzz_relay::tenant::bind_deployment_community(
+                &checkpoint_state.db,
+                &relay_url,
+            )
+            .await
+            {
+                Ok(ctx) => ctx,
+                Err(e) => {
+                    tracing::warn!(
+                        error = ?e,
+                        "checkpoint emitter skipped: relay host is not mapped to a community"
+                    );
+                    return;
+                }
+            };
+
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(interval_secs));
+            interval.tick().await;
+            loop {
+                interval.tick().await;
+                match buzz_relay::checkpoint_task::run_checkpoint_cycle(
+                    &tenant,
+                    &checkpoint_state,
+                )
+                .await
+                {
+                    Ok(count) if count > 0 => {
+                        info!(count, "completeness checkpoints emitted")
+                    }
+                    Ok(_) => {}
+                    Err(error) => tracing::warn!(
+                        %error,
+                        "checkpoint cycle failed"
+                    ),
+                }
+            }
+        });
+    }
+
     // Emit kind:39000/39002 discovery events for channels that exist in the DB
     // but don't have corresponding events (e.g. seeded via direct SQL inserts).
     // Only runs when BUZZ_RECONCILE_CHANNELS=true (dev/CI environments).
