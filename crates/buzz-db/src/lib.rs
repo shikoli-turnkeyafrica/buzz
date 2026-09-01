@@ -2659,11 +2659,7 @@ impl Db {
 
     /// Latch a channel as the community's minute book (one-way; see migration 0033).
     #[datastore_span(name = "set_minute_book", system = "postgresql")]
-    pub async fn set_minute_book(
-        &self,
-        community_id: CommunityId,
-        channel_id: Uuid,
-    ) -> Result<()> {
+    pub async fn set_minute_book(&self, community_id: CommunityId, channel_id: Uuid) -> Result<()> {
         channel::set_minute_book(&self.pool, community_id, channel_id).await
     }
 

@@ -1163,18 +1163,23 @@ mod tests {
             assert!(is_cybota_governed_kind(k), "kind {k} should be governed");
             assert!(cybota_governed_kind_label(k).is_some());
         }
-        assert!(!is_cybota_governed_kind(9));      // ordinary chat
-        assert!(!is_cybota_governed_kind(46199));  // just below the band
-        assert!(!is_cybota_governed_kind(46205));  // just above
+        assert!(!is_cybota_governed_kind(9)); // ordinary chat
+        assert!(!is_cybota_governed_kind(46199)); // just below the band
+        assert!(!is_cybota_governed_kind(46205)); // just above
         assert!(cybota_governed_kind_label(9).is_none());
     }
 
     #[test]
     fn cybota_kinds_do_not_collide_with_existing_bands() {
         // 46010-46031 are Buzz workflow/approval; 46200+ must be clear.
-        for k in [KIND_CYBOTA_DIGEST, KIND_CYBOTA_STAGED, KIND_CYBOTA_ADVICE,
-                  KIND_CYBOTA_RATIFICATION, KIND_CYBOTA_DISSENT] {
-            assert!(k >= 46200 && k <= 46204);
+        for k in [
+            KIND_CYBOTA_DIGEST,
+            KIND_CYBOTA_STAGED,
+            KIND_CYBOTA_ADVICE,
+            KIND_CYBOTA_RATIFICATION,
+            KIND_CYBOTA_DISSENT,
+        ] {
+            assert!((46200..=46204).contains(&k));
         }
     }
 

@@ -3285,20 +3285,16 @@ mod tests {
         set_minute_book(&pool, community, channel.id)
             .await
             .expect("first latch");
-        assert!(
-            is_minute_book(&pool, community, channel.id)
-                .await
-                .expect("read after first latch")
-        );
+        assert!(is_minute_book(&pool, community, channel.id)
+            .await
+            .expect("read after first latch"));
 
         set_minute_book(&pool, community, channel.id)
             .await
             .expect("second latch (idempotent)");
-        assert!(
-            is_minute_book(&pool, community, channel.id)
-                .await
-                .expect("read after second latch")
-        );
+        assert!(is_minute_book(&pool, community, channel.id)
+            .await
+            .expect("read after second latch"));
     }
 
     #[tokio::test]
@@ -3363,7 +3359,10 @@ mod tests {
         let latched = is_minute_book(&pool, community, channel.id)
             .await
             .expect("read after rejected unlatch");
-        assert!(latched, "minute_book must remain true after the rejected unlatch");
+        assert!(
+            latched,
+            "minute_book must remain true after the rejected unlatch"
+        );
     }
 
     async fn insert_test_event(
@@ -3525,7 +3524,10 @@ mod tests {
             .await
             .expect("fetch chain head")
             .expect("a checkpoint exists");
-        assert_eq!(head2, higher_id2, "insertion order must not affect the tie-break");
+        assert_eq!(
+            head2, higher_id2,
+            "insertion order must not affect the tie-break"
+        );
     }
 
     #[tokio::test]
@@ -3575,7 +3577,8 @@ mod tests {
         )
         .await;
         // An ordinary event strictly after T — must be excluded.
-        let _future = insert_test_event(&pool, community_id, channel.id, &creator, 1, t_plus_1).await;
+        let _future =
+            insert_test_event(&pool, community_id, channel.id, &creator, 1, t_plus_1).await;
 
         let ids = channel_event_ids_through(&pool, community, channel.id, t)
             .await

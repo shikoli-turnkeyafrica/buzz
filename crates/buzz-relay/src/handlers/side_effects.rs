@@ -878,8 +878,7 @@ pub async fn emit_system_message(
 /// type is pinned to `buzz_db::Result` by
 /// [`buzz_db::Db::claim_and_store_checkpoint`]'s generic bound.
 fn checkpoint_tag(name: &str, value: &str) -> buzz_db::Result<Tag> {
-    Tag::parse([name, value])
-        .map_err(|e| buzz_db::DbError::InvalidData(format!("{name} tag: {e}")))
+    Tag::parse([name, value]).map_err(|e| buzz_db::DbError::InvalidData(format!("{name} tag: {e}")))
 }
 
 /// Emit a relay-signed completeness checkpoint (`kind:46220`,
@@ -961,19 +960,22 @@ pub async fn emit_checkpoint_for_channel(
                     "prev": prev,
                 });
 
-                EventBuilder::new(Kind::Custom(KIND_CYBOTA_CHECKPOINT as u16), content.to_string())
-                    .custom_created_at(nostr::Timestamp::from_secs(as_of.timestamp() as u64))
-                    .tags([
-                        checkpoint_tag("h", &channel_id_str)?,
-                        checkpoint_tag("checkpoint_hash", &checkpoint_hash)?,
-                        checkpoint_tag("event_count", &event_count_str)?,
-                        checkpoint_tag("as_of", &as_of_str)?,
-                        checkpoint_tag("prev", &prev)?,
-                    ])
-                    .sign_with_keys(&relay_keypair)
-                    .map_err(|e| buzz_db::DbError::InvalidData(format!(
-                        "failed to sign checkpoint: {e}"
-                    )))
+                EventBuilder::new(
+                    Kind::Custom(KIND_CYBOTA_CHECKPOINT as u16),
+                    content.to_string(),
+                )
+                .custom_created_at(nostr::Timestamp::from_secs(as_of.timestamp() as u64))
+                .tags([
+                    checkpoint_tag("h", &channel_id_str)?,
+                    checkpoint_tag("checkpoint_hash", &checkpoint_hash)?,
+                    checkpoint_tag("event_count", &event_count_str)?,
+                    checkpoint_tag("as_of", &as_of_str)?,
+                    checkpoint_tag("prev", &prev)?,
+                ])
+                .sign_with_keys(&relay_keypair)
+                .map_err(|e| {
+                    buzz_db::DbError::InvalidData(format!("failed to sign checkpoint: {e}"))
+                })
             },
         )
         .await?;
@@ -3810,7 +3812,9 @@ mod tests {
                 .await
                 .expect("connect minute-book test database");
             let db = buzz_db::Db::from_pool(pool.clone());
-            db.migrate().await.expect("migrate minute-book test database");
+            db.migrate()
+                .await
+                .expect("migrate minute-book test database");
 
             let mut config = crate::config::Config::from_env().expect("default config loads");
             config.require_relay_membership = false;
@@ -4007,8 +4011,7 @@ mod tests {
             let deletion = kind9005_admin_delete(&author_keys, channel_id, &target);
 
             let result = validate_admin_event(&tenant, 9005, &deletion, &state).await;
-            let err =
-                result.expect_err("admin-deletion in a minute-book channel must be rejected");
+            let err = result.expect_err("admin-deletion in a minute-book channel must be rejected");
             assert!(
                 err.to_string().contains("append-only minute book"),
                 "unexpected error: {err}"
@@ -4089,8 +4092,7 @@ mod tests {
             let deletion = kind5_a_tag_delete(&author_keys, d_tag_value);
 
             let result = validate_standard_deletion_event(&tenant, &deletion, &state).await;
-            let err =
-                result.expect_err("a-tag deletion in a minute-book channel must be rejected");
+            let err = result.expect_err("a-tag deletion in a minute-book channel must be rejected");
             assert!(
                 err.to_string().contains("append-only minute book"),
                 "unexpected error: {err}"
@@ -4148,7 +4150,9 @@ mod tests {
                 .await
                 .expect("connect checkpoint test database");
             let db = buzz_db::Db::from_pool(pool.clone());
-            db.migrate().await.expect("migrate checkpoint test database");
+            db.migrate()
+                .await
+                .expect("migrate checkpoint test database");
 
             let mut config = crate::config::Config::from_env().expect("default config loads");
             config.require_relay_membership = false;

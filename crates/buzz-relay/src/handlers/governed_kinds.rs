@@ -307,7 +307,9 @@ fn validate_rule_shape(rule: &serde_json::Value) -> Result<(), String> {
 /// so it always matches [`evaluate_rule`]'s case-insensitive comparison
 /// without relying on that case-insensitivity.
 fn is_well_formed_lowercase_pubkey_hex(s: &str) -> bool {
-    s.len() == 64 && s.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
+    s.len() == 64
+        && s.chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
 }
 
 /// Task 4: the async ingest-time gate. This is the only place the pure core

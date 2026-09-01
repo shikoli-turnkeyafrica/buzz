@@ -1437,7 +1437,8 @@ async fn handle_set_policy(
     // body. The tag COMPOSES with a real policy SET: if content is present,
     // it's still parsed and validated as normal, and applied alongside the
     // latch.
-    let minute_book_only = minute_book_tag.is_some() && !is_clear && event.content.trim().is_empty();
+    let minute_book_only =
+        minute_book_tag.is_some() && !is_clear && event.content.trim().is_empty();
     let policy: Option<serde_json::Value> = if is_clear || minute_book_only {
         None
     } else {
@@ -1842,7 +1843,9 @@ mod tests {
                 .await
                 .expect("connect set_policy test database");
             let db = buzz_db::Db::from_pool(pool.clone());
-            db.migrate().await.expect("migrate set_policy test database");
+            db.migrate()
+                .await
+                .expect("migrate set_policy test database");
 
             let mut config = crate::config::Config::from_env().expect("default config loads");
             config.require_relay_membership = false;
@@ -1891,7 +1894,11 @@ mod tests {
         /// Creates a channel whose creator is the channel owner (matches
         /// `governed_kinds::gate_tests::seed_channel`'s pattern — channel
         /// creation implicitly grants the creator the owner role).
-        async fn seed_channel(state: &Arc<AppState>, tenant: &TenantContext, creator: &[u8]) -> Uuid {
+        async fn seed_channel(
+            state: &Arc<AppState>,
+            tenant: &TenantContext,
+            creator: &[u8],
+        ) -> Uuid {
             state
                 .db
                 .create_channel(
@@ -1962,7 +1969,6 @@ mod tests {
                 .sign_with_keys(keys)
                 .expect("sign minute-book+policy event")
         }
-
 
         fn rejection_message(result: Result<IngestResult, IngestError>) -> String {
             match result {
@@ -2037,7 +2043,7 @@ mod tests {
                 "unexpected message: {msg:?}"
             );
             assert!(
-                !msg.contains(&hex::encode(&member_bytes)),
+                !msg.contains(&hex::encode(member_bytes)),
                 "message must never leak an identity: {msg:?}"
             );
 
@@ -2357,10 +2363,7 @@ mod tests {
             let auth = auth_for(&owner_keys);
 
             let msg = rejection_message(handle_set_policy(&tenant, &state, &event, &auth).await);
-            assert!(
-                msg.contains("one-way latch"),
-                "unexpected message: {msg:?}"
-            );
+            assert!(msg.contains("one-way latch"), "unexpected message: {msg:?}");
 
             let latched = state
                 .db
@@ -2381,12 +2384,8 @@ mod tests {
             let channel_id = seed_channel(&state, &tenant, &owner_bytes).await;
 
             let policy = json!({ "46203": { "role": "owner" } });
-            let event = minute_book_with_policy_event(
-                &owner_keys,
-                channel_id,
-                "true",
-                &policy.to_string(),
-            );
+            let event =
+                minute_book_with_policy_event(&owner_keys, channel_id, "true", &policy.to_string());
             let auth = auth_for(&owner_keys);
 
             let result = handle_set_policy(&tenant, &state, &event, &auth).await;
