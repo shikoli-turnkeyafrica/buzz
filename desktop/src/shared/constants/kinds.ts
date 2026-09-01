@@ -32,6 +32,11 @@ export const KIND_JOB_ERROR = 43006;
 export const KIND_FORUM_POST = 45001;
 export const KIND_FORUM_COMMENT = 45003;
 export const KIND_APPROVAL_REQUEST = 46010;
+export const KIND_CYBOTA_DIGEST = 46200;
+export const KIND_CYBOTA_STAGED = 46201;
+export const KIND_CYBOTA_ADVICE = 46202;
+export const KIND_CYBOTA_RATIFICATION = 46203;
+export const KIND_CYBOTA_DISSENT = 46204;
 export const KIND_MEMBER_ADDED_NOTIFICATION = 44100;
 export const KIND_MEMBER_REMOVED_NOTIFICATION = 44101;
 export const KIND_TYPING_INDICATOR = 20002;
@@ -105,6 +110,11 @@ export const CHANNEL_EVENT_KINDS = [
   KIND_HUDDLE_PARTICIPANT_JOINED, // 48101 — huddle lifecycle overlay
   KIND_HUDDLE_PARTICIPANT_LEFT, // 48102 — huddle lifecycle overlay
   KIND_HUDDLE_ENDED, // 48103 — huddle lifecycle overlay
+  KIND_CYBOTA_DIGEST, // 46200 — governance digest
+  KIND_CYBOTA_STAGED, // 46201 — staged proposal
+  KIND_CYBOTA_ADVICE, // 46202 — advice on proposal
+  KIND_CYBOTA_RATIFICATION, // 46203 — ratification vote
+  KIND_CYBOTA_DISSENT, // 46204 — dissent
 ] as const;
 
 // Auxiliary (non-row) timeline kinds: events that overlay onto or hide an
@@ -141,6 +151,11 @@ export const CHANNEL_TIMELINE_CONTENT_KINDS = [
   KIND_JOB_CANCEL, // 43005
   KIND_JOB_ERROR, // 43006
   KIND_HUDDLE_STARTED, // 48100 — huddle session card
+  KIND_CYBOTA_DIGEST, // 46200 — governance digest
+  KIND_CYBOTA_STAGED, // 46201 — staged proposal
+  KIND_CYBOTA_ADVICE, // 46202 — advice on proposal
+  KIND_CYBOTA_RATIFICATION, // 46203 — ratification vote
+  KIND_CYBOTA_DISSENT, // 46204 — dissent
 ] as const;
 
 // Timeline kinds that are NOT conversational: relay-signed system rows

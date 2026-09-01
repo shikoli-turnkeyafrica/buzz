@@ -35,6 +35,11 @@ import {
   KIND_STREAM_MESSAGE_EDIT,
   KIND_STREAM_MESSAGE_DIFF,
   KIND_SYSTEM_MESSAGE,
+  KIND_CYBOTA_DIGEST,
+  KIND_CYBOTA_STAGED,
+  KIND_CYBOTA_ADVICE,
+  KIND_CYBOTA_RATIFICATION,
+  KIND_CYBOTA_DISSENT,
 } from "@/shared/constants/kinds";
 import { resolveEventAuthorPubkey } from "@/shared/lib/authors";
 import { normalizePubkey } from "@/shared/lib/pubkey";
@@ -58,7 +63,12 @@ export function isTimelineContentEvent(event: RelayEvent) {
     event.kind === KIND_JOB_RESULT ||
     event.kind === KIND_JOB_CANCEL ||
     event.kind === KIND_JOB_ERROR ||
-    event.kind === KIND_HUDDLE_STARTED
+    event.kind === KIND_HUDDLE_STARTED ||
+    event.kind === KIND_CYBOTA_DIGEST ||
+    event.kind === KIND_CYBOTA_STAGED ||
+    event.kind === KIND_CYBOTA_ADVICE ||
+    event.kind === KIND_CYBOTA_RATIFICATION ||
+    event.kind === KIND_CYBOTA_DISSENT
   );
 }
 
