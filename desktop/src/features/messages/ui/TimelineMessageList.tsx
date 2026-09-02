@@ -1,7 +1,6 @@
 import * as React from "react";
 import { VList } from "virtua";
 import type { VListHandle } from "virtua";
-
 import { formatDayGroupLabel } from "@/shared/lib/datetime";
 import {
   buildTimelineDayGroups,
@@ -28,12 +27,12 @@ import { cn } from "@/shared/lib/cn";
 import { channelChrome } from "@/shared/layout/chromeLayout";
 import { DayDivider } from "./DayDivider";
 import { MessageRowItem, SystemRow } from "./TimelineMessageRow";
+import { GovernanceEventRow } from "@/features/messages/components/GovernanceEventRow";
 import { TimelineRowShell } from "./TimelineRowShell";
 import { UnreadDivider } from "./UnreadDivider";
 import { useTimelineRetention } from "./useTimelineRetention";
 import { useUpwardPaginationWheel } from "./useUpwardPaginationWheel";
 import { useVirtualizedBottomSettle } from "./useVirtualizedBottomSettle";
-
 export type TimelineVirtualizerApi = {
   cancelBottomIntent: () => void;
   scrollToBottom: (behavior?: ScrollBehavior) => void;
@@ -43,7 +42,6 @@ export type TimelineVirtualizerApi = {
     options?: { behavior?: ScrollBehavior },
   ) => boolean;
 };
-
 type TimelineMessageListProps = {
   channelId?: string | null;
   channelName?: string;
@@ -121,7 +119,6 @@ type TimelineMessageListProps = {
   onVirtualizerRangeChanged?: () => void;
   onVirtualizerScrollerChange?: (element: HTMLDivElement | null) => void;
 };
-
 export const TimelineMessageList = React.memo(function TimelineMessageList({
   channelId,
   channelName,
@@ -199,7 +196,6 @@ export const TimelineMessageList = React.memo(function TimelineMessageList({
     onToggleReaction,
     profiles,
   ]);
-
   // The flattened item stream, memoized on the entries and the unread boundary
   // (the unread divider is its own item, so it shifts subsequent rows).
   const itemsResult = React.useMemo(
@@ -210,12 +206,24 @@ export const TimelineMessageList = React.memo(function TimelineMessageList({
     () => buildTimelineDayGroups(itemsResult.items),
     [itemsResult.items],
   );
-
   const renderItem = React.useCallback(
     (item: TimelineNonDayItem) => {
       switch (item.kind) {
         case "unread-divider":
           return <UnreadDivider />;
+        case "governance":
+          return (
+            <div className="flex flex-col gap-1 pb-2.5">
+              <GovernanceEventRow
+                message={item.entry.message}
+                currentPubkey={currentPubkey}
+                profiles={profiles}
+                ownerProfiles={ownerProfiles}
+                onToggleReaction={onToggleReaction}
+              />
+              {messageFooters?.[item.entry.message.id] ?? null}
+            </div>
+          );
         case "system":
           return (
             <SystemRow
@@ -315,7 +323,6 @@ export const TimelineMessageList = React.memo(function TimelineMessageList({
       videoReviewContextById,
     ],
   );
-
   if (useVirtualizer) {
     return (
       <VirtualizedTimelineRows
@@ -332,7 +339,6 @@ export const TimelineMessageList = React.memo(function TimelineMessageList({
       />
     );
   }
-
   return (
     <div className="flex flex-col">
       {dayGroups.map((group) => (
@@ -364,7 +370,6 @@ export const TimelineMessageList = React.memo(function TimelineMessageList({
     </div>
   );
 });
-
 function timelineItemMessageIds(item: TimelineNonDayItem): string[] {
   if (item.kind === "system-group") {
     return item.entries.map((entry) => entry.message.id);
@@ -373,7 +378,6 @@ function timelineItemMessageIds(item: TimelineNonDayItem): string[] {
     ? [item.entry.message.id]
     : [];
 }
-
 type VirtualizedTimelineRowsProps = {
   dayGroups: TimelineDayGroup[];
   historyExhausted: boolean;
@@ -386,16 +390,13 @@ type VirtualizedTimelineRowsProps = {
   onVirtualizerScrollerChange?: (element: HTMLDivElement | null) => void;
   renderItem: (item: TimelineNonDayItem) => React.ReactNode;
 };
-
 type VirtualizedTimelineItemShellProps = {
   children: React.ReactNode;
   index: number;
   ref?: React.LegacyRef<HTMLDivElement>;
   style: React.CSSProperties;
 };
-
 const PreserveVirtualizedItemVisibilityContext = React.createContext(false);
-
 function VirtualizedTimelineItemShell({
   children,
   ref,
@@ -413,7 +414,6 @@ function VirtualizedTimelineItemShell({
     </div>
   );
 }
-
 function VirtualizedTimelineRows({
   dayGroups,
   historyExhausted,
@@ -486,7 +486,6 @@ function VirtualizedTimelineRows({
     hostRef,
     cancelBottomSettle,
   );
-
   const updatePinnedDayLabel = React.useCallback(
     (offset: number) => {
       const list = listRef.current;
@@ -495,7 +494,6 @@ function VirtualizedTimelineRows({
       if (!list || !(scroller instanceof HTMLDivElement) || !pinnedLabel) {
         return;
       }
-
       const pinnedTop =
         pinnedLabel.getBoundingClientRect().top -
         scroller.getBoundingClientRect().top -
@@ -529,7 +527,6 @@ function VirtualizedTimelineRows({
       for (const pill of sourcePills) {
         pill.style.removeProperty("visibility");
       }
-
       let activeDividerIndex = -1;
       for (const [index, divider] of dayDividerItems.entries()) {
         if (list.getItemOffset(divider.index) > offset + pinnedTop) break;
@@ -608,19 +605,16 @@ function VirtualizedTimelineRows({
     },
     [dayDividerItems],
   );
-
   React.useEffect(
     () => () => {
       cancelBottomSettle();
     },
     [cancelBottomSettle],
   );
-
   const isPrepend = React.useMemo(() => {
     void prependShiftEpoch;
     return didPrependVirtualizedTimeline(previousKeysRef.current, keys);
   }, [keys, prependShiftEpoch]);
-
   React.useLayoutEffect(() => {
     previousKeysRef.current = keys;
     if (isPrepend) {
@@ -631,7 +625,6 @@ function VirtualizedTimelineRows({
       settleAtBottom();
     }
   }, [isPrepend, items.length, keys, settleAtBottom]);
-
   const messageItemIndexById = React.useMemo(() => {
     const byId = new Map<string, number>();
     items.forEach((item, index) => {
@@ -643,7 +636,6 @@ function VirtualizedTimelineRows({
     return byId;
   }, [items]);
   messageItemIndexByIdRef.current = messageItemIndexById;
-
   React.useLayoutEffect(() => {
     const scroller = hostRef.current?.firstElementChild;
     const element = scroller instanceof HTMLDivElement ? scroller : null;
@@ -657,11 +649,9 @@ function VirtualizedTimelineRows({
     onVirtualizerScrollerChange?.(element);
     return () => onVirtualizerScrollerChange?.(null);
   }, [onVirtualizerScrollerChange]);
-
   React.useLayoutEffect(() => {
     updatePinnedDayLabel(listRef.current?.scrollOffset ?? 0);
   }, [updatePinnedDayLabel]);
-
   React.useLayoutEffect(() => {
     if (!onVirtualizerApiChange) return;
     const api: TimelineVirtualizerApi = {
@@ -681,7 +671,6 @@ function VirtualizedTimelineRows({
     onVirtualizerApiChange(api);
     return () => onVirtualizerApiChange(null);
   }, [cancelBottomSettle, onVirtualizerApiChange, settleAtBottom]);
-
   React.useLayoutEffect(() => {
     const host = hostRef.current;
     if (!host) return;
@@ -699,10 +688,8 @@ function VirtualizedTimelineRows({
     resizeObserver.observe(host);
     return () => resizeObserver.disconnect();
   }, []);
-
   const { retainedIndices, onScrollEnd: handleScrollEnd } =
     useTimelineRetention(keys, listRef, isPrepend);
-
   const handleScroll = React.useCallback(
     (offset: number) => {
       const list = listRef.current;
@@ -731,7 +718,6 @@ function VirtualizedTimelineRows({
       updatePinnedDayLabel,
     ],
   );
-
   return (
     <div className="relative h-full min-h-0 w-full" ref={hostRef}>
       <PreserveVirtualizedItemVisibilityContext value={isPrepend}>

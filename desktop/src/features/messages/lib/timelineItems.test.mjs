@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { KIND_SYSTEM_MESSAGE } from "@/shared/constants/kinds";
+import {
+  KIND_CYBOTA_RATIFICATION,
+  KIND_CYBOTA_STAGED,
+  KIND_SYSTEM_MESSAGE,
+} from "@/shared/constants/kinds";
 import {
   buildTimelineDayGroups,
   buildTimelineItems,
@@ -110,6 +114,51 @@ test("buildTimelineItems: system messages flatten to a 'system' item", () => {
   ];
   const { items } = buildTimelineItems(entries, null);
   assert.deepEqual(kinds(items), ["day-divider", "message", "system"]);
+});
+
+test("buildTimelineItems: governance event (46203) becomes one 'governance' item", () => {
+  const entries = [
+    entry({ id: "a", createdAt: dayAt(2026, 6, 14) }),
+    entry({
+      id: "gov",
+      kind: KIND_CYBOTA_RATIFICATION,
+      createdAt: dayAt(2026, 6, 14, 13),
+    }),
+  ];
+  const { items } = buildTimelineItems(entries, null);
+  assert.deepEqual(kinds(items), ["day-divider", "message", "governance"]);
+});
+
+test("buildTimelineItems: governance event (46201) between two kind-9 messages breaks grouping", () => {
+  const entries = [
+    entry({ id: "a", pubkey: "alice", createdAt: dayAt(2026, 6, 14, 10, 0) }),
+    entry({
+      id: "gov",
+      kind: KIND_CYBOTA_STAGED,
+      createdAt: dayAt(2026, 6, 14, 10, 1),
+    }),
+    entry({ id: "b", pubkey: "alice", createdAt: dayAt(2026, 6, 14, 10, 2) }),
+  ];
+  const { items } = buildTimelineItems(entries, null);
+  // Without governance: ["day-divider", "message" (a+b grouped)]
+  // With governance: ["day-divider", "message" (a standalone), "governance", "message" (b standalone)]
+  assert.deepEqual(kinds(items), [
+    "day-divider",
+    "message",
+    "governance",
+    "message",
+  ]);
+  assert.equal(items[1].isContinuation, false);
+  assert.equal(items[3].isContinuation, false);
+});
+
+test("buildTimelineItems: kind-9 messages remain 'message' items", () => {
+  const entries = [
+    entry({ id: "a", kind: 9, createdAt: dayAt(2026, 6, 14) }),
+    entry({ id: "b", kind: 9, createdAt: dayAt(2026, 6, 14, 1) }),
+  ];
+  const { items } = buildTimelineItems(entries, null);
+  assert.deepEqual(kinds(items), ["day-divider", "message", "message"]);
 });
 
 test("buildTimelineItems: contiguous member additions by one actor group", () => {

@@ -17,7 +17,14 @@ import {
   isWithinGroupingWindow,
   startsNewMessageGroup,
 } from "@/features/messages/lib/messageGrouping";
-import { KIND_SYSTEM_MESSAGE } from "@/shared/constants/kinds";
+import {
+  KIND_CYBOTA_ADVICE,
+  KIND_CYBOTA_DIGEST,
+  KIND_CYBOTA_DISSENT,
+  KIND_CYBOTA_RATIFICATION,
+  KIND_CYBOTA_STAGED,
+  KIND_SYSTEM_MESSAGE,
+} from "@/shared/constants/kinds";
 
 /**
  * One renderable row in the flattened timeline. Dividers carry no message and
@@ -28,6 +35,7 @@ export type TimelineItem =
   // "Today"/"Yesterday" relative to the current clock, not to build time.
   | { kind: "day-divider"; key: string; headingTimestamp: number }
   | { kind: "unread-divider"; key: string }
+  | { kind: "governance"; key: string; entry: MainTimelineEntry }
   | { kind: "system"; key: string; entry: MainTimelineEntry }
   | {
       kind: "system-group";
@@ -225,7 +233,18 @@ export function buildTimelineItems(
       items.push({ kind: "unread-divider", key: `unread-${renderKey}` });
     }
 
-    const kind = message.kind === KIND_SYSTEM_MESSAGE ? "system" : "message";
+    const isGovernance =
+      message.kind === KIND_CYBOTA_DIGEST ||
+      message.kind === KIND_CYBOTA_STAGED ||
+      message.kind === KIND_CYBOTA_ADVICE ||
+      message.kind === KIND_CYBOTA_RATIFICATION ||
+      message.kind === KIND_CYBOTA_DISSENT;
+
+    const kind = isGovernance
+      ? "governance"
+      : message.kind === KIND_SYSTEM_MESSAGE
+        ? "system"
+        : "message";
     if (kind === "system") {
       previousGroupEntry = null;
       previousMessageItemIndex = null;
@@ -243,6 +262,13 @@ export function buildTimelineItems(
       }
 
       items.push({ kind, key: renderKey, entry });
+      continue;
+    }
+
+    if (kind === "governance") {
+      previousGroupEntry = null;
+      previousMessageItemIndex = null;
+      items.push({ kind: "governance", key: renderKey, entry });
       continue;
     }
 

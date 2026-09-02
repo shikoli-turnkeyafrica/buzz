@@ -172,11 +172,12 @@ export function estimateTimelineItemHeight(item: TimelineItem): number {
       }) + (item.isFollowedByContinuation ? 0 : MESSAGE_ITEM_BOTTOM_PADDING)
     : item.kind === "system"
       ? estimateRowHeight(item.entry.message)
-      : item.kind === "system-group"
-        ? SYSTEM_GROUP_HEIGHT
-        : DIVIDER_HEIGHT;
+      : item.kind === "governance"
+        ? estimateRowHeight(item.entry.message)
+        : item.kind === "system-group"
+          ? SYSTEM_GROUP_HEIGHT
+          : DIVIDER_HEIGHT;
 }
-
 export function timelineRowReserveStyle(
   item: TimelineItem,
 ): React.CSSProperties {

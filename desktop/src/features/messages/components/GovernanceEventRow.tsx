@@ -61,7 +61,7 @@ function ProfileName({
           "inline-flex items-center gap-1 rounded px-0.5 -mx-0.5 transition-colors",
           highlight && "bg-accent/50 hover:bg-accent",
           underlineOnHover && "hover:underline",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         )}
         type="button"
       >
@@ -73,7 +73,9 @@ function ProfileName({
   );
 }
 
-function parseGovernancePayload(message: TimelineMessage): GovernanceEventPayload | null {
+function parseGovernancePayload(
+  message: TimelineMessage,
+): GovernanceEventPayload | null {
   try {
     // TimelineMessage.body contains the content, not .content
     const content = message.body ? JSON.parse(message.body) : {};
@@ -98,7 +100,11 @@ function describeGovernanceEvent(
   payload: GovernanceEventPayload,
   currentPubkey: string | undefined,
   profiles: UserProfileLookup | undefined,
-): { title: React.ReactNode; action: React.ReactNode; variant: "default" | "advice" | "ratification" | "dissent" } | null {
+): {
+  title: React.ReactNode;
+  action: React.ReactNode;
+  variant: "default" | "advice" | "ratification" | "dissent";
+} | null {
   const actorLabel = resolveUserLabel({
     pubkey: payload.actor ?? "",
     currentPubkey,
@@ -138,10 +144,14 @@ function describeGovernanceEvent(
       return {
         title: actorName,
         action: payload.action ? (
-          <span className={cn(
-            "font-semibold",
-            payload.action === "APPROVE" ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
-          )}>
+          <span
+            className={cn(
+              "font-semibold",
+              payload.action === "APPROVE"
+                ? "text-green-600 dark:text-green-500"
+                : "text-red-600 dark:text-red-500",
+            )}
+          >
             {payload.action === "APPROVE" ? "APPROVED" : "REJECTED"}
           </span>
         ) : (
@@ -209,18 +219,14 @@ export const GovernanceEventRow = React.memo(function GovernanceEventRow({
   const isAgent = Boolean(
     actorProfile?.isAgent ||
       message.isAgent ||
-      (payload.actor && agentPubkeys?.has(normalizePubkey(payload.actor)))
+      (payload.actor && agentPubkeys?.has(normalizePubkey(payload.actor))),
   );
   const ownerPubkey = actorProfile?.ownerPubkey ?? null;
-  const ownerLabel = formatOwnerLabel(ownerPubkey, currentPubkey, ownerProfiles);
-
-  const {
-    reactions,
-    canToggle: canToggleReactions,
-    pending: reactionPending,
-    errorMessage: reactionErrorMessage,
-    select: handleReactionSelect,
-  } = useReactionHandler(message, onToggleReaction);
+  const ownerLabel = formatOwnerLabel(
+    ownerPubkey,
+    currentPubkey,
+    ownerProfiles,
+  );
 
   const reactionsContent = reactions.length > 0 && (
     <div>
@@ -245,7 +251,7 @@ export const GovernanceEventRow = React.memo(function GovernanceEventRow({
   return (
     <div
       className={cn(
-        "group/message relative mx-1 rounded-2xl px-2 py-1 transition-colors hover:bg-muted/50 focus-within:bg-muted/50"
+        "group/message relative mx-1 rounded-2xl px-2 py-1 transition-colors hover:bg-muted/50 focus-within:bg-muted/50",
       )}
       data-testid="governance-event-row"
     >
@@ -258,7 +264,7 @@ export const GovernanceEventRow = React.memo(function GovernanceEventRow({
         <div
           className={cn(
             MESSAGE_MARKDOWN_CLASS,
-            "flex min-w-0 flex-1 flex-col gap-0.5"
+            "flex min-w-0 flex-1 flex-col gap-0.5",
           )}
         >
           <MessageHeaderRow>
@@ -284,9 +290,7 @@ export const GovernanceEventRow = React.memo(function GovernanceEventRow({
             {description.action}
           </p>
           {!payload.verified && (
-            <p className="text-xs text-muted-foreground italic">
-              unverified
-            </p>
+            <p className="text-xs text-muted-foreground italic">unverified</p>
           )}
           {payload.refs && payload.refs.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1">
