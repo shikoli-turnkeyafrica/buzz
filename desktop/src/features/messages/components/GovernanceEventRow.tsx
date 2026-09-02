@@ -207,6 +207,15 @@ export const GovernanceEventRow = React.memo(function GovernanceEventRow({
     remove: boolean,
   ) => Promise<void>;
 }) {
+  // Hook first: React forbids hooks after the conditional returns below.
+  const {
+    reactions,
+    canToggle: canToggleReactions,
+    pending: reactionPending,
+    errorMessage: reactionErrorMessage,
+    select: handleReactionSelect,
+  } = useReactionHandler(message, onToggleReaction);
+
   const payload = parseGovernancePayload(message);
   if (!payload) return null;
 
