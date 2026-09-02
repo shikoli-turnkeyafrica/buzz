@@ -32,7 +32,7 @@ use crate::{
 /// (`p_gated_filters_authorized`) without a `#p` tag — load-bearing for the
 /// thread-subtree read, whose relay routing keys off `#e`+`depth_limit` (not
 /// kind) but still passes through the p-gate before it runs.
-const TIMELINE_KINDS: [u32; 11] = [
+const TIMELINE_KINDS: [u32; 16] = [
     9,
     40002,
     40008,
@@ -44,6 +44,15 @@ const TIMELINE_KINDS: [u32; 11] = [
     43005,
     43006,
     buzz_core_pkg::kind::KIND_HUDDLE_STARTED,
+    // Cybota governance kinds (46200–46204). Mirrors
+    // CHANNEL_TIMELINE_CONTENT_KINDS in desktop/src/shared/constants/kinds.ts —
+    // the channel window is assembled server-side from THIS list, so a kind
+    // added only on the TS side never reaches the timeline.
+    buzz_core_pkg::kind::KIND_CYBOTA_DIGEST,
+    buzz_core_pkg::kind::KIND_CYBOTA_STAGED,
+    buzz_core_pkg::kind::KIND_CYBOTA_ADVICE,
+    buzz_core_pkg::kind::KIND_CYBOTA_RATIFICATION,
+    buzz_core_pkg::kind::KIND_CYBOTA_DISSENT,
 ];
 
 #[tauri::command]
