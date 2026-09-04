@@ -1,4 +1,4 @@
-//! Canonical `buzz://` deep links for Buzz-hosted git entities.
+//! Canonical `cybercare://` deep links for Buzz-hosted git entities.
 //!
 //! Buzz Desktop renders these links as rich preview cards in chat and
 //! navigates in-app when they are clicked. The desktop parser lives in
@@ -15,7 +15,21 @@
 //! (overview); the parameter exists for the desktop's tab-aware copy-link
 //! button.
 
-/// Whether a d-tag can be expressed in a `buzz://` link.
+/// Deep-link scheme this crate's builders emit. This crate cannot depend on
+/// the desktop's `brand.rs` (separate binary, separate rebrand boundary —
+/// the crate/binary name `buzz-cli` itself is intentionally unchanged), so
+/// the value is repeated here rather than imported.
+///
+/// `test-fixtures/entity-links.json` (repo root) is the cross-crate
+/// contract for this format: it is read by this crate's own
+/// `golden_format_matches_desktop` test below, by
+/// `desktop/src/shared/lib/entityLink.test.mjs`, and by
+/// `desktop/src-tauri/src/deep_link_tests.rs`. Changing the scheme (or any
+/// other part of the link shape) on one side means updating the fixture and
+/// checking the other two consumers stay green.
+const DEEP_LINK_SCHEME: &str = "cybercare";
+
+/// Whether a d-tag can be expressed in a `cybercare://` link.
 ///
 /// Project slugs accept up to 1024 bytes of arbitrary UTF-8, but the link
 /// format is restricted to `[a-zA-Z0-9._-]{1,64}` (no leading dot, no `..`)
@@ -33,24 +47,24 @@ pub fn is_linkable_dtag(dtag: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-')
 }
 
-/// Build a `buzz://repo` link for a repository announcement (kind 30617).
+/// Build a `cybercare://repo` link for a repository announcement (kind 30617).
 pub fn repo_link(owner: &str, repo_id: &str) -> String {
-    format!("buzz://repo?owner={owner}&d={repo_id}")
+    format!("{DEEP_LINK_SCHEME}://repo?owner={owner}&d={repo_id}")
 }
 
-/// Build a `buzz://project` link for a project announcement (kind 30621).
+/// Build a `cybercare://project` link for a project announcement (kind 30621).
 pub fn project_link(owner: &str, project_id: &str) -> String {
-    format!("buzz://project?owner={owner}&d={project_id}")
+    format!("{DEEP_LINK_SCHEME}://project?owner={owner}&d={project_id}")
 }
 
-/// Build a `buzz://pr` link for a pull request event (kind 1618).
+/// Build a `cybercare://pr` link for a pull request event (kind 1618).
 pub fn pull_request_link(event_id: &str, owner: &str, repo_id: &str) -> String {
-    format!("buzz://pr?id={event_id}&owner={owner}&d={repo_id}")
+    format!("{DEEP_LINK_SCHEME}://pr?id={event_id}&owner={owner}&d={repo_id}")
 }
 
-/// Build a `buzz://issue` link for an issue event (kind 1621).
+/// Build a `cybercare://issue` link for an issue event (kind 1621).
 pub fn issue_link(event_id: &str, owner: &str, repo_id: &str) -> String {
-    format!("buzz://issue?id={event_id}&owner={owner}&d={repo_id}")
+    format!("{DEEP_LINK_SCHEME}://issue?id={event_id}&owner={owner}&d={repo_id}")
 }
 
 #[cfg(test)]
