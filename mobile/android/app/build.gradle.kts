@@ -104,7 +104,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "xyz.block.buzz.mobile"
+        applicationId = "africa.cybota.cybercare.commons"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -112,7 +112,7 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        resValue("string", "app_name", "Buzz")
+        resValue("string", "app_name", "Cybercare Commons")
     }
 
     signingConfigs {
@@ -136,7 +136,7 @@ android {
             if (debugAppName != null) {
                 resValue("string", "app_name", debugAppName)
             } else if (worktreeLabel != null) {
-                resValue("string", "app_name", "Buzz ($worktreeLabel)")
+                resValue("string", "app_name", "Commons ($worktreeLabel)")
             }
         }
         release {

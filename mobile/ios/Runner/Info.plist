@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Buzz</string>
+	<string>Cybercare Commons</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -28,10 +28,10 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>com.buzz.deeplink</string>
+			<string>africa.cybota.cybercare.commons.deeplink</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>buzz</string>
+				<string>cybercare</string>
 			</array>
 		</dict>
 	</array>
