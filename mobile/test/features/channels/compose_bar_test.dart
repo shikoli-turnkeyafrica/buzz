@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:camera/camera.dart' as camera;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,6 +14,7 @@ import 'package:http/testing.dart' as http_testing;
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:nostr/nostr.dart' as nostr;
+import 'package:buzz/brand.dart' as brand;
 import 'package:buzz/features/channels/channel.dart';
 import 'package:buzz/features/channels/channel_management_provider.dart';
 import 'package:buzz/features/channels/compose_bar.dart';
@@ -4281,6 +4283,24 @@ void main() {
 
       expect(controller.text, '@Name ');
       expect(controller.selection.baseOffset, 6);
+    });
+  });
+
+  group('cameraErrorMessage', () {
+    test('names the app for a camera-access-denied error', () {
+      final message = cameraErrorMessage(
+        camera.CameraException('CameraAccessDenied', 'denied'),
+      );
+
+      expect(message, contains(brand.productName));
+    });
+
+    test('names the app for a camera-access-restricted error', () {
+      final message = cameraErrorMessage(
+        camera.CameraException('CameraAccessRestricted', 'restricted'),
+      );
+
+      expect(message, contains(brand.productName));
     });
   });
 }

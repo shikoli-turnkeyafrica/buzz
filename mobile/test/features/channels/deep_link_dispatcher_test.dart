@@ -227,7 +227,7 @@ void main() {
     expect(storage.loadCalls, 1);
     expect(pending.consumeCalls, 1);
     expect(
-      find.text('Join this ${brand.productShort} community?'),
+      find.text('Join this community on ${brand.productShort}?'),
       findsOneWidget,
     );
   });
@@ -268,7 +268,7 @@ void main() {
     expect(pending.current, same(second));
     expect(container.read(inviteJoinProvider).invite, same(first));
     expect(
-      find.text('Join this ${brand.productShort} community?'),
+      find.text('Join this community on ${brand.productShort}?'),
       findsOneWidget,
     );
 
@@ -279,7 +279,7 @@ void main() {
     expect(pending.current, isNull);
     expect(container.read(inviteJoinProvider).invite, same(second));
     expect(
-      find.text('Join this ${brand.productShort} community?'),
+      find.text('Join this community on ${brand.productShort}?'),
       findsOneWidget,
     );
   });
@@ -319,7 +319,7 @@ void main() {
     expect(pending.consumeCalls, 1);
     expect(pending.current, same(channelLink));
     expect(
-      find.text('Join this ${brand.productShort} community?'),
+      find.text('Join this community on ${brand.productShort}?'),
       findsOneWidget,
     );
     expect(find.byType(_CapturedDestination), findsNothing);
@@ -368,7 +368,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.text('Join this ${brand.productShort} community?'),
+        find.text('Join this community on ${brand.productShort}?'),
         findsOneWidget,
       );
       expect(inviteContainer.read(pendingDeepLinkProvider), isNull);

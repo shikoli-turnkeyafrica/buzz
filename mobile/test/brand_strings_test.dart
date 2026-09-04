@@ -29,7 +29,17 @@ final _allowed = <RegExp>[
   // Storage keys, SharedPreferences prefixes, and Nostr addressable-event
   // d-tags persisted to disk or exchanged with the relay/desktop — never
   // renamed, or existing local data and cross-client sync silently break.
-  RegExp(r"'buzz[-.:][\w.\-]*"),
+  // Requires a '.' or ':' marker so this doesn't also swallow plain
+  // dash-only internal identifiers with no persistence/interop stake (see
+  // the temp-file-prefix entry below).
+  RegExp(r"'buzz[\w.\-]*[.:]"),
+  // 'buzz-video-'/'buzz-compose-' are internal temp-capture filename
+  // prefixes (video_viewer.dart, camera_capture_cleanup.dart). Unlike
+  // message_actions.dart's download/share filename (now 'commons-', since
+  // that name reaches the user's gallery and the system share sheet),
+  // these never surface a name to the user — they're cleaned up
+  // internally. Renaming them is safe, just not required.
+  RegExp(r"'buzz-(video|compose)-"),
   // Widget-test ValueKeys where "buzz" isn't the leading token of the
   // literal (e.g. 'composer-buzz-link-chip:$label') — internal test ids.
   RegExp(r"ValueKey\('[\w:$-]*buzz[\w:$-]*'\)"),

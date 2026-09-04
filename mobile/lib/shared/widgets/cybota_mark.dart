@@ -111,8 +111,22 @@ class _CybotaMarkPainter extends CustomPainter {
       ..lineTo(ox + u(50), oy + u(42.4))
       ..lineTo(ox + u(58.5), oy + u(41))
       ..lineTo(ox + u(58.5), oy + u(50.5))
-      ..cubicTo(ox + u(58.5), oy + u(55.8), ox + u(54.8), oy + u(59.2), ox + u(50), oy + u(61))
-      ..cubicTo(ox + u(45.2), oy + u(59.2), ox + u(41.5), oy + u(55.8), ox + u(41.5), oy + u(50.5))
+      ..cubicTo(
+        ox + u(58.5),
+        oy + u(55.8),
+        ox + u(54.8),
+        oy + u(59.2),
+        ox + u(50),
+        oy + u(61),
+      )
+      ..cubicTo(
+        ox + u(45.2),
+        oy + u(59.2),
+        ox + u(41.5),
+        oy + u(55.8),
+        ox + u(41.5),
+        oy + u(50.5),
+      )
       ..close();
     canvas.drawPath(shield, Paint()..color = CybotaMark.red);
   }

@@ -1469,7 +1469,7 @@ void main() {
           'https://example.com/download',
           'image/gif; charset=binary',
         ),
-        matches(RegExp(r'^buzz-\d+\.gif$')),
+        matches(RegExp(r'^commons-\d+\.gif$')),
       );
     });
   });

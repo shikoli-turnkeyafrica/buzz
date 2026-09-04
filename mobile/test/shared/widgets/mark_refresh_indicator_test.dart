@@ -213,11 +213,7 @@ void main() {
       // top edge on its own, well after the finger is gone. That ballistic
       // overscroll used to be able to cross the 100px trigger and fire the
       // arm haptic with no finger down and no pending refresh.
-      await tester.fling(
-        find.byType(ListView),
-        const Offset(0, 60),
-        4000,
-      );
+      await tester.fling(find.byType(ListView), const Offset(0, 60), 4000);
       await tester.pumpAndSettle();
 
       expect(hapticCalls, isEmpty);
@@ -274,9 +270,7 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets('keeps the mark static when motion is disabled', (
-    tester,
-  ) async {
+  testWidgets('keeps the mark static when motion is disabled', (tester) async {
     await tester.pumpWidget(
       MediaQuery(
         data: const MediaQueryData(disableAnimations: true),

@@ -16,7 +16,9 @@ void main() {
     );
     expect(
       gradle,
-      contains('resValue("string", "app_name", "${brand.productShort} (\$worktreeLabel)")'),
+      contains(
+        'resValue("string", "app_name", "${brand.productShort} (\$worktreeLabel)")',
+      ),
     );
   });
 
@@ -27,10 +29,21 @@ void main() {
   });
 
   test('iOS xcconfigs pin the brand bundle identifier and display name', () {
-    for (final file in ['ios/Flutter/Release.xcconfig', 'ios/Flutter/Debug.xcconfig']) {
+    for (final file in [
+      'ios/Flutter/Release.xcconfig',
+      'ios/Flutter/Debug.xcconfig',
+    ]) {
       final xc = _read(file);
-      expect(xc, contains('BUNDLE_IDENTIFIER = ${brand.iosBundleIdentifier}'), reason: file);
-      expect(xc, contains('APP_DISPLAY_NAME = ${brand.productName}'), reason: file);
+      expect(
+        xc,
+        contains('BUNDLE_IDENTIFIER = ${brand.iosBundleIdentifier}'),
+        reason: file,
+      );
+      expect(
+        xc,
+        contains('APP_DISPLAY_NAME = ${brand.productName}'),
+        reason: file,
+      );
     }
   });
 
@@ -38,14 +51,20 @@ void main() {
     final plist = _read('ios/Runner/Info.plist');
     expect(plist, contains('<string>${brand.productName}</string>'));
     expect(plist, contains('<string>${brand.deepLinkScheme}</string>'));
-    expect(plist, contains('<string>${brand.iosBundleIdentifier}.deeplink</string>'));
+    expect(
+      plist,
+      contains('<string>${brand.iosBundleIdentifier}.deeplink</string>'),
+    );
     expect(plist, isNot(contains('<string>buzz</string>')));
     expect(plist, isNot(contains('Buzz')));
   });
 
   test('pubspec description names the product', () {
     final pubspec = _read('pubspec.yaml');
-    expect(pubspec, contains('description: ${brand.productName} mobile client'));
+    expect(
+      pubspec,
+      contains('description: ${brand.productName} mobile client'),
+    );
     // The Dart package name is an identifier, not brand copy — it stays.
     expect(pubspec, contains('name: buzz\n'));
   });

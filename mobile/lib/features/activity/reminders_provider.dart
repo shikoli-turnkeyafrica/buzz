@@ -146,8 +146,8 @@ Reminder? decodeReminderEvent(
 }
 
 /// Fetches the user's NIP-ER reminders (kind 30300, self-encrypted). These
-/// are the same relay events Cybercare Commons Desktop reads and writes, so reminders
-/// created on Desktop appear here and vice versa.
+/// are the same relay events Cybercare Commons Desktop reads and writes,
+/// so reminders created on Desktop appear here and vice versa.
 class RemindersNotifier extends AsyncNotifier<List<Reminder>> {
   @override
   Future<List<Reminder>> build() {

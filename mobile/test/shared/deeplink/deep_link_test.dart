@@ -16,7 +16,9 @@ void main() {
     test('parses canonical channel, id, and optional thread', () {
       expect(
         parseMessageDeepLink(
-          Uri.parse('buzz://message?channel=$channel&id=$id&thread=$thread'),
+          Uri.parse(
+            'cybercare://message?channel=$channel&id=$id&thread=$thread',
+          ),
         ),
         const MessageDeepLink(
           channelId: channel,
@@ -28,22 +30,22 @@ void main() {
 
     test('rejects malformed or ambiguous forms', () {
       for (final url in [
-        'buzz://message?id=$id',
-        'buzz://message?channel=&id=$id',
-        'buzz://message?channel=$channel',
+        'cybercare://message?id=$id',
+        'cybercare://message?channel=&id=$id',
+        'cybercare://message?channel=$channel',
         'https://message?channel=$channel&id=$id',
-        'buzz://connect?channel=$channel&id=$id',
-        'buzz://message:1234?channel=$channel&id=$id',
-        'buzz://message/path?channel=$channel&id=$id',
-        'buzz://message?channel=$channel&id=$id#fragment',
-        'buzz://user@message?channel=$channel&id=$id',
-        'buzz://message?channel=$channel&id=$id&extra=true',
-        'buzz://message?channel=$channel&channel=$channel&id=$id',
-        'buzz://message?channel=$channel&id=$id&id=$id',
-        'buzz://message?channel=$channel&id=$id&thread=',
-        'buzz://message?channel=not-a-uuid&id=$id',
-        'buzz://message?channel=$channel&id=not-hex',
-        'buzz://message?channel=$channel&id=$id&thread=not-hex',
+        'cybercare://connect?channel=$channel&id=$id',
+        'cybercare://message:1234?channel=$channel&id=$id',
+        'cybercare://message/path?channel=$channel&id=$id',
+        'cybercare://message?channel=$channel&id=$id#fragment',
+        'cybercare://user@message?channel=$channel&id=$id',
+        'cybercare://message?channel=$channel&id=$id&extra=true',
+        'cybercare://message?channel=$channel&channel=$channel&id=$id',
+        'cybercare://message?channel=$channel&id=$id&id=$id',
+        'cybercare://message?channel=$channel&id=$id&thread=',
+        'cybercare://message?channel=not-a-uuid&id=$id',
+        'cybercare://message?channel=$channel&id=not-hex',
+        'cybercare://message?channel=$channel&id=$id&thread=not-hex',
       ]) {
         expect(parseMessageDeepLink(Uri.parse(url)), isNull, reason: url);
       }
@@ -56,7 +58,7 @@ void _channelTests() {
     test('parses canonical channel path', () {
       expect(
         parseChannelDeepLink(
-          Uri.parse('buzz://channel/580ca78b-9dae-46f3-8854-bd671853ba32'),
+          Uri.parse('cybercare://channel/580ca78b-9dae-46f3-8854-bd671853ba32'),
         ),
         const ChannelDeepLink(
           channelId: '580ca78b-9dae-46f3-8854-bd671853ba32',
@@ -67,7 +69,7 @@ void _channelTests() {
     test('accepts v7 and canonicalizes uppercase UUIDs', () {
       expect(
         parseChannelDeepLink(
-          Uri.parse('buzz://channel/018fdb5d-3a64-7c35-b5f9-4a23e1f9d2d9'),
+          Uri.parse('cybercare://channel/018fdb5d-3a64-7c35-b5f9-4a23e1f9d2d9'),
         ),
         const ChannelDeepLink(
           channelId: '018fdb5d-3a64-7c35-b5f9-4a23e1f9d2d9',
@@ -75,7 +77,7 @@ void _channelTests() {
       );
       expect(
         parseChannelDeepLink(
-          Uri.parse('buzz://channel/580CA78B-9DAE-46F3-8854-BD671853BA32'),
+          Uri.parse('cybercare://channel/580CA78B-9DAE-46F3-8854-BD671853BA32'),
         ),
         const ChannelDeepLink(
           channelId: '580ca78b-9dae-46f3-8854-bd671853ba32',
@@ -85,16 +87,16 @@ void _channelTests() {
 
     test('rejects missing, extra, query, and fragment forms', () {
       for (final url in [
-        'buzz://channel',
-        'buzz://channel/',
-        'buzz://channel/one/two',
-        'buzz://channel:1234/580ca78b-9dae-46f3-8854-bd671853ba32',
-        'buzz://channel/one?extra=true',
-        'buzz://channel/one#fragment',
+        'cybercare://channel',
+        'cybercare://channel/',
+        'cybercare://channel/one/two',
+        'cybercare://channel:1234/580ca78b-9dae-46f3-8854-bd671853ba32',
+        'cybercare://channel/one?extra=true',
+        'cybercare://channel/one#fragment',
         'https://channel/one',
-        'buzz://channel/not-a-uuid',
-        'buzz://channel/%2F',
-        'buzz://channel/%00',
+        'cybercare://channel/not-a-uuid',
+        'cybercare://channel/%2F',
+        'cybercare://channel/%00',
       ]) {
         expect(parseChannelDeepLink(Uri.parse(url)), isNull, reason: url);
       }
@@ -103,7 +105,7 @@ void _channelTests() {
     test('is included in the top-level parser', () {
       expect(
         parseBuzzDeepLink(
-          Uri.parse('buzz://channel/580ca78b-9dae-46f3-8854-bd671853ba32'),
+          Uri.parse('cybercare://channel/580ca78b-9dae-46f3-8854-bd671853ba32'),
         ),
         const ChannelDeepLink(
           channelId: '580ca78b-9dae-46f3-8854-bd671853ba32',
@@ -138,10 +140,10 @@ void _inviteTests() {
       );
     });
 
-    test('parses buzz join handoff link', () {
+    test('parses cybercare join handoff link', () {
       final link = parseInviteDeepLink(
         Uri.parse(
-          'buzz://join?relay=wss%3A%2F%2Frelay.example.com&code=abc123',
+          'cybercare://join?relay=wss%3A%2F%2Frelay.example.com&code=abc123',
         ),
       );
       expect(
@@ -153,27 +155,29 @@ void _inviteTests() {
       );
     });
 
-    test('normalizes trailing slash in buzz join handoff', () {
+    test('normalizes trailing slash in cybercare join handoff', () {
       final link = parseInviteDeepLink(
         Uri.parse(
-          'buzz://join?relay=wss%3A%2F%2Frelay.example.com%2F&code=abc123',
+          'cybercare://join?relay=wss%3A%2F%2Frelay.example.com%2F&code=abc123',
         ),
       );
       expect(link?.relayUrl, 'wss://relay.example.com');
     });
 
-    test('rejects plaintext public buzz join handoff', () {
+    test('rejects plaintext public cybercare join handoff', () {
       final relay = Uri.encodeQueryComponent('ws://relay.example.com');
       expect(
-        parseInviteDeepLink(Uri.parse('buzz://join?relay=$relay&code=abc')),
+        parseInviteDeepLink(
+          Uri.parse('cybercare://join?relay=$relay&code=abc'),
+        ),
         isNull,
       );
     });
 
-    test('preserves policy receipt in buzz join handoff', () {
+    test('preserves policy receipt in cybercare join handoff', () {
       final link = parseInviteDeepLink(
         Uri.parse(
-          'buzz://join?relay=wss%3A%2F%2Frelay.example.com&code=abc123&policy_receipt=receipt.value',
+          'cybercare://join?relay=wss%3A%2F%2Frelay.example.com&code=abc123&policy_receipt=receipt.value',
         ),
       );
       expect(
@@ -217,28 +221,30 @@ void _inviteTests() {
       expect(
         parseInviteDeepLink(
           Uri.parse(
-            'buzz://join?relay=wss%3A%2F%2Fuser%3Apass%40relay.example.com&code=abc',
+            'cybercare://join?relay=wss%3A%2F%2Fuser%3Apass%40relay.example.com&code=abc',
           ),
         ),
         isNull,
       );
     });
 
-    test('rejects buzz join without websocket relay or code', () {
+    test('rejects cybercare join without websocket relay or code', () {
       expect(
         parseInviteDeepLink(
-          Uri.parse('buzz://join?relay=https://relay.example.com&code=abc'),
+          Uri.parse(
+            'cybercare://join?relay=https://relay.example.com&code=abc',
+          ),
         ),
         isNull,
       );
       expect(
         parseInviteDeepLink(
-          Uri.parse('buzz://join?relay=wss://relay.example.com'),
+          Uri.parse('cybercare://join?relay=wss://relay.example.com'),
         ),
         isNull,
       );
       expect(
-        parseInviteDeepLink(Uri.parse('buzz://connect?relay=wss://x')),
+        parseInviteDeepLink(Uri.parse('cybercare://connect?relay=wss://x')),
         isNull,
       );
     });
@@ -255,7 +261,7 @@ void _inviteTests() {
       }
     });
 
-    test('rejects buzz join with dangerous relay schemes', () {
+    test('rejects cybercare join with dangerous relay schemes', () {
       // The `relay=` param is an allowlist — only `ws` / `wss` are safe to
       // hand to a Nostr relay session. Anything else must be dropped by the
       // parser so a hostile QR / share link can't smuggle a browser scheme
@@ -272,7 +278,9 @@ void _inviteTests() {
       ]) {
         final encoded = Uri.encodeQueryComponent(hostile);
         expect(
-          parseInviteDeepLink(Uri.parse('buzz://join?relay=$encoded&code=abc')),
+          parseInviteDeepLink(
+            Uri.parse('cybercare://join?relay=$encoded&code=abc'),
+          ),
           isNull,
           reason: 'must reject relay scheme in $hostile',
         );
@@ -290,7 +298,7 @@ void _buildMessageLinkTests() {
           messageId:
               'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
         ),
-        'buzz://message?channel=580ca78b-9dae-46f3-8854-bd671853ba32&id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        'cybercare://message?channel=580ca78b-9dae-46f3-8854-bd671853ba32&id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
       );
     });
 
@@ -303,7 +311,7 @@ void _buildMessageLinkTests() {
           threadRootId:
               'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
         ),
-        'buzz://message?channel=580ca78b-9dae-46f3-8854-bd671853ba32&id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&thread=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        'cybercare://message?channel=580ca78b-9dae-46f3-8854-bd671853ba32&id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&thread=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
       );
     });
 
@@ -315,7 +323,7 @@ void _buildMessageLinkTests() {
               'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
           threadRootId: '',
         ),
-        'buzz://message?channel=580ca78b-9dae-46f3-8854-bd671853ba32&id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        'cybercare://message?channel=580ca78b-9dae-46f3-8854-bd671853ba32&id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
       );
     });
 
@@ -357,18 +365,20 @@ void _buildMessageLinkTests() {
 
     test('parses repo, PR, and issue permalinks', () {
       expect(
-        parseEntityDeepLink(Uri.parse('buzz://repo?owner=$owner&d=buzz'))?.type,
+        parseEntityDeepLink(
+          Uri.parse('cybercare://repo?owner=$owner&d=buzz'),
+        )?.type,
         'repo',
       );
       expect(
         parseEntityDeepLink(
-          Uri.parse('buzz://pr?id=$id&owner=$owner&d=buzz'),
+          Uri.parse('cybercare://pr?id=$id&owner=$owner&d=buzz'),
         )?.eventId,
         id,
       );
       expect(
         parseEntityDeepLink(
-          Uri.parse('buzz://issue?id=$id&owner=$owner&d=buzz'),
+          Uri.parse('cybercare://issue?id=$id&owner=$owner&d=buzz'),
         )?.type,
         'issue',
       );
@@ -376,30 +386,30 @@ void _buildMessageLinkTests() {
 
     test('rejects malformed entity permalinks', () {
       expect(
-        parseEntityDeepLink(Uri.parse('buzz://repo?owner=short&d=buzz')),
+        parseEntityDeepLink(Uri.parse('cybercare://repo?owner=short&d=buzz')),
         isNull,
       );
       expect(
         parseEntityDeepLink(
-          Uri.parse('buzz://pr?id=$id&owner=$owner&d=buzz&extra=true'),
+          Uri.parse('cybercare://pr?id=$id&owner=$owner&d=buzz&extra=true'),
         ),
         isNull,
       );
       expect(
-        parseEntityDeepLink(Uri.parse('buzz://repo?owner=$owner&d=a..b')),
+        parseEntityDeepLink(Uri.parse('cybercare://repo?owner=$owner&d=a..b')),
         isNull,
       );
       expect(
         parseEntityDeepLink(
-          Uri.parse('buzz://repo?owner=$owner&d=${'a' * 65}'),
+          Uri.parse('cybercare://repo?owner=$owner&d=${'a' * 65}'),
         ),
         isNull,
       );
       for (final url in [
-        'buzz://repo?owner=$owner&owner=$owner&d=buzz',
-        'buzz://repo?owner=$owner&d=buzz&d=other',
-        'buzz://pr?id=$id&id=$id&owner=$owner&d=buzz',
-        'buzz://issue?id=$id&owner=$owner&owner=$owner&d=buzz',
+        'cybercare://repo?owner=$owner&owner=$owner&d=buzz',
+        'cybercare://repo?owner=$owner&d=buzz&d=other',
+        'cybercare://pr?id=$id&id=$id&owner=$owner&d=buzz',
+        'cybercare://issue?id=$id&owner=$owner&owner=$owner&d=buzz',
       ]) {
         expect(parseEntityDeepLink(Uri.parse(url)), isNull, reason: url);
       }

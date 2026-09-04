@@ -41,7 +41,7 @@ class PhotoLibraryAccessException implements Exception {
   const PhotoLibraryAccessException();
 
   @override
-  String toString() => 'Photo access is turned off for ${brand.productShort}.';
+  String toString() => 'Photo access is turned off for ${brand.productName}.';
 }
 
 /// Provides the device photo library. Tests can override this with fixtures.

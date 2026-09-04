@@ -73,7 +73,7 @@ class _InlineCameraPreview extends HookConsumerWidget {
         } catch (cameraError) {
           await next?.dispose();
           if (!disposed && currentGeneration == generation) {
-            error.value = _cameraErrorMessage(cameraError);
+            error.value = cameraErrorMessage(cameraError);
             isInitializing.value = false;
           }
         }
@@ -116,7 +116,7 @@ class _InlineCameraPreview extends HookConsumerWidget {
         }
       } catch (captureError) {
         if (context.mounted) {
-          error.value = _cameraErrorMessage(captureError);
+          error.value = cameraErrorMessage(captureError);
         }
       } finally {
         if (context.mounted) isCapturing.value = false;
@@ -308,13 +308,14 @@ class _CameraCloseButton extends StatelessWidget {
 const _cameraCaptureSize = 64.0;
 const _cameraBackSize = 44.0;
 
-String _cameraErrorMessage(Object error) {
+@visibleForTesting
+String cameraErrorMessage(Object error) {
   if (error is camera.CameraException) {
     return switch (error.code) {
       'CameraAccessDenied' ||
       'CameraAccessDeniedWithoutPrompt' ||
       'CameraAccessRestricted' =>
-        'Camera access is turned off for ${brand.productShort}.',
+        'Camera access is turned off for ${brand.productName}.',
       'no-cameras' => 'Camera isn’t available on this device.',
       _ => 'Camera couldn’t start. Try again.',
     };

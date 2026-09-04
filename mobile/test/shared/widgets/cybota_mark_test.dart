@@ -5,23 +5,32 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 void main() {
-  testWidgets('CybotaMark paints a square of the requested size', (tester) async {
+  testWidgets('CybotaMark paints a square of the requested size', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Center(child: CybotaMark(size: 80, color: Colors.black)),
       ),
     );
     final paint = tester.widget<CustomPaint>(
-      find.descendant(of: find.byType(CybotaMark), matching: find.byType(CustomPaint)),
+      find.descendant(
+        of: find.byType(CybotaMark),
+        matching: find.byType(CustomPaint),
+      ),
     );
     expect(paint.size, const Size(80, 80));
   });
 
-  testWidgets('tapping the welcome mark spins it once and then rests', (tester) async {
+  testWidgets('tapping the welcome mark spins it once and then rests', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const ProviderScope(
         child: MaterialApp(
-          home: Center(child: TappableCybotaMark(size: 80, color: Colors.black)),
+          home: Center(
+            child: TappableCybotaMark(size: 80, color: Colors.black),
+          ),
         ),
       ),
     );
@@ -46,7 +55,9 @@ void main() {
     await tester.pumpWidget(
       const ProviderScope(
         child: MaterialApp(
-          home: Center(child: TappableCybotaMark(size: 80, color: Colors.black)),
+          home: Center(
+            child: TappableCybotaMark(size: 80, color: Colors.black),
+          ),
         ),
       ),
     );

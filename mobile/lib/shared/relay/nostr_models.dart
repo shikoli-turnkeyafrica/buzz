@@ -213,7 +213,8 @@ class NostrFilter {
   /// Tag filters, e.g. `{'#h': ['channel-id']}`.
   final Map<String, List<String>> tags;
 
-  /// Upstream Buzz relay bridge filter extensions (for example NIP-CW `top_level`).
+  /// Upstream Buzz relay bridge filter extensions (for example NIP-CW
+  /// `top_level`).
   final Map<String, Object?> extensions;
 
   const NostrFilter({

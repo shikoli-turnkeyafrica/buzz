@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'accent_colors.dart';
 
-// Catppuccin Latte (mauve accent) — matches Cybercare Commons Desktop's light theme
+// Catppuccin Latte (mauve accent) — matches Cybercare Commons Desktop's
+// light theme
 const lightColorScheme = ColorScheme(
   brightness: Brightness.light,
   primary: Color(0xFF8839EF), // Latte Mauve
@@ -35,7 +36,8 @@ const lightColorScheme = ColorScheme(
   surfaceContainerHighest: Color(0xFFFFFFFF),
 );
 
-// Catppuccin Macchiato (mauve accent) — matches Cybercare Commons Desktop's dark theme
+// Catppuccin Macchiato (mauve accent) — matches Cybercare Commons
+// Desktop's dark theme
 const darkColorScheme = ColorScheme(
   brightness: Brightness.dark,
   primary: Color(0xFFA875F5), // Macchiato Mauve (saturated)
