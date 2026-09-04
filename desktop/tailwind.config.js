@@ -71,6 +71,8 @@ export default {
       },
       fontFamily: {
         sans: [
+          '"Source Sans 3"',
+          '"Source Sans Pro"',
           '"Inter Variable"',
           "Inter",
           '"Avenir Next"',
