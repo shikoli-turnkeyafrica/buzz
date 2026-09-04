@@ -8,13 +8,13 @@ void main() {
     expect(AppTheme.dark().splashFactory, NoSplash.splashFactory);
   });
 
-  test('uses Inter and the shared elevated popover treatment', () {
+  test('uses Source Sans 3 and the shared elevated popover treatment', () {
     final theme = AppTheme.light();
     final popupTheme = theme.popupMenuTheme;
     final shape = popupTheme.shape! as RoundedRectangleBorder;
     final side = shape.side;
 
-    expect(popupTheme.textStyle?.fontFamily, 'Inter');
+    expect(popupTheme.textStyle?.fontFamily, 'Source Sans 3');
     expect(popupTheme.elevation, 8);
     expect(
       popupTheme.shadowColor,

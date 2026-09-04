@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-const _fontFamily = 'Inter';
+const _fontFamily = 'Source Sans 3';
 const _chatLineHeight = 22 / 16;
 
 /// Optional 12sp body style for compact secondary metadata.

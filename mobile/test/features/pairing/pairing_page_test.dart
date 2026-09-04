@@ -459,7 +459,7 @@ void main() {
       final firstDigitText = tester.widget<Text>(
         find.descendant(of: digitFinders.first, matching: find.text('1')),
       );
-      expect(firstDigitText.style?.fontFamily, 'Inter');
+      expect(firstDigitText.style?.fontFamily, 'Source Sans 3');
       expect(
         firstDigitText.style?.fontSize,
         theme.textTheme.displaySmall?.fontSize,

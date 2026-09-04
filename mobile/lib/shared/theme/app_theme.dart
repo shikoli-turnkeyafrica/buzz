@@ -81,7 +81,7 @@ class AppTheme {
       splashFactory: NoSplash.splashFactory,
       scaffoldBackgroundColor: scheme.surface,
       extensions: [appColors],
-      fontFamily: 'Inter',
+      fontFamily: 'Source Sans 3',
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,

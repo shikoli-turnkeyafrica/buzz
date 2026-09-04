@@ -1304,7 +1304,7 @@ void main() {
       );
       expect(
         tester.widget<Text>(find.text('general')).style?.fontFamily,
-        'Inter',
+        'Source Sans 3',
       );
     });
 
@@ -2292,7 +2292,7 @@ void main() {
       for (final label in ['Camera', 'Photos', 'Video', 'Files']) {
         final text = tester.widget<Text>(find.text(label));
         expect(text.style?.fontSize, 20);
-        expect(text.style?.fontFamily, 'Inter');
+        expect(text.style?.fontFamily, 'Source Sans 3');
       }
       final icons = [
         for (final label in ['camera', 'photos', 'video', 'files'])

@@ -61,10 +61,10 @@ flutter:
     # desktop uses. Do not hand-edit.
     - assets/emoji/emoji-data.json
   fonts:
-    - family: Inter
+    - family: Source Sans 3
       fonts:
-        - asset: assets/fonts/InterVariable.ttf
-        - asset: assets/fonts/InterVariable-Italic.ttf
+        - asset: assets/fonts/SourceSans3[wght].ttf
+        - asset: assets/fonts/SourceSans3-Italic[wght].ttf
           style: italic
     - family: GeistMono
       fonts:
