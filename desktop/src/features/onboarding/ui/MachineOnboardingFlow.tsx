@@ -27,7 +27,7 @@ import {
 } from "./EncryptedBackupCreator";
 import { IdentityKeyHelpDialog } from "./IdentityKeyHelpDialog";
 import { IdentityRecoveryPairing } from "./IdentityRecoveryPairing";
-import { LandingBees } from "./LandingBees";
+import { LandingMarks } from "./LandingMarks";
 import {
   NostrKeyImportForm,
   type NostrKeyImportStage,
@@ -294,7 +294,7 @@ export function MachineOnboardingFlow({
       data-testid="machine-onboarding-gate"
     >
       <StartupWindowDragRegion />
-      {page === "identity" ? <LandingBees /> : null}
+      {page === "identity" ? <LandingMarks /> : null}
       {page !== "identity" && !isSecuritySubview ? (
         <OnboardingChrome
           current={page === "config" ? 4 : page === "setup" ? 3 : 2}

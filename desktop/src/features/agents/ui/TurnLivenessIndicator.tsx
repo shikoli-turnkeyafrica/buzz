@@ -1,21 +1,14 @@
 import { motion, useReducedMotion } from "motion/react";
 
 import { cn } from "@/shared/lib/cn";
-import { FuzzyLogo } from "@/shared/ui/buzz-logo/FuzzyLogo";
+import { SpinningMark } from "@/shared/ui/buzz-logo/SpinningMark";
 import { useTranscriptAnimationEnabled } from "./transcriptAnimationPreference";
 
 const MARKS = ["first", "second", "third"] as const;
 const STAGGER_SECONDS = 0.25;
 const CYCLE_SECONDS = 1.8;
 
-export function TurnLivenessIndicator({
-  className,
-  fuzz = false,
-}: {
-  className?: string;
-  /** Defaults to false — the indicator stays mounted for whole turns. */
-  fuzz?: boolean;
-}) {
+export function TurnLivenessIndicator({ className }: { className?: string }) {
   const animationsEnabled = useTranscriptAnimationEnabled();
   const shouldReduceMotion = useReducedMotion();
   const showStaggeredRow = animationsEnabled && !shouldReduceMotion;
@@ -28,12 +21,9 @@ export function TurnLivenessIndicator({
         data-testid="turn-liveness-indicator"
         role="status"
       >
-        <FuzzyLogo
+        <SpinningMark
           ariaLabel="Agent turn in progress"
           className="text-foreground"
-          fuzz={fuzz}
-          loop
-          loopRestSeconds={2}
         />
       </div>
     );
@@ -61,12 +51,7 @@ export function TurnLivenessIndicator({
             times: [0, 0.3, 0.7, 1],
           }}
         >
-          <FuzzyLogo
-            ariaLabel=""
-            className="w-5! text-foreground"
-            fuzz={fuzz}
-            pulse={false}
-          />
+          <SpinningMark className="w-5 text-foreground" />
         </motion.div>
       ))}
     </div>

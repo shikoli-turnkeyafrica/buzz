@@ -4,7 +4,7 @@ import { TerminalSquare } from "lucide-react";
 import { PRODUCT_SHORT } from "@/brand";
 import type { AcpRuntimeCatalogEntry } from "@/shared/api/types";
 import { cn } from "@/shared/lib/cn";
-import { BuzzMark } from "@/shared/ui/buzz-logo/BuzzMark";
+import { CybotaMark } from "@/shared/ui/buzz-logo/CybotaMark";
 import claudeLogoUrl from "../assets/harness-logos/claude.png?inline";
 import { RUNTIME_MARKS } from "./HarnessMarks";
 
@@ -58,9 +58,9 @@ export function RuntimeIcon({
   const Mark = RUNTIME_MARKS[id];
 
   if (isBuzzRuntime(runtime)) {
-    // The mark's wide viewBox letterboxes inside a square box, so honoring
-    // the caller's size keeps it optically in line with the square logos.
-    return <BuzzMark className={cn(className, "text-foreground")} />;
+    // The mark is square, so honoring the caller's size keeps it optically
+    // in line with the other square runtime logos.
+    return <CybotaMark className={cn(className, "text-foreground")} />;
   }
 
   if (Mark) {
