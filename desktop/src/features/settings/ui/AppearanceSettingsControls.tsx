@@ -40,6 +40,7 @@ import {
   useTheme,
 } from "@/shared/theme/ThemeProvider";
 
+import { PRODUCT_NAME } from "@/brand";
 import { Switch } from "@/shared/ui/switch";
 import { SettingsOptionRow } from "./SettingsOptionGroup";
 import { SegmentedControl } from "@/shared/ui/segmented-control";
@@ -234,7 +235,7 @@ export function ConversationDisplaySettings() {
             className="text-sm font-normal text-muted-foreground/70"
             data-settings-subcopy
           >
-            Spacing in conversations and Markdown content across Buzz
+            Spacing in conversations and Markdown content across {PRODUCT_NAME}
           </p>
         </div>
         <SegmentedControl
@@ -668,7 +669,7 @@ export function AccentPickerContent({
           className="text-sm font-normal text-muted-foreground/70"
           data-settings-subcopy
         >
-          Choose the highlight color used throughout Buzz.
+          Choose the highlight color used throughout {PRODUCT_NAME}.
         </p>
       </div>
       <div

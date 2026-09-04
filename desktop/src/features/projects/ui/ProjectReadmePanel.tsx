@@ -6,6 +6,7 @@ import {
   Loader2,
 } from "lucide-react";
 
+import { PRODUCT_NAME } from "@/brand";
 import type { ProjectRepoFile } from "@/features/projects/hooks";
 import { projectExternalRefUrl } from "@/features/projects/lib/projectExternalUrl";
 import type { ProjectRepoUnavailableReason } from "@/features/projects/lib/projectRepoAvailability";
@@ -209,7 +210,7 @@ export function ReadmePanel({
           </h3>
           <p className="mt-1 max-w-lg text-sm text-muted-foreground">
             Clone this repository locally to explore its files, commits, and
-            contributors in Buzz.
+            contributors in {PRODUCT_NAME}.
           </p>
           {externalOpenUrl ? (
             <a

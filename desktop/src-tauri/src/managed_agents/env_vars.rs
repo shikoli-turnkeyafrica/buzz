@@ -227,7 +227,8 @@ pub(crate) fn merged_user_env(
     merged.retain(|k, v| {
         if is_reserved_env_key(k) {
             eprintln!(
-                "buzz-desktop: ignoring reserved env var `{k}` from persona/agent overrides"
+                "{}: ignoring reserved env var `{k}` from persona/agent overrides",
+                crate::brand::LOG_PREFIX
             );
             return false;
         }
@@ -237,7 +238,8 @@ pub(crate) fn merged_user_env(
             // smuggle a reserved key past us via `=`-in-key tricks. See
             // `is_well_formed_env_key` for the exploit.
             eprintln!(
-                "buzz-desktop: ignoring malformed env var key `{}` from persona/agent overrides",
+                "{}: ignoring malformed env var key `{}` from persona/agent overrides",
+                crate::brand::LOG_PREFIX,
                 display_invalid_key(k)
             );
             return false;
@@ -247,13 +249,15 @@ pub(crate) fn merged_user_env(
             // have escaped the value validator; drop them here rather
             // than crash the spawn. We deliberately do NOT log the value.
             eprintln!(
-                "buzz-desktop: ignoring env var `{k}` with NUL byte in value"
+                "{}: ignoring env var `{k}` with NUL byte in value",
+                crate::brand::LOG_PREFIX
             );
             return false;
         }
         if v.len() > MAX_ENV_VALUE_BYTES {
             eprintln!(
-                "buzz-desktop: ignoring env var `{k}` with oversize value ({} bytes > {MAX_ENV_VALUE_BYTES})",
+                "{}: ignoring env var `{k}` with oversize value ({} bytes > {MAX_ENV_VALUE_BYTES})",
+                crate::brand::LOG_PREFIX,
                 v.len()
             );
             return false;

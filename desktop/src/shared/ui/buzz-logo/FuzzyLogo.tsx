@@ -1,3 +1,4 @@
+import { PRODUCT_NAME } from "@/brand";
 import { cn } from "@/shared/lib/cn";
 import BuzzLogoAnimation, {
   type BuzzLogoAnimationProps,
@@ -25,7 +26,7 @@ export type FuzzyLogoProps = {
 export function FuzzyLogo({
   fuzz = true,
   className,
-  ariaLabel = "Buzz logo",
+  ariaLabel = `${PRODUCT_NAME} logo`,
   loop = false,
   loopRestSeconds = 0,
   pulse = true,

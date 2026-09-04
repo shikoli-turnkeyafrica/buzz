@@ -12,6 +12,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
 
+import { PRODUCT_NAME } from "@/brand";
 import {
   setCardGalleryOpen,
   startCardMint,
@@ -429,8 +430,8 @@ export function AgentCardMintDialog({
             >
               Minting calls the OpenAI API with your key and costs money —
               typically well under a dollar per mint, billed by OpenAI. It runs
-              in the background (takes a few minutes); you can keep using Buzz
-              while it works.
+              in the background (takes a few minutes); you can keep using{" "}
+              {PRODUCT_NAME} while it works.
             </p>
             <FreeSharePathRow
               disabled={false}

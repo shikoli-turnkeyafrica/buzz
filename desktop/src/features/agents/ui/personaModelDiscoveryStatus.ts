@@ -1,3 +1,5 @@
+import { PRODUCT_NAME } from "@/brand";
+
 export type PersonaModelDiscoveryStatus = {
   message: string;
   tone: "muted" | "warning";
@@ -51,8 +53,7 @@ export function formatModelDiscoveryErrorStatus(
   if (provider.trim() === "relay-mesh") {
     if (message.includes("waiting for the current member roster")) {
       return {
-        message:
-          "Buzz is waiting for the relay's member roster. Try again shortly; if this persists, check the relay's membership configuration.",
+        message: `${PRODUCT_NAME} is waiting for the relay's member roster. Try again shortly; if this persists, check the relay's membership configuration.`,
         tone: "warning",
       };
     }
@@ -67,23 +68,20 @@ export function formatModelDiscoveryErrorStatus(
 
     if (message.includes("shared compute is not available in this build")) {
       return {
-        message:
-          "This version of Buzz cannot use shared compute. Update Buzz or choose another provider.",
+        message: `This version of ${PRODUCT_NAME} cannot use shared compute. Update ${PRODUCT_NAME} or choose another provider.`,
         tone: "warning",
       };
     }
 
     if (message.includes("shared compute status is malformed")) {
       return {
-        message:
-          "Buzz received an invalid shared compute status. Check the member machine, then try again.",
+        message: `${PRODUCT_NAME} received an invalid shared compute status. Check the member machine, then try again.`,
         tone: "warning",
       };
     }
 
     return {
-      message:
-        "Buzz couldn't check shared compute through the relay. Check your relay connection and try again.",
+      message: `${PRODUCT_NAME} couldn't check shared compute through the relay. Check your relay connection and try again.`,
       tone: "warning",
     };
   }

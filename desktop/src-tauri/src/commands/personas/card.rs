@@ -227,7 +227,8 @@ pub fn list_agent_cards(app: AppHandle) -> Result<Vec<ArchivedCardMeta>, String>
         let Ok(meta) = serde_json::from_str::<ArchivedCardMeta>(&content) else {
             // A malformed sidecar hides one card, never the archive.
             eprintln!(
-                "buzz-desktop: card-archive: skipping malformed sidecar {}",
+                "{}: card-archive: skipping malformed sidecar {}",
+                crate::brand::LOG_PREFIX,
                 path.display()
             );
             continue;
@@ -847,7 +848,10 @@ pub async fn mint_agent_card(
     // Archive best-effort: the mint is already paid for and verified, so a
     // failed archive write logs and continues — it never fails the mint.
     if let Err(e) = archive_minted_card(&app, &id, &display_name, &minted, &final_bytes) {
-        eprintln!("buzz-desktop: card-archive: failed to archive minted card: {e}");
+        eprintln!(
+            "{}: card-archive: failed to archive minted card: {e}",
+            crate::brand::LOG_PREFIX
+        );
     }
 
     Ok(minted)

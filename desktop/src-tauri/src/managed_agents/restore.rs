@@ -65,7 +65,7 @@ pub fn backfill_persona_snapshots(app: &tauri::AppHandle) -> Result<(), String> 
         }
         let Some(persona) = personas.iter().find(|p| p.id == persona_id) else {
             eprintln!(
-                "buzz-desktop: persona-snapshot backfill: agent {} links persona {persona_id} which no longer exists; leaving it orphaned — spawn will refuse it",
+                "{}: persona-snapshot backfill: agent {} links persona {persona_id} which no longer exists; leaving it orphaned — spawn will refuse it", crate::brand::LOG_PREFIX,
                 record.pubkey
             );
             continue;
@@ -475,7 +475,10 @@ pub async fn restore_managed_agents_on_launch(
                 crate::commands::reconcile_agent_profile(&state, &reconcile_app, &pubkey, &data)
                     .await
             {
-                eprintln!("buzz-desktop: profile reconciliation failed for agent {pubkey}: {e}");
+                eprintln!(
+                    "{}: profile reconciliation failed for agent {pubkey}: {e}",
+                    crate::brand::LOG_PREFIX
+                );
             }
         });
     }
@@ -498,7 +501,10 @@ pub(crate) fn spawn_pending_profile_reconciliations(app: &tauri::AppHandle, work
     let items = match crate::commands::load_pending_profile_reconciliations(app, workspace_relay) {
         Ok(items) => items,
         Err(error) => {
-            eprintln!("buzz-desktop: failed to load pending profile reconciliations: {error}");
+            eprintln!(
+                "{}: failed to load pending profile reconciliations: {error}",
+                crate::brand::LOG_PREFIX
+            );
             return;
         }
     };
@@ -521,13 +527,14 @@ pub(crate) fn spawn_pending_profile_reconciliations(app: &tauri::AppHandle, work
                         &relay_url,
                     ) {
                         eprintln!(
-                            "buzz-desktop: failed to record profile reconciliation for agent {pubkey}: {error}"
+                            "{}: failed to record profile reconciliation for agent {pubkey}: {error}", crate::brand::LOG_PREFIX
                         );
                     }
                 }
                 Ok(_) => {}
                 Err(error) => eprintln!(
-                    "buzz-desktop: profile reconciliation failed for agent {pubkey}: {error}"
+                    "{}: profile reconciliation failed for agent {pubkey}: {error}",
+                    crate::brand::LOG_PREFIX
                 ),
             }
         });

@@ -1,6 +1,7 @@
 import { useRouter } from "@tanstack/react-router";
 import * as React from "react";
 
+import { PRODUCT_NAME } from "@/brand";
 import type { deriveShellRoute } from "@/app/AppShell.helpers";
 import type { useAppNavigation } from "@/app/navigation/useAppNavigation";
 import {
@@ -98,7 +99,7 @@ export function useCommunityNavigationTransitions({
       if (!fallback) {
         if (!markCommunityDiscoveryAfterLeave()) {
           throw new Error(
-            "Membership was removed, but community discovery state could not be saved. Restart Buzz and try again.",
+            `Membership was removed, but community discovery state could not be saved. Restart ${PRODUCT_NAME} and try again.`,
           );
         }
         await goHome({ replace: true });

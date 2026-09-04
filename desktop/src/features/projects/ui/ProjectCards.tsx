@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import * as React from "react";
 
+import { PRODUCT_NAME, PRODUCT_SHORT } from "@/brand";
 import {
   resolveUserLabel,
   type UserProfileLookup,
@@ -277,11 +278,11 @@ function RepositoryUnavailableIndicator({
   if (!reason) return null;
   const status = {
     authentication: {
-      description: "Buzz could not authenticate with this repository.",
+      description: `${PRODUCT_NAME} could not authenticate with this repository.`,
       label: "Access failed",
     },
     missing: {
-      description: "No git repository was found on the Buzz relay.",
+      description: `No git repository was found on the ${PRODUCT_NAME} relay.`,
       label: "Uninitialized",
     },
     access: {
@@ -295,7 +296,7 @@ function RepositoryUnavailableIndicator({
       label: "No access channel",
     },
     network: {
-      description: "The Buzz git service could not be reached.",
+      description: `The ${PRODUCT_SHORT} git service could not be reached.`,
       label: "Unreachable",
     },
     ref: {
@@ -303,7 +304,7 @@ function RepositoryUnavailableIndicator({
       label: "Branch missing",
     },
     unknown: {
-      description: "Buzz could not load this repository.",
+      description: `${PRODUCT_NAME} could not load this repository.`,
       label: "Unavailable",
     },
   } satisfies Record<

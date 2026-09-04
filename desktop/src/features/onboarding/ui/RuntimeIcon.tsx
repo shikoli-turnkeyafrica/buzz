@@ -1,6 +1,7 @@
 import * as React from "react";
 import { TerminalSquare } from "lucide-react";
 
+import { PRODUCT_SHORT } from "@/brand";
 import type { AcpRuntimeCatalogEntry } from "@/shared/api/types";
 import { cn } from "@/shared/lib/cn";
 import { BuzzMark } from "@/shared/ui/buzz-logo/BuzzMark";
@@ -34,7 +35,7 @@ function isBuzzRuntime(runtime: AcpRuntimeCatalogEntry): boolean {
 export function getRuntimeDisplayLabel(
   runtime: AcpRuntimeCatalogEntry,
 ): string {
-  return isBuzzRuntime(runtime) ? "Buzz" : runtime.label;
+  return isBuzzRuntime(runtime) ? PRODUCT_SHORT : runtime.label;
 }
 
 function getRuntimeLogoUrl(runtime: AcpRuntimeCatalogEntry): string | null {

@@ -1027,7 +1027,8 @@ pub async fn start_managed_agent(
                     .await
             {
                 eprintln!(
-                    "buzz-desktop: profile reconciliation failed for agent {reconcile_pubkey}: {e}"
+                    "{}: profile reconciliation failed for agent {reconcile_pubkey}: {e}",
+                    crate::brand::LOG_PREFIX
                 );
             }
         });

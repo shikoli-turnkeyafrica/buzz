@@ -174,7 +174,8 @@ pub(crate) fn sweep_system_agent_processes(instance_id: &str, skip_pids: &[u32])
 
     if !orphans.is_empty() {
         eprintln!(
-            "buzz-desktop: system sweep found {} orphaned agent process(es), cleaning up",
+            "{}: system sweep found {} orphaned agent process(es), cleaning up",
+            crate::brand::LOG_PREFIX,
             orphans.len()
         );
         resolve_pgids_and_kill(&orphans);
@@ -227,7 +228,8 @@ pub(crate) fn sweep_system_agent_processes(instance_id: &str, skip_pids: &[u32])
 
     if !orphans.is_empty() {
         eprintln!(
-            "buzz-desktop: system sweep found {} orphaned agent process(es), cleaning up",
+            "{}: system sweep found {} orphaned agent process(es), cleaning up",
+            crate::brand::LOG_PREFIX,
             orphans.len()
         );
         resolve_pgids_and_kill(&orphans);
@@ -257,7 +259,8 @@ pub(crate) fn sweep_system_agent_processes_with_grace(
         .collect();
     if !confirmed.is_empty() {
         eprintln!(
-            "buzz-desktop: periodic sweep confirmed {} orphaned agent process(es), cleaning up",
+            "{}: periodic sweep confirmed {} orphaned agent process(es), cleaning up",
+            crate::brand::LOG_PREFIX,
             confirmed.len()
         );
         resolve_pgids_and_kill(&confirmed);

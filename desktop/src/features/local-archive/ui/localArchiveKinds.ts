@@ -1,3 +1,4 @@
+import { PRODUCT_SHORT } from "@/brand";
 import {
   CHANNEL_AUX_EVENT_KINDS,
   CHANNEL_MESSAGE_EVENT_KINDS,
@@ -68,7 +69,7 @@ function kindLabel(kind: number): string {
     case 9:
       return "Stream messages (kind 9)";
     case 9005:
-      return "Buzz-native deletions (kind 9005)";
+      return `${PRODUCT_SHORT}-native deletions (kind 9005)`;
     case 40002:
       return "Stream messages v2 (kind 40002)";
     case 40003:

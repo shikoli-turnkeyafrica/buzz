@@ -2,6 +2,7 @@ import * as React from "react";
 import { ChevronDown } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
+import { PRODUCT_NAME } from "@/brand";
 import { Switch } from "@/shared/ui/switch";
 import { cn } from "@/shared/lib/cn";
 import {
@@ -581,7 +582,7 @@ function MeshModelPicker({
         {catalog
           ? `Recommended for this machine${catalog.gpuName ? ` (${catalog.gpuName}, ${catalog.vramDisplay} AI memory)` : ""}.`
           : "Choose a model or enter a model reference or local file."}{" "}
-        Buzz downloads remote models when sharing starts.
+        {PRODUCT_NAME} downloads remote models when sharing starts.
       </p>
     </div>
   );
@@ -640,7 +641,8 @@ function StatusLine({
     return (
       <p className="text-sm text-muted-foreground">
         This machine is currently using another member's shared compute. Turn on
-        sharing to switch to the selected local model; Buzz may briefly restart.
+        sharing to switch to the selected local model; {PRODUCT_NAME} may
+        briefly restart.
       </p>
     );
   }

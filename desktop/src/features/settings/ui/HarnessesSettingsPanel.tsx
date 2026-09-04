@@ -2,6 +2,7 @@ import * as React from "react";
 import { ExternalLink, Plus, RefreshCw } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
+import { PRODUCT_NAME } from "@/brand";
 import {
   useAcpRuntimesQuery,
   useGitBashPrerequisiteQuery,
@@ -113,7 +114,7 @@ export function HarnessesSettingsPanel() {
   return (
     <SettingsOptionGroup
       data-testid="settings-harnesses"
-      description="Choose which agent tools Buzz can use on this device."
+      description={`Choose which agent tools ${PRODUCT_NAME} can use on this device.`}
       headerAction={
         <Button
           disabled={isRefreshing}

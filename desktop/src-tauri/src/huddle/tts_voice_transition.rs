@@ -337,7 +337,10 @@ pub(super) fn reconcile_selected_voice(
             true
         }
         Err(_) => {
-            eprintln!("buzz-desktop: tts stage=voice_switch status=fallback reason=voice_style");
+            eprintln!(
+                "{}: tts stage=voice_switch status=fallback reason=voice_style",
+                crate::brand::LOG_PREFIX
+            );
             let fallback_path = model_dir.join(format!("{DEFAULT_VOICE}.{VOICE_FILE_EXT}"));
             match load_voice_style(&fallback_path) {
                 Ok(fallback_style) => {
@@ -351,7 +354,8 @@ pub(super) fn reconcile_selected_voice(
                 }
                 Err(_) => {
                     eprintln!(
-                        "buzz-desktop: tts stage=voice_switch status=failed reason=fallback_voice_style"
+                        "{}: tts stage=voice_switch status=failed reason=fallback_voice_style",
+                        crate::brand::LOG_PREFIX
                     );
                     false
                 }
@@ -386,7 +390,8 @@ pub(super) fn reconcile_queued_voice(
         }
         Err(_) => {
             eprintln!(
-                "buzz-desktop: tts stage=agent_voice_switch status=fallback reason=voice_style"
+                "{}: tts stage=agent_voice_switch status=fallback reason=voice_style",
+                crate::brand::LOG_PREFIX
             );
             let ready = reconcile_selected_voice(model_dir, selected_voice, voice_name, style);
             if ready {
@@ -448,7 +453,10 @@ pub(super) fn retain_cancelled_text(
 }
 
 fn log_cancelled_route(route_id: u64, reason: &str) {
-    eprintln!("buzz-desktop: tts stage=queue status=dropped reason={reason} route_id={route_id}");
+    eprintln!(
+        "{}: tts stage=queue status=dropped reason={reason} route_id={route_id}",
+        crate::brand::LOG_PREFIX
+    );
 }
 
 /// Check for cancel or shutdown. Returns `true` if the caller should break/continue.
@@ -469,7 +477,8 @@ pub(super) fn handle_cancel_or_shutdown(
     let (text_rx, deferred_text, current_text) = text_state;
     if shutdown.load(Ordering::Acquire) {
         eprintln!(
-            "buzz-desktop: tts stage=cancellation reason=shutdown route_id={}",
+            "{}: tts stage=cancellation reason=shutdown route_id={}",
+            crate::brand::LOG_PREFIX,
             active_route_id.unwrap_or(0)
         );
         release_playback(playback, tts_active);
@@ -486,7 +495,8 @@ pub(super) fn handle_cancel_or_shutdown(
         let barge_in = cancel.swap(false, Ordering::AcqRel);
         voice_cancel.store(false, Ordering::Release);
         eprintln!(
-            "buzz-desktop: tts stage=cancellation reason={} route_id={}",
+            "{}: tts stage=cancellation reason={} route_id={}",
+            crate::brand::LOG_PREFIX,
             if barge_in { "barge_in" } else { "voice_switch" },
             active_route_id.unwrap_or(0)
         );

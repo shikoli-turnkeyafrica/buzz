@@ -45,11 +45,12 @@ pub(crate) fn reconcile_agents_to_events(
         Ok(0) => {}
         Ok(reconciled) => {
             eprintln!(
-                "buzz-desktop: agent-event-reconcile: {reconciled} agents reconciled to retention"
+                "{}: agent-event-reconcile: {reconciled} agents reconciled to retention",
+                crate::brand::LOG_PREFIX
             );
         }
         Err(e) => {
-            eprintln!("buzz-desktop: agent-event-reconcile: {e}");
+            eprintln!("{}: agent-event-reconcile: {e}", crate::brand::LOG_PREFIX);
         }
     }
 }

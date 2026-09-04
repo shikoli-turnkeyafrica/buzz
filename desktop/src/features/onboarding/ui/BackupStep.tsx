@@ -2,6 +2,7 @@ import { Check, Copy, Eye, EyeOff, Info, ShieldCheck } from "lucide-react";
 import { useReducedMotion } from "motion/react";
 import * as React from "react";
 
+import { PRODUCT_NAME } from "@/brand";
 import { getNsec } from "@/shared/api/tauriIdentity";
 import type { IdentityStorage } from "@/shared/api/types";
 import { cn } from "@/shared/lib/cn";
@@ -160,10 +161,10 @@ export function BackupStep({
   );
   const storageDescription =
     identityStorage === "system-keyring"
-      ? "Buzz keeps your identity key in your system keychain. Your computer may ask for your password when Buzz needs to read the key."
+      ? `${PRODUCT_NAME} keeps your identity key in your system keychain. Your computer may ask for your password when ${PRODUCT_NAME} needs to read the key.`
       : identityStorage === "local-file"
-        ? "Your system keychain wasn’t available, so Buzz keeps your identity key in a private file on this device."
-        : "Buzz keeps your identity key protected on this device. Make a separate backup in case you lose access.";
+        ? `Your system keychain wasn’t available, so ${PRODUCT_NAME} keeps your identity key in a private file on this device.`
+        : `${PRODUCT_NAME} keeps your identity key protected on this device. Make a separate backup in case you lose access.`;
   const storageTitle =
     identityStorage === "system-keyring"
       ? "Protected by your system keychain"
@@ -172,9 +173,9 @@ export function BackupStep({
         : "Protected in private device storage";
   const introStorageDescription =
     identityStorage === "system-keyring"
-      ? "Buzz keeps your identity key in your system keychain."
+      ? `${PRODUCT_NAME} keeps your identity key in your system keychain.`
       : identityStorage === "local-file"
-        ? "Buzz keeps your identity key in a private file on this device because the system keychain wasn’t available."
+        ? `${PRODUCT_NAME} keeps your identity key in a private file on this device because the system keychain wasn’t available.`
         : "Your identity key is protected on this device.";
 
   if (optionsExpanded) {
@@ -190,9 +191,9 @@ export function BackupStep({
             Backup options
           </h1>
           <p className="mt-5 text-sm leading-6 text-foreground/75">
-            Your identity key works like a password for your Buzz account. Keep
-            a copy somewhere safe. You can create a backup file and lock it with
-            a password you can remember.
+            Your identity key works like a password for your {PRODUCT_NAME}{" "}
+            account. Keep a copy somewhere safe. You can create a backup file
+            and lock it with a password you can remember.
           </p>
         </div>
 

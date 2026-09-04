@@ -101,7 +101,8 @@ define_class!(
                         .emit(NATIVE_NOTIFICATION_ACTIVATED_EVENT, ())
                     {
                         eprintln!(
-                            "buzz-desktop: failed to emit macOS notification activation: {error}"
+                            "{}: failed to emit macOS notification activation: {error}",
+                            crate::brand::LOG_PREFIX
                         );
                     }
                 }
@@ -129,7 +130,7 @@ pub(crate) fn init(app: &AppHandle) -> tauri::Result<()> {
         // objc2 cannot turn that exception into a Rust error, so do not call
         // into the framework at all in this environment.
         eprintln!(
-            "buzz-desktop: macOS notifications disabled because the process is not running from an app bundle"
+            "{}: macOS notifications disabled because the process is not running from an app bundle", crate::brand::LOG_PREFIX
         );
         return Ok(());
     }
@@ -275,7 +276,10 @@ pub(crate) async fn show(
 fn queue_activation(target: serde_json::Value) {
     let queue = PENDING_ACTIVATIONS.get_or_init(Default::default);
     let Ok(mut queue) = queue.lock() else {
-        eprintln!("buzz-desktop: macOS notification activation queue is unavailable");
+        eprintln!(
+            "{}: macOS notification activation queue is unavailable",
+            crate::brand::LOG_PREFIX
+        );
         return;
     };
     if queue.len() == MAX_PENDING_ACTIVATIONS {

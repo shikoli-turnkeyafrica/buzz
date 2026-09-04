@@ -8,6 +8,7 @@ import {
 import * as React from "react";
 import { toast } from "sonner";
 
+import { PRODUCT_NAME } from "@/brand";
 import {
   useProfileQuery,
   useUpdateProfileMutation,
@@ -486,7 +487,7 @@ export function ProfileSettingsCard({
       <div>
         <SettingsSectionHeader
           title="Profile"
-          description="Update how your name, avatar, and bio appear across Buzz."
+          description={`Update how your name, avatar, and bio appear across ${PRODUCT_NAME}.`}
         />
 
         <div className="space-y-3">

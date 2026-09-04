@@ -373,7 +373,11 @@ pub async fn import_identity(
         let pubkey_hex = pubkey.to_hex();
         let display_name = truncated_display_name(&pubkey)?;
 
-        eprintln!("buzz-desktop: imported identity pubkey {}", pubkey_hex);
+        eprintln!(
+            "{}: imported identity pubkey {}",
+            crate::brand::LOG_PREFIX,
+            pubkey_hex
+        );
 
         Ok(IdentityInfo {
             pubkey: pubkey_hex,
@@ -442,9 +446,10 @@ pub(crate) fn commit_imported_identity(
     // per the ordering contract above.
     if let Err(e) = crate::key_backup::cleanup_stale_backup(&previous_pubkey, &pubkey, data_dir) {
         eprintln!(
-            "buzz-desktop: import committed, but stale key backup cleanup failed: {e}; \
+            "{}: import committed, but stale key backup cleanup failed: {e}; \
              the leftover identity.ncryptsec encrypts the PREVIOUS key and will be \
-             replaced by the next backup creation"
+             replaced by the next backup creation",
+            crate::brand::LOG_PREFIX
         );
     }
 

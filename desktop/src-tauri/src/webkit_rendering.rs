@@ -103,11 +103,18 @@ pub fn apply() -> Result<(), String> {
                 std::env::set_var(var, "1");
             }
             let applied: Vec<String> = vars.iter().map(|var| format!("{var}=1")).collect();
-            eprintln!("buzz-desktop: {} — {why}", applied.join(" "));
+            eprintln!(
+                "{}: {} — {why}",
+                crate::brand::LOG_PREFIX,
+                applied.join(" ")
+            );
             Ok(())
         }
         Plan::Leave { why } => {
-            eprintln!("buzz-desktop: WebKit rendering left as-is — {why}");
+            eprintln!(
+                "{}: WebKit rendering left as-is — {why}",
+                crate::brand::LOG_PREFIX
+            );
             Ok(())
         }
         Plan::Fatal { diagnostic } => Err(diagnostic),

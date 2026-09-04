@@ -1,3 +1,4 @@
+import { PRODUCT_NAME, PRODUCT_SHORT } from "@/brand";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
 import { emit, listen } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
@@ -2235,7 +2236,7 @@ function buildMockConfigSurface(pubkey: string): {
   const buzzAgentSurface = {
     ...gooseSurface,
     runtimeId: "buzz-agent",
-    runtimeLabel: "Buzz Agent",
+    runtimeLabel: `${PRODUCT_SHORT} Agent`,
     advanced: [],
     extensions: [],
     sources: {
@@ -5699,8 +5700,7 @@ const MOCK_PROJECT_SEEDS = [
   {
     dtag: "buzz",
     name: "buzz",
-    description:
-      "Relay, desktop, and mobile clients for the Buzz community platform.",
+    description: `Relay, desktop, and mobile clients for the ${PRODUCT_NAME} community platform.`,
     cloneUrl: `${DEFAULT_RELAY_HTTP_URL}/git/${MOCK_IDENTITY_PUBKEY}/buzz`,
     webUrl: null,
     owner: MOCK_IDENTITY_PUBKEY,
@@ -5910,7 +5910,7 @@ function buildMockProjectEvents(): RelayEvent[] {
       [
         ["d", "buzz"],
         ["name", "buzz"],
-        ["description", "The complete Buzz community platform."],
+        ["description", `The complete ${PRODUCT_NAME} community platform.`],
         ["a", `${KIND_REPO_ANNOUNCEMENT}:${projectOwner}:buzz`],
         ["a", `${KIND_REPO_ANNOUNCEMENT}:${ALICE_PUBKEY}:relay-tools`],
       ],
@@ -8062,14 +8062,14 @@ async function handleDiscoverAcpRuntimes(
     },
     {
       id: "buzz-agent",
-      label: "Buzz Agent",
+      label: `${PRODUCT_SHORT} Agent`,
       avatar_url: "",
       availability: "available",
       command: "buzz-agent",
       binary_path: "/usr/local/bin/buzz-agent",
       default_args: [],
       mcp_command: "buzz-dev-mcp",
-      install_hint: "Ships with the Buzz desktop app.",
+      install_hint: `Ships with the ${PRODUCT_NAME} app.`,
       install_instructions_url: "https://github.com/block/buzz",
       can_auto_install: false,
       requires_external_cli: false,
@@ -11605,7 +11605,7 @@ export function maybeInstallE2eTauriMocks() {
               name: "Gemma-4-E4B-it-Q4_K_M",
               size: "3.5GB",
               sizeGb: 3.5,
-              description: "Buzz-curated local agent model",
+              description: `${PRODUCT_SHORT}-curated local agent model`,
               fit: "comfortable",
               installed: true,
               recommended: true,
@@ -12018,8 +12018,7 @@ export function maybeInstallE2eTauriMocks() {
               path: "crates/buzz-relay/src/api/git/transport.rs",
               kind: "blob",
               size: 33120,
-              preview_content:
-                "// Smart HTTP git transport\n// Handles upload-pack and receive-pack for Buzz git repos.\n",
+              preview_content: `// Smart HTTP git transport\n// Handles upload-pack and receive-pack for ${PRODUCT_NAME} git repos.\n`,
             },
           ],
         };

@@ -1,6 +1,8 @@
 import * as React from "react";
 import { flushSync } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
+
+import { PRODUCT_NAME } from "@/brand";
 import {
   profileQueryKey,
   useUpdateProfileMutation,
@@ -577,9 +579,9 @@ export function OnboardingFlow({
                       </h1>
                       <p className="mt-5 text-sm leading-6 text-muted-foreground">
                         Your identity is no longer in the system keyring.
-                        Re-import your nsec to restore it — Buzz will restart to
-                        finish recovery. Or go back to start a new identity with
-                        a fresh key.
+                        Re-import your nsec to restore it — {PRODUCT_NAME} will
+                        restart to finish recovery. Or go back to start a new
+                        identity with a fresh key.
                       </p>
                     </>
                   ) : (
@@ -588,9 +590,9 @@ export function OnboardingFlow({
                         Use your existing key
                       </h1>
                       <p className="mt-5 text-sm leading-6 text-muted-foreground">
-                        Import your Nostr private key to use that identity with
-                        Buzz. If this key already has a profile on the relay,
-                        your name and avatar are restored automatically.
+                        Import your Nostr private key to use that identity with{" "}
+                        {PRODUCT_NAME}. If this key already has a profile on the
+                        relay, your name and avatar are restored automatically.
                       </p>
                     </>
                   )}

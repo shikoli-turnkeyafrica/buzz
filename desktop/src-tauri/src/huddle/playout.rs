@@ -118,7 +118,10 @@ impl PeerSlot {
                 recovering_playout: false,
             }),
             Err(e) => {
-                eprintln!("buzz-desktop: jitter buffer init peer {peer_idx}: {e}");
+                eprintln!(
+                    "{}: jitter buffer init peer {peer_idx}: {e}",
+                    crate::brand::LOG_PREFIX
+                );
                 None
             }
         }
@@ -230,8 +233,8 @@ pub(crate) async fn run_playout_recv_loop(
                             slot.update_playout_recovery();
                             if slot.player.len() >= PLAYOUT_QUEUE_EMERGENCY_HIGH_WATER {
                                 eprintln!(
-                                    "buzz-desktop: playout queue emergency high-water for peer \
-                                     {peer_idx} (depth={}) — dropping oldest frame",
+                                    "{}: playout queue emergency high-water for peer \
+                                     {peer_idx} (depth={}) — dropping oldest frame", crate::brand::LOG_PREFIX,
                                     slot.player.len(),
                                 );
                                 slot.player.skip_one();
@@ -240,7 +243,7 @@ pub(crate) async fn run_playout_recv_loop(
                         }
                         Err(e) => {
                             eprintln!(
-                                "buzz-desktop: jitter get_audio peer {peer_idx}: {e}"
+                                "{}: jitter get_audio peer {peer_idx}: {e}", crate::brand::LOG_PREFIX
                             );
                         }
                     }
@@ -289,7 +292,7 @@ pub(crate) async fn run_playout_recv_loop(
                             // the slice is too short, which `if data.len() <= ...`
                             // already guards. Defensive log + drop.
                             eprintln!(
-                                "buzz-desktop: dropping malformed audio frame from peer {peer_idx} ({} bytes)",
+                                "{}: dropping malformed audio frame from peer {peer_idx} ({} bytes)", crate::brand::LOG_PREFIX,
                                 data.len(),
                             );
                             continue;
@@ -338,7 +341,7 @@ pub(crate) async fn run_playout_recv_loop(
                                 .insert_packet(header.seq, header.ts_48k, opus_bytes)
                         {
                             eprintln!(
-                                "buzz-desktop: jitter insert peer {peer_idx}: {err}"
+                                "{}: jitter insert peer {peer_idx}: {err}", crate::brand::LOG_PREFIX
                             );
                         } else {
                             // Heartbeat for the playout tick's idle-peer

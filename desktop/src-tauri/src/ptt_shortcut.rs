@@ -136,11 +136,17 @@ pub fn sync_registration(app: &tauri::AppHandle, hs: &HuddleState) {
 
     if want && !is_registered {
         if let Err(e) = manager.register(shortcut) {
-            eprintln!("buzz-desktop: failed to register PTT shortcut: {e}");
+            eprintln!(
+                "{}: failed to register PTT shortcut: {e}",
+                crate::brand::LOG_PREFIX
+            );
         }
     } else if !want && is_registered {
         if let Err(e) = manager.unregister(shortcut) {
-            eprintln!("buzz-desktop: failed to unregister PTT shortcut: {e}");
+            eprintln!(
+                "{}: failed to unregister PTT shortcut: {e}",
+                crate::brand::LOG_PREFIX
+            );
         }
     }
 }

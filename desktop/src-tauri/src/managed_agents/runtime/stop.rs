@@ -78,8 +78,10 @@ fn stop_managed_agent_pair(
             ),
         ) {
             eprintln!(
-                "buzz-desktop: failed to append stop marker for {} on {}: {error}",
-                record.pubkey, key.relay_url
+                "{}: failed to append stop marker for {} on {}: {error}",
+                crate::brand::LOG_PREFIX,
+                record.pubkey,
+                key.relay_url
             );
         }
         Ok(())

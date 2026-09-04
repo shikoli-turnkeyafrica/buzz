@@ -290,7 +290,8 @@ pub(crate) fn reap_dead_instance_agents(our_instance_id: &str, skip_pids: &[u32]
             continue;
         }
         eprintln!(
-            "buzz-desktop: reaping {} orphaned agent(s) from dead instance '{instance_id}'",
+            "{}: reaping {} orphaned agent(s) from dead instance '{instance_id}'",
+            crate::brand::LOG_PREFIX,
             agent_pids.len()
         );
         resolve_pgids_and_kill(agent_pids);
@@ -348,7 +349,8 @@ pub(crate) fn reap_dead_instance_agents(our_instance_id: &str, skip_pids: &[u32]
             continue;
         }
         eprintln!(
-            "buzz-desktop: reaping {} orphaned agent(s) from dead instance '{instance_id}'",
+            "{}: reaping {} orphaned agent(s) from dead instance '{instance_id}'",
+            crate::brand::LOG_PREFIX,
             agent_pids.len()
         );
         resolve_pgids_and_kill(agent_pids);

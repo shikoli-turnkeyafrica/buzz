@@ -487,7 +487,8 @@ pub fn spawn_agent_child(
             Some(path) => Some(path),
             None => {
                 eprintln!(
-                    "buzz-desktop: mcp_command {effective_mcp_command:?} not found, skipping"
+                    "{}: mcp_command {effective_mcp_command:?} not found, skipping",
+                    crate::brand::LOG_PREFIX
                 );
                 None
             }
@@ -634,7 +635,8 @@ pub fn spawn_agent_child(
                     Ok(json) => Some(json),
                     Err(e) => {
                         eprintln!(
-                            "buzz-desktop: failed to serialize setup payload for {}: {e}",
+                            "{}: failed to serialize setup payload for {}: {e}",
+                            crate::brand::LOG_PREFIX,
                             record.name
                         );
                         None
@@ -662,7 +664,8 @@ pub fn spawn_agent_child(
         if let Some(json) = setup_payload_json {
             command.env("BUZZ_ACP_SETUP_PAYLOAD", json);
             eprintln!(
-                "buzz-desktop: agent {} not ready — spawning in setup-listener mode",
+                "{}: agent {} not ready — spawning in setup-listener mode",
+                crate::brand::LOG_PREFIX,
                 record.name
             );
         }
@@ -799,7 +802,8 @@ pub fn spawn_agent_child(
         command.env("GIT_CONFIG_VALUE_1", "true");
     } else {
         eprintln!(
-            "buzz-desktop: git-credential-nostr not found — agent {} will not have automatic Buzz git auth",
+            "{}: git-credential-nostr not found — agent {} will not have automatic Buzz git auth",
+            crate::brand::LOG_PREFIX,
             record.name,
         );
     }

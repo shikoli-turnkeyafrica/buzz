@@ -244,7 +244,10 @@ pub(super) async fn update_persona_with<R: Send + 'static>(
             )
             .await
             {
-                eprintln!("buzz-desktop: relay profile sync failed after persona update: {e}");
+                eprintln!(
+                    "{}: relay profile sync failed after persona update: {e}",
+                    crate::brand::LOG_PREFIX
+                );
             }
         }
     }

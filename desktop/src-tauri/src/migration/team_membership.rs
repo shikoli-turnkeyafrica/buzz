@@ -65,21 +65,26 @@ fn orchestrate_repair_then_detach(
     match repair() {
         Ok(repaired) => {
             if repaired > 0 {
-                eprintln!("buzz-desktop: team-membership-repair: repaired {repaired} record(s)");
+                eprintln!(
+                    "{}: team-membership-repair: repaired {repaired} record(s)",
+                    crate::brand::LOG_PREFIX
+                );
             }
             match detach() {
                 Ok(0) => {}
                 Ok(n) => {
                     eprintln!(
-                        "buzz-desktop: detach-dir-teams: detached {n} directory-backed team(s)"
+                        "{}: detach-dir-teams: detached {n} directory-backed team(s)",
+                        crate::brand::LOG_PREFIX
                     )
                 }
-                Err(e) => eprintln!("buzz-desktop: detach-dir-teams: {e}"),
+                Err(e) => eprintln!("{}: detach-dir-teams: {e}", crate::brand::LOG_PREFIX),
             }
         }
         Err(e) => eprintln!(
-            "buzz-desktop: team-membership-repair: {e} — skipping directory-backed detach this \
-             boot to preserve source_dir for a clean-repair retry"
+            "{}: team-membership-repair: {e} — skipping directory-backed detach this \
+             boot to preserve source_dir for a clean-repair retry",
+            crate::brand::LOG_PREFIX
         ),
     }
 }
@@ -203,8 +208,9 @@ fn rewrite_stale_persona_ids(teams: &mut [TeamRecord], agents: &[ManagedAgentRec
                 .collect();
             let [only] = candidates.as_slice() else {
                 eprintln!(
-                    "buzz-desktop: team-membership-repair: team {:?}: leaving unresolvable \
+                    "{}: team-membership-repair: team {:?}: leaving unresolvable \
                      persona id {:?} ({} candidate(s))",
+                    crate::brand::LOG_PREFIX,
                     team.id,
                     id,
                     candidates.len()
@@ -322,8 +328,9 @@ fn backfill_instance_team_ids(teams: &[TeamRecord], agents: &mut [ManagedAgentRe
                 }
                 _ => {
                     eprintln!(
-                        "buzz-desktop: team-membership-repair: unbinding instance {:?} — persona \
+                        "{}: team-membership-repair: unbinding instance {:?} — persona \
                          {persona_id:?} left its team's roster with no single-team successor",
+                        crate::brand::LOG_PREFIX,
                         agent.pubkey
                     );
                     agent.team_id = None;
@@ -337,8 +344,9 @@ fn backfill_instance_team_ids(teams: &[TeamRecord], agents: &mut [ManagedAgentRe
                     repaired += 1;
                 }
                 Some(None) => eprintln!(
-                    "buzz-desktop: team-membership-repair: leaving instance {:?} unbound — persona \
+                    "{}: team-membership-repair: leaving instance {:?} unbound — persona \
                      {persona_id:?} spans multiple teams",
+                    crate::brand::LOG_PREFIX,
                     agent.pubkey
                 ),
                 None => {}

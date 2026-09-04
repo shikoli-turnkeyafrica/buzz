@@ -3,7 +3,7 @@ import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { TextSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 
-import { DEEP_LINK_SCHEME } from "@/brand";
+import { DEEP_LINK_SCHEME, PRODUCT_SHORT } from "@/brand";
 import {
   buildIssueLink,
   buildProjectLink,
@@ -265,11 +265,11 @@ function composerLinkPresentation(
   const entity = parseEntityLink(href);
   if (!entity.ok) {
     return {
-      ariaLabel: "Buzz link",
+      ariaLabel: `${PRODUCT_SHORT} link`,
       channelName: "",
       dataAttributes: {},
       icon: "message",
-      label: "Buzz link",
+      label: `${PRODUCT_SHORT} link`,
     };
   }
 

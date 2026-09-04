@@ -38,7 +38,7 @@ pub(crate) fn retain_managed_agent_pending(
         retain_agent_record(&conn, &scope.owner_keys, record).map(|_| ())
     })();
     if let Err(e) = result {
-        eprintln!("buzz-desktop: agent-retain: {e}");
+        eprintln!("{}: agent-retain: {e}", crate::brand::LOG_PREFIX);
     }
 }
 
@@ -94,7 +94,7 @@ pub(crate) fn tombstone_managed_agent_pending(
         )
     })();
     if let Err(e) = result {
-        eprintln!("buzz-desktop: agent-tombstone: {e}");
+        eprintln!("{}: agent-tombstone: {e}", crate::brand::LOG_PREFIX);
     }
 }
 
@@ -172,6 +172,6 @@ pub(crate) fn archive_managed_agent_pending(
         )
     })();
     if let Err(e) = result {
-        eprintln!("buzz-desktop: agent-archive: {e}");
+        eprintln!("{}: agent-archive: {e}", crate::brand::LOG_PREFIX);
     }
 }

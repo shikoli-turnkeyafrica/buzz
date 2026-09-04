@@ -164,7 +164,8 @@ fn collect_restart_candidates(
         Ok(r) => r,
         Err(e) => {
             eprintln!(
-                "buzz-desktop: set_global_agent_config: failed to load agents for restart scan: {e}"
+                "{}: set_global_agent_config: failed to load agents for restart scan: {e}",
+                crate::brand::LOG_PREFIX
             );
             return (Vec::new(), Vec::new());
         }
@@ -173,7 +174,8 @@ fn collect_restart_candidates(
         Ok(p) => p,
         Err(e) => {
             eprintln!(
-                "buzz-desktop: set_global_agent_config: failed to load personas for restart scan: {e}"
+                "{}: set_global_agent_config: failed to load personas for restart scan: {e}",
+                crate::brand::LOG_PREFIX
             );
             return (Vec::new(), Vec::new());
         }
@@ -334,12 +336,16 @@ async fn restart_local_agent_on_config_change(
     let runtime_keys = match stop_result {
         Ok(Ok(runtime_keys)) => runtime_keys,
         Ok(Err(e)) => {
-            eprintln!("buzz-desktop: set_global_agent_config: skipping restart of {pubkey}: {e}");
+            eprintln!(
+                "{}: set_global_agent_config: skipping restart of {pubkey}: {e}",
+                crate::brand::LOG_PREFIX
+            );
             return RestartOutcome::Skipped;
         }
         Err(e) => {
             eprintln!(
-                "buzz-desktop: set_global_agent_config: spawn_blocking failed for stop of {pubkey}: {e}"
+                "{}: set_global_agent_config: spawn_blocking failed for stop of {pubkey}: {e}",
+                crate::brand::LOG_PREFIX
             );
             return RestartOutcome::Skipped;
         }
@@ -353,17 +359,19 @@ async fn restart_local_agent_on_config_change(
     {
         Ok(_) => {
             eprintln!(
-                "buzz-desktop: set_global_agent_config: restarted agent {pubkey} with updated config"
+                "{}: set_global_agent_config: restarted agent {pubkey} with updated config",
+                crate::brand::LOG_PREFIX
             );
             RestartOutcome::Restarted
         }
         Err(e) => {
             eprintln!(
-                "buzz-desktop: set_global_agent_config: failed to start {pubkey} after restart: {e}"
+                "{}: set_global_agent_config: failed to start {pubkey} after restart: {e}",
+                crate::brand::LOG_PREFIX
             );
             if let Err(save_err) = persist_last_error(app, pubkey, &e) {
                 eprintln!(
-                    "buzz-desktop: set_global_agent_config: failed to persist last_error for {pubkey}: {save_err}"
+                    "{}: set_global_agent_config: failed to persist last_error for {pubkey}: {save_err}", crate::brand::LOG_PREFIX
                 );
             }
             RestartOutcome::FailedAfterStop

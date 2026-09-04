@@ -1,4 +1,6 @@
-const PROJECT_PAGE_CONTEXT_MARKER = "Current Buzz project page:";
+import { PRODUCT_NAME } from "@/brand";
+
+const PROJECT_PAGE_CONTEXT_MARKER = `Current ${PRODUCT_NAME} project page:`;
 
 /**
  * Neutralizes an untrusted metadata value for inclusion in a hidden prompt

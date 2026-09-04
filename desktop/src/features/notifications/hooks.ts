@@ -1,5 +1,6 @@
 import * as React from "react";
 
+import { PRODUCT_NAME } from "@/brand";
 import { useHomeFeedQuery } from "@/features/home/hooks";
 import { useUsersBatchQuery } from "@/features/profile/hooks";
 import type { UserProfileLookup } from "@/features/profile/lib/identity";
@@ -270,7 +271,7 @@ export function useNotificationSettings(pubkey?: string) {
         }));
         setErrorMessage(
           nextPermission === "denied"
-            ? "Desktop notifications are blocked for Buzz. Enable them in system settings to turn alerts on."
+            ? `Desktop notifications are blocked for ${PRODUCT_NAME}. Enable them in system settings to turn alerts on.`
             : "Desktop notifications are unavailable in this environment.",
         );
         return false;

@@ -84,11 +84,12 @@ pub fn migrate_personas_to_events(app: &tauri::AppHandle, keys: &nostr::Keys, db
         Ok(0) => {}
         Ok(migrated) => {
             eprintln!(
-                "buzz-desktop: persona-event-migration: {migrated} personas migrated to retention"
+                "{}: persona-event-migration: {migrated} personas migrated to retention",
+                crate::brand::LOG_PREFIX
             );
         }
         Err(e) => {
-            eprintln!("buzz-desktop: persona-event-migration: {e}");
+            eprintln!("{}: persona-event-migration: {e}", crate::brand::LOG_PREFIX);
         }
     }
 }
@@ -244,7 +245,10 @@ pub fn migrate_teams_to_events(
     match migrate_teams_in_dir_at(&base_dir, keys, db_path) {
         Ok(0) => Ok(()),
         Ok(migrated) => {
-            eprintln!("buzz-desktop: team-event-migration: {migrated} teams migrated to retention");
+            eprintln!(
+                "{}: team-event-migration: {migrated} teams migrated to retention",
+                crate::brand::LOG_PREFIX
+            );
             Ok(())
         }
         Err(e) => Err(format!("team-event-migration: {e}")),

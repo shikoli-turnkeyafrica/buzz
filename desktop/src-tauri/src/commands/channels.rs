@@ -372,7 +372,7 @@ async fn fetch_channels(state: &AppState) -> Result<Vec<ChannelInfo>, String> {
     {
         let total = _profile_start.elapsed();
         eprintln!(
-            "buzz-desktop: get_channels profile channels={} phase1(member_chain+open_meta+hidden_dm)={:?} phase2(member_counts+last_msg)={:?} total={:?}",
+            "{}: get_channels profile channels={} phase1(member_chain+open_meta+hidden_dm)={:?} phase2(member_counts+last_msg)={:?} total={:?}", crate::brand::LOG_PREFIX,
             channels.len(),
             t_phase1,
             total - t_phase1,

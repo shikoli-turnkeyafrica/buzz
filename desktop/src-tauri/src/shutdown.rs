@@ -23,7 +23,10 @@ pub(crate) fn shut_down_app(app: &tauri::AppHandle, shutdown_done: &std::sync::a
         app.state::<crate::terminal_runtime::TerminalSessions>()
             .shutdown_all();
         if let Err(error) = shutdown_managed_agents(app) {
-            eprintln!("buzz-desktop: failed to stop managed agents: {error}");
+            eprintln!(
+                "{}: failed to stop managed agents: {error}",
+                crate::brand::LOG_PREFIX
+            );
         }
         #[cfg(feature = "mesh-llm")]
         shutdown_mesh_runtime(app);
@@ -54,7 +57,10 @@ pub(crate) fn install_signal_handler(
         #[cfg(not(all(feature = "mesh-llm", target_os = "macos")))]
         std::process::exit(0);
     }) {
-        eprintln!("buzz-desktop: failed to register signal handler: {error}");
+        eprintln!(
+            "{}: failed to register signal handler: {error}",
+            crate::brand::LOG_PREFIX
+        );
     }
 }
 
@@ -87,10 +93,16 @@ pub(crate) fn relaunch_after_mesh_shutdown(app: &tauri::AppHandle) -> ! {
                 .args(env.args_os.iter().skip(1))
                 .spawn()
             {
-                eprintln!("buzz-desktop: failed to relaunch app: {error}");
+                eprintln!(
+                    "{}: failed to relaunch app: {error}",
+                    crate::brand::LOG_PREFIX
+                );
             }
         }
-        Err(error) => eprintln!("buzz-desktop: failed to locate app for relaunch: {error}"),
+        Err(error) => eprintln!(
+            "{}: failed to locate app for relaunch: {error}",
+            crate::brand::LOG_PREFIX
+        ),
     }
     hard_exit_after_mesh_shutdown();
 }
@@ -118,8 +130,14 @@ pub(crate) fn shutdown_mesh_runtime(app: &tauri::AppHandle) {
     });
     match rx.recv_timeout(std::time::Duration::from_secs(5)) {
         Ok(Ok(())) => {}
-        Ok(Err(error)) => eprintln!("buzz-desktop: failed to stop Mesh runtime: {error}"),
-        Err(error) => eprintln!("buzz-desktop: timed out stopping Mesh runtime: {error}"),
+        Ok(Err(error)) => eprintln!(
+            "{}: failed to stop Mesh runtime: {error}",
+            crate::brand::LOG_PREFIX
+        ),
+        Err(error) => eprintln!(
+            "{}: timed out stopping Mesh runtime: {error}",
+            crate::brand::LOG_PREFIX
+        ),
     }
 }
 

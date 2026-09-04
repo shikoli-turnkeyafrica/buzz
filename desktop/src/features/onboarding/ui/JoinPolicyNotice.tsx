@@ -1,6 +1,7 @@
 import * as React from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
+import { PRODUCT_NAME } from "@/brand";
 import { joinPolicyDocumentUrl, type JoinPolicy } from "@/shared/api/invites";
 import { Button } from "@/shared/ui/button";
 import { Checkbox } from "@/shared/ui/checkbox";
@@ -71,7 +72,7 @@ export function JoinPolicyNotice({
             className="cursor-pointer text-xs leading-5 text-muted-foreground"
             htmlFor={agreementConfirmationId}
           >
-            I agree to the Buzz{" "}
+            I agree to the {PRODUCT_NAME}{" "}
             {policy.termsMarkdown ? (
               <Button
                 className="h-auto p-0 align-baseline text-xs no-underline hover:underline focus-visible:no-underline"

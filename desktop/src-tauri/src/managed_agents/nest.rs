@@ -830,7 +830,10 @@ pub fn try_regenerate_nest(app: &AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         if let Err(error) = regenerate_nest_context(&app, generation).await {
-            eprintln!("buzz-desktop: nest context regeneration failed: {error}");
+            eprintln!(
+                "{}: nest context regeneration failed: {error}",
+                crate::brand::LOG_PREFIX
+            );
         }
     });
 }

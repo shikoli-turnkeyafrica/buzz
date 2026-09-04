@@ -194,7 +194,8 @@ pub async fn get_legacy_workspace_storage(
             match read_legacy_workspace_storage_db(&database) {
                 Ok(storage) => merge_legacy_workspace_storage(&mut result, storage),
                 Err(error) => eprintln!(
-                    "buzz-desktop: legacy-local-storage-migration: {}: {error}",
+                    "{}: legacy-local-storage-migration: {}: {error}",
+                    crate::brand::LOG_PREFIX,
                     database.display()
                 ),
             }

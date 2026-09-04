@@ -16,7 +16,10 @@ impl TtsPipeline {
                 text,
             })
             .map_err(|e| {
-                eprintln!("buzz-desktop: TTS queue saturated, dropping message: {e}");
+                eprintln!(
+                    "{}: TTS queue saturated, dropping message: {e}",
+                    crate::brand::LOG_PREFIX
+                );
                 format!("TTS queue full, dropping: {e}")
             })
     }
@@ -72,7 +75,10 @@ impl TtsPipeline {
             voice,
         );
         if acknowledged.is_some() {
-            eprintln!("buzz-desktop: tts stage=cancellation reason=voice_switch route_id=0");
+            eprintln!(
+                "{}: tts stage=cancellation reason=voice_switch route_id=0",
+                crate::brand::LOG_PREFIX
+            );
         }
         acknowledged
     }
@@ -88,7 +94,10 @@ impl TtsPipeline {
 
     /// Signal the worker thread to stop.
     pub fn shutdown(&self) {
-        eprintln!("buzz-desktop: tts stage=cancellation reason=shutdown route_id=0");
+        eprintln!(
+            "{}: tts stage=cancellation reason=shutdown route_id=0",
+            crate::brand::LOG_PREFIX
+        );
         self.shutdown.store(true, Ordering::Release);
     }
 

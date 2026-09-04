@@ -5,6 +5,7 @@
  * Extracted for deterministic unit-testing — no React, no Tauri, no network.
  */
 
+import { PRODUCT_NAME } from "@/brand";
 import type { AcpRuntimeCatalogEntry } from "@/shared/api/types";
 
 // Builtins that anchor the top of "Your runtimes" — mirrors the old
@@ -164,7 +165,7 @@ export function entryStatusLabel(entry: AcpRuntimeCatalogEntry): string | null {
 export function adapterUpdateWarning(entry: AcpRuntimeCatalogEntry): string {
   if (entry.id === "codex") {
     return (
-      "This replaces the machine-wide codex-acp adapter. Older Buzz " +
+      `This replaces the machine-wide codex-acp adapter. Older ${PRODUCT_NAME} ` +
       "releases using the legacy adapter may lose community access until " +
       "@zed-industries/codex-acp@0.16.0 is restored."
     );

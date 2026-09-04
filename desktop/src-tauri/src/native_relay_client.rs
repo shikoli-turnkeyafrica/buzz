@@ -363,8 +363,9 @@ impl RelaySession {
         let violations = self.state.lock().await.replace_desired(subscriptions);
         for id in violations {
             eprintln!(
-                "buzz-desktop: native_relay_client: subscription {id} changed filter under a \
-                 reused id; ids must be derived from their filter"
+                "{}: native_relay_client: subscription {id} changed filter under a \
+                 reused id; ids must be derived from their filter",
+                crate::brand::LOG_PREFIX
             );
         }
         // A full channel already means "reconcile pending", so a failed send
@@ -438,7 +439,10 @@ async fn run_session(
                 run_connection(conn, &session, &mut wake_rx).await;
             }
             Err(error) => {
-                eprintln!("buzz-desktop: native_relay_client: connect failed: {error}");
+                eprintln!(
+                    "{}: native_relay_client: connect failed: {error}",
+                    crate::brand::LOG_PREFIX
+                );
             }
         }
 
@@ -610,7 +614,7 @@ async fn run_connection(
                         let retry = retries.entry(subscription_id.clone()).or_default();
                         retry.schedule(&message);
                         eprintln!(
-                            "buzz-desktop: native_relay_client: relay closed {subscription_id}: {message}"
+                            "{}: native_relay_client: relay closed {subscription_id}: {message}", crate::brand::LOG_PREFIX
                         );
                     }
                     Ok(RelayMessage::Eose { subscription_id }) => {
@@ -653,7 +657,7 @@ async fn run_connection(
                     Ok(_) => {}
                     Err(error) => {
                         if !is_read_timeout(&error) {
-                            eprintln!("buzz-desktop: native_relay_client: read failed: {error}");
+                            eprintln!("{}: native_relay_client: read failed: {error}", crate::brand::LOG_PREFIX);
                             return;
                         }
                     }

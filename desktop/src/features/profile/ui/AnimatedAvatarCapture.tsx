@@ -2,6 +2,7 @@ import { Camera } from "lucide-react";
 import * as React from "react";
 import { createPortal } from "react-dom";
 
+import { PRODUCT_NAME } from "@/brand";
 import {
   type AnimatedAvatarRecording,
   ANIMATED_AVATAR_FRAME_DELAY_MS,
@@ -378,7 +379,7 @@ export function AnimatedAvatarCapture({
       } catch {
         releaseCamera();
         setErrorMessage(
-          "Could not access the camera. Check Buzz's camera permission and try again.",
+          `Could not access the camera. Check ${PRODUCT_NAME}'s camera permission and try again.`,
         );
         setPhase("idle");
       }

@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import * as React from "react";
 
+import { PRODUCT_NAME } from "@/brand";
+
 import type {
   Project,
   ProjectLocalRepoSnapshot,
@@ -553,7 +555,7 @@ export function WorkspaceTabs({
                 snapshot={displayedSnapshot}
                 unavailableMessage={
                   externalHost
-                    ? `Not mirrored on Buzz. Repository files are hosted on ${externalHost}.`
+                    ? `Not mirrored on ${PRODUCT_NAME}. Repository files are hosted on ${externalHost}.`
                     : undefined
                 }
               />

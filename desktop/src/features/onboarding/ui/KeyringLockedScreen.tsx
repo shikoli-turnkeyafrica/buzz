@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { PRODUCT_NAME } from "@/brand";
 import { importIdentity } from "@/shared/api/tauriIdentity";
 import { useSystemColorScheme } from "@/shared/theme/useSystemColorScheme";
 import { Button } from "@/shared/ui/button";
@@ -46,7 +47,7 @@ export function KeyringLockedScreen() {
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
           Your identity is safe in the OS keyring, but it's unreachable this
           session. Unlock your keyring or sign into your desktop session, then
-          relaunch Buzz.
+          relaunch {PRODUCT_NAME}.
         </p>
 
         {showImport ? (
@@ -65,7 +66,7 @@ export function KeyringLockedScreen() {
               }}
               type="button"
             >
-              Relaunch Buzz
+              Relaunch {PRODUCT_NAME}
             </Button>
             <Button
               className="h-10 w-full"

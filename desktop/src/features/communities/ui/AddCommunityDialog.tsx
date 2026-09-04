@@ -1,6 +1,7 @@
 import * as React from "react";
 import { ArrowLeft, ChevronRight, Link2, Plus } from "lucide-react";
 
+import { PRODUCT_NAME } from "@/brand";
 import type { AddCommunityPrefillRequest } from "@/features/communities/addCommunityPrefill";
 import { HostedCommunityCreateFlow } from "@/features/communities/ui/HostedCommunityCreateFlow";
 import { useCommunityOnboarding } from "@/features/onboarding/communityOnboarding";
@@ -146,7 +147,7 @@ export function AddCommunityDialog({
                     Create a new community
                   </span>
                   <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
-                    Claim a Buzz address for your team.
+                    Claim a {PRODUCT_NAME} address for your team.
                   </span>
                 </span>
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/60" />

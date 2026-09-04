@@ -13,6 +13,8 @@ import {
 import * as React from "react";
 import { toast } from "sonner";
 
+import { PRODUCT_NAME } from "@/brand";
+
 import type { LeaveCommunityResult } from "@/features/communities/leaveCommunity";
 import type { Community } from "@/features/communities/types";
 import {
@@ -174,8 +176,7 @@ export function CommunitySwitcher({
       setDropdownOpen(false);
       if (result?.status === "already-absent") {
         toast("Community removed", {
-          description:
-            "You were no longer a member, so Buzz removed the community from this device.",
+          description: `You were no longer a member, so ${PRODUCT_NAME} removed the community from this device.`,
         });
       }
     } catch (error) {

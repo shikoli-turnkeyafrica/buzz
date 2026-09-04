@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 
+import { PRODUCT_NAME } from "@/brand";
 import { cancelPairing, confirmPairingSas } from "@/shared/api/tauri";
 import { startIdentityRecoveryPairing } from "@/shared/api/tauriPairing";
 import { writeTextToClipboard } from "@/shared/lib/clipboard";
@@ -188,8 +189,8 @@ export function IdentityRecoveryPairing({
               </p>
             </div>
             <p className="text-xs text-muted-foreground">
-              This gives this desktop permanent access to your Buzz identity.
-              Only continue if you trust it.
+              This gives this desktop permanent access to your {PRODUCT_NAME}{" "}
+              identity. Only continue if you trust it.
             </p>
             <div className="flex w-full flex-col gap-2">
               <Button

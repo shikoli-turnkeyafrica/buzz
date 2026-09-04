@@ -1,3 +1,4 @@
+import { PRODUCT_SHORT } from "@/brand";
 import {
   commitAuthorPubkeysFromPullRequests,
   contributorKey,
@@ -78,7 +79,9 @@ export function ContributorsPanel({
       profileLinked: matchedPubkey !== null,
       reviewCount: signedCounts?.reviews ?? null,
       role: signedPubkey
-        ? matchedProfile?.nip05Handle || contributor.email || "Buzz contributor"
+        ? matchedProfile?.nip05Handle ||
+          contributor.email ||
+          `${PRODUCT_SHORT} contributor`
         : heuristicProfile
           ? `${
               heuristicProfile.profile.nip05Handle ||
@@ -117,7 +120,7 @@ export function ContributorsPanel({
         reviewCount: signedCounts.reviews,
         role:
           profile?.nip05Handle ||
-          (isAgent ? "Agent contributor" : "Buzz contributor"),
+          (isAgent ? "Agent contributor" : `${PRODUCT_SHORT} contributor`),
         taskCount: signedCounts.tasks,
       };
     });

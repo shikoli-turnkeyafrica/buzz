@@ -1,6 +1,7 @@
 import * as React from "react";
 import { ChevronDown, Play, Trash2, Upload, Volume2 } from "lucide-react";
 
+import { PRODUCT_NAME } from "@/brand";
 import { invokeTauri } from "@/shared/api/tauri";
 import { cn } from "@/shared/lib/cn";
 import { Button } from "@/shared/ui/button";
@@ -188,7 +189,7 @@ export function VoiceSettingsCard() {
     <section className="min-w-0" data-testid="settings-voice">
       <SettingsSectionHeader
         title="Voice"
-        description="Choose whether Buzz reads new agent responses aloud during an active huddle."
+        description={`Choose whether ${PRODUCT_NAME} reads new agent responses aloud during an active huddle.`}
       />
 
       <SettingsOptionGroupList>

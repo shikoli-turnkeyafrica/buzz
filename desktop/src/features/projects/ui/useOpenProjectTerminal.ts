@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import { toast } from "sonner";
 
+import { PRODUCT_NAME } from "@/brand";
 import type { Repository } from "@/features/projects/hooks";
 import { projectCloneErrorPresentation } from "@/features/projects/lib/projectGitError";
 import { openProjectTerminal } from "@/shared/api/projectGit";
@@ -46,8 +47,7 @@ export function useOpenProjectTerminal(reposDir?: string | null) {
         const presentation = options.hasLocalCheckout
           ? {
               title: "Couldn’t open terminal",
-              description:
-                "Buzz could not open this checkout in your configured terminal.",
+              description: `${PRODUCT_NAME} could not open this checkout in your configured terminal.`,
             }
           : projectCloneErrorPresentation(error, project.cloneUrls[0]);
         toast.error(presentation.title, {

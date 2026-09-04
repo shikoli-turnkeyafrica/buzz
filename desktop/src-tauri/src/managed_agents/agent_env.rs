@@ -85,7 +85,10 @@ fn build_env_map(
     // otherwise win over the gate Desktop just set.
     map.retain(|key, _| {
         if super::env_vars::is_reserved_env_key(key) {
-            eprintln!("buzz-desktop: ignoring reserved env var `{key}` from the baked build env");
+            eprintln!(
+                "{}: ignoring reserved env var `{key}` from the baked build env",
+                crate::brand::LOG_PREFIX
+            );
             return false;
         }
         true

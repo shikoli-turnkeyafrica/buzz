@@ -1,6 +1,7 @@
 import * as React from "react";
 import { ChevronRight, Maximize2, Minimize2, Plus, X } from "lucide-react";
 
+import { PRODUCT_SHORT } from "@/brand";
 import { useTheme } from "@/shared/theme/ThemeProvider";
 import { cn } from "@/shared/lib/cn";
 import { isMacPlatform } from "@/shared/lib/platform";
@@ -475,7 +476,7 @@ export function TerminalSubstrate({
 
   return (
     <section
-      aria-label="Buzz Term"
+      aria-label={`${PRODUCT_SHORT} Term`}
       className="buzz-terminal-substrate"
       data-terminal-mode={mode}
       data-terminal-owner={owner}
@@ -505,7 +506,7 @@ export function TerminalSubstrate({
     >
       {mode === "docked" ? (
         <hr
-          aria-label="Resize Buzz Term"
+          aria-label={`Resize ${PRODUCT_SHORT} Term`}
           aria-orientation="horizontal"
           aria-valuemax={Math.round(window.innerHeight * 0.7)}
           aria-valuemin={180}
@@ -646,7 +647,7 @@ export function TerminalSubstrate({
             </div>
           ))}
           <button
-            aria-label="New Buzz Term tab"
+            aria-label={`New ${PRODUCT_SHORT} Term tab`}
             className="buzz-terminal-new-tab"
             onClick={() => runTabAction(onNewSession)}
             type="button"
@@ -657,7 +658,9 @@ export function TerminalSubstrate({
         <div className="buzz-terminal-readout">
           <button
             aria-label={
-              mode === "maximized" ? "Restore Buzz Term" : "Maximize Buzz Term"
+              mode === "maximized"
+                ? `Restore ${PRODUCT_SHORT} Term`
+                : `Maximize ${PRODUCT_SHORT} Term`
             }
             className="buzz-terminal-window-action"
             onClick={() =>
@@ -668,7 +671,7 @@ export function TerminalSubstrate({
             {mode === "maximized" ? <Minimize2 /> : <Maximize2 />}
           </button>
           <button
-            aria-label="Hide Buzz Term"
+            aria-label={`Hide ${PRODUCT_SHORT} Term`}
             className="buzz-terminal-window-action"
             onClick={onHide}
             type="button"
@@ -806,7 +809,9 @@ export function TerminalSubstrate({
         />
       </div>
       <div aria-live="polite" className="sr-only">
-        {owner === "terminal" ? "Buzz Term mode" : "Buzz mode"}
+        {owner === "terminal"
+          ? `${PRODUCT_SHORT} Term mode`
+          : `${PRODUCT_SHORT} mode`}
       </div>
     </section>
   );

@@ -455,7 +455,8 @@ impl ModelSlot {
         if self.is_ready(models_dir) {
             if let Err(error) = std::fs::remove_dir_all(&backup_dir) {
                 eprintln!(
-                    "buzz-desktop: could not remove stale {} backup: {error}",
+                    "{}: could not remove stale {} backup: {error}",
+                    crate::brand::LOG_PREFIX,
                     self.dir_name
                 );
             }
@@ -464,7 +465,8 @@ impl ModelSlot {
         if final_dir.exists() {
             if let Err(error) = std::fs::remove_dir_all(&final_dir) {
                 eprintln!(
-                    "buzz-desktop: could not remove incomplete {} install: {error}",
+                    "{}: could not remove incomplete {} install: {error}",
+                    crate::brand::LOG_PREFIX,
                     self.dir_name
                 );
                 return;
@@ -472,7 +474,8 @@ impl ModelSlot {
         }
         if let Err(error) = std::fs::rename(&backup_dir, &final_dir) {
             eprintln!(
-                "buzz-desktop: could not restore interrupted {} install: {error}",
+                "{}: could not restore interrupted {} install: {error}",
+                crate::brand::LOG_PREFIX,
                 self.dir_name
             );
         }
@@ -509,7 +512,7 @@ impl ModelSlot {
         // is accessible on the current thread. Tauri's runtime is always available.
         tauri::async_runtime::spawn(async move {
             if let Err(e) = download_fn(http_client).await {
-                eprintln!("buzz-desktop: {name} download failed: {e}");
+                eprintln!("{}: {name} download failed: {e}", crate::brand::LOG_PREFIX);
                 slot.set_status(ModelStatus::Error(e));
             }
         });
@@ -688,7 +691,10 @@ impl ModelManager {
     /// Start a background Pocket TTS download. No-op if already ready or downloading.
     pub fn start_tts_download(&self, http_client: reqwest::Client) {
         if let Err(error) = voice_upgrade::install_vctk_presets_into_v4_model(&self.models_dir) {
-            eprintln!("buzz-desktop: could not upgrade existing Pocket voices in place: {error}");
+            eprintln!(
+                "{}: could not upgrade existing Pocket voices in place: {error}",
+                crate::brand::LOG_PREFIX
+            );
         }
         let manager = self.clone();
         self.tts.start_download(
@@ -714,7 +720,10 @@ impl ModelManager {
             .join(format!("{STT_MODEL_DIR_NAME}.tar.bz2"));
         let temp_dir = self.models_dir.join(format!("{STT_MODEL_DIR_NAME}.tmp"));
 
-        eprintln!("buzz-desktop: downloading STT model from {STT_DOWNLOAD_URL}");
+        eprintln!(
+            "{}: downloading STT model from {STT_DOWNLOAD_URL}",
+            crate::brand::LOG_PREFIX
+        );
         let response = fetch_url(&http_client, STT_DOWNLOAD_URL, "stt archive").await?;
 
         let slot = self.stt.clone();
@@ -734,7 +743,10 @@ impl ModelManager {
             },
         )
         .await?;
-        eprintln!("buzz-desktop: downloaded {bytes} bytes, wrote to disk");
+        eprintln!(
+            "{}: downloaded {bytes} bytes, wrote to disk",
+            crate::brand::LOG_PREFIX
+        );
 
         // Verify archive integrity before extraction.
         let hash = sha256_file(&archive_path).await?;
@@ -750,7 +762,7 @@ impl ModelManager {
         });
         fresh_temp_dir(&temp_dir).await?;
 
-        eprintln!("buzz-desktop: extracting STT archive…");
+        eprintln!("{}: extracting STT archive…", crate::brand::LOG_PREFIX);
         let (ap, td) = (archive_path.clone(), temp_dir.clone());
         tokio::task::spawn_blocking(move || extract_archive(&ap, &td))
             .await
@@ -795,7 +807,8 @@ impl ModelManager {
         cleanup_legacy_moonshine_dir(&self.models_dir).await;
 
         eprintln!(
-            "buzz-desktop: STT model ready at {}",
+            "{}: STT model ready at {}",
+            crate::brand::LOG_PREFIX,
             self.stt.model_dir(&self.models_dir).display()
         );
         Ok(())
@@ -830,7 +843,10 @@ impl ModelManager {
 
         for (i, (url, artifact)) in downloads.iter().enumerate() {
             let filename = artifact.filename;
-            eprintln!("buzz-desktop: downloading Pocket TTS {filename} from {url}");
+            eprintln!(
+                "{}: downloading Pocket TTS {filename} from {url}",
+                crate::brand::LOG_PREFIX
+            );
 
             let response = fetch_url(&http_client, url, filename)
                 .await
@@ -864,7 +880,10 @@ impl ModelManager {
             .inspect_err(|_| {
                 let _ = std::fs::remove_dir_all(&temp_dir);
             })?;
-            eprintln!("buzz-desktop: downloaded {bytes} bytes ({filename}), wrote to disk");
+            eprintln!(
+                "{}: downloaded {bytes} bytes ({filename}), wrote to disk",
+                crate::brand::LOG_PREFIX
+            );
 
             if bytes != artifact.size_bytes {
                 let _ = tokio::fs::remove_dir_all(&temp_dir).await;
@@ -918,7 +937,8 @@ impl ModelManager {
         }
 
         eprintln!(
-            "buzz-desktop: Pocket TTS model ready at {}",
+            "{}: Pocket TTS model ready at {}",
+            crate::brand::LOG_PREFIX,
             self.tts.model_dir(&self.models_dir).display()
         );
         Ok(())
@@ -965,12 +985,14 @@ async fn cleanup_legacy_moonshine_dir(models_dir: &Path) {
     }
     match tokio::fs::remove_dir_all(&legacy).await {
         Ok(()) => eprintln!(
-            "buzz-desktop: removed legacy STT model dir {}",
+            "{}: removed legacy STT model dir {}",
+            crate::brand::LOG_PREFIX,
             legacy.display()
         ),
         Err(e) => eprintln!(
-            "buzz-desktop: could not remove legacy STT model dir {}: {e} \
+            "{}: could not remove legacy STT model dir {}: {e} \
              (harmless — remove manually to reclaim disk space)",
+            crate::brand::LOG_PREFIX,
             legacy.display()
         ),
     }

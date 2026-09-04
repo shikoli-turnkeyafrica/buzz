@@ -1,5 +1,6 @@
 import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
 
+import { PRODUCT_NAME } from "@/brand";
 import type { TerminalFrame } from "./terminalRenderer";
 
 export type TerminalAttachRequest = {
@@ -58,7 +59,8 @@ export class TerminalConnection {
     onMessage: (message: Exclude<TerminalMessage, { type: "frame" }>) => void,
     onFrame: (delivery: TerminalDelivery) => void,
   ): Promise<TerminalConnection> {
-    if (!isTauri()) throw new Error("terminal sessions require Buzz Desktop");
+    if (!isTauri())
+      throw new Error(`terminal sessions require ${PRODUCT_NAME}`);
 
     let connection: TerminalConnection | null = null;
     const pending: TerminalMessage[] = [];

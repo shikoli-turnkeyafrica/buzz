@@ -2,6 +2,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { useMutation } from "@tanstack/react-query";
 import * as React from "react";
 
+import { PRODUCT_NAME } from "@/brand";
 import type { ImetaMedia } from "@/features/messages/lib/imetaMediaMarkdown";
 import { buildOutgoingMessage } from "@/features/messages/lib/imetaMediaMarkdown";
 import type { SendFeedbackInput } from "@/features/settings/ui/SendFeedbackDialog";
@@ -19,7 +20,7 @@ async function collectDiagnostics(): Promise<string> {
   }
   const nav = typeof navigator !== "undefined" ? navigator : undefined;
   return [
-    "Buzz feedback diagnostics",
+    `${PRODUCT_NAME} feedback diagnostics`,
     `captured: ${new Date().toISOString()}`,
     `app version: ${appVersion}`,
     `platform: ${nav?.platform ?? "unknown"}`,

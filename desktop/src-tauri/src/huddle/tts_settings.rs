@@ -124,7 +124,8 @@ pub fn voice_registry(app: &AppHandle) -> Vec<VoiceRegistryEntry> {
         })),
         Err(error) => {
             eprintln!(
-                "buzz-desktop: {error}; imported Pocket voices are unavailable for this session"
+                "{}: {error}; imported Pocket voices are unavailable for this session",
+                crate::brand::LOG_PREFIX
             );
         }
     }
@@ -313,7 +314,10 @@ pub fn load_for_app(app: &AppHandle) -> (TtsSettings, Option<String>) {
     match result {
         Ok(settings) => (settings, None),
         Err(error) => {
-            eprintln!("buzz-desktop: {error}; preserving the file and using Mary for this session");
+            eprintln!(
+                "{}: {error}; preserving the file and using Mary for this session",
+                crate::brand::LOG_PREFIX
+            );
             (TtsSettings::default(), Some(error))
         }
     }
@@ -455,7 +459,10 @@ async fn apply_tts_settings(
         voice_change_wait = voice_change_ack;
         if active {
             if let Err(error) = super::pipeline::maybe_start_tts_pipeline(state).await {
-                eprintln!("buzz-desktop: could not hot-start text to speech: {error}");
+                eprintln!(
+                    "{}: could not hot-start text to speech: {error}",
+                    crate::brand::LOG_PREFIX
+                );
             }
         }
         state.emit_huddle_state_changed();
@@ -485,7 +492,8 @@ async fn finish_voice_change(voice_change: Option<VoiceChangeWait>) -> Result<()
 async fn finish_durable_voice_change(voice_change: Option<VoiceChangeWait>) {
     if let Err(error) = finish_voice_change(voice_change).await {
         eprintln!(
-            "buzz-desktop: tts stage=voice_switch status=delayed reason=ack_timeout error={error}"
+            "{}: tts stage=voice_switch status=delayed reason=ack_timeout error={error}",
+            crate::brand::LOG_PREFIX
         );
     }
 }

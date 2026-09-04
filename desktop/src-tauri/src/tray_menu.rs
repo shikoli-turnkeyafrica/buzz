@@ -225,22 +225,34 @@ pub(crate) fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
         return;
     };
     if let Err(error) = window.unminimize() {
-        eprintln!("buzz-desktop: failed to restore main window from tray: {error}");
+        eprintln!(
+            "{}: failed to restore main window from tray: {error}",
+            crate::brand::LOG_PREFIX
+        );
         return;
     }
     if let Err(error) = window.show() {
-        eprintln!("buzz-desktop: failed to show main window from tray: {error}");
+        eprintln!(
+            "{}: failed to show main window from tray: {error}",
+            crate::brand::LOG_PREFIX
+        );
         return;
     }
     if let Err(error) = window.set_focus() {
-        eprintln!("buzz-desktop: failed to focus main window from tray: {error}");
+        eprintln!(
+            "{}: failed to focus main window from tray: {error}",
+            crate::brand::LOG_PREFIX
+        );
     }
 }
 
 fn queue_tray_action<R: Runtime>(app: &AppHandle<R>, mut action: TrayAction) {
     let state = app.state::<TrayMenuState<R>>();
     let Ok(mut queue) = state.action_queue.lock() else {
-        eprintln!("buzz-desktop: tray action queue is unavailable");
+        eprintln!(
+            "{}: tray action queue is unavailable",
+            crate::brand::LOG_PREFIX
+        );
         return;
     };
     if let TrayAction::OpenChannel {
@@ -254,7 +266,10 @@ fn queue_tray_action<R: Runtime>(app: &AppHandle<R>, mut action: TrayAction) {
     drop(queue);
 
     if let Err(error) = app.emit("tray-action-available", ()) {
-        eprintln!("buzz-desktop: failed to notify frontend of tray action: {error}");
+        eprintln!(
+            "{}: failed to notify frontend of tray action: {error}",
+            crate::brand::LOG_PREFIX
+        );
     }
 }
 
@@ -493,7 +508,10 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         .on_menu_event(|app, event| handle_menu_event(app, event.id.as_ref()))
         .build(app)?;
     if let Err(error) = apply_activity_presentation(&tray, activities, recent_activities) {
-        eprintln!("buzz-desktop: failed to apply tray menu presentation: {error}");
+        eprintln!(
+            "{}: failed to apply tray menu presentation: {error}",
+            crate::brand::LOG_PREFIX
+        );
     }
     mouse_nav::init(app);
     Ok(())

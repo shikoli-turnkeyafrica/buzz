@@ -1,5 +1,6 @@
 import { Info, MessageCircle } from "lucide-react";
 
+import { PRODUCT_SHORT } from "@/brand";
 import {
   toggleTerminalPanel,
   useTerminalPanel,
@@ -81,7 +82,11 @@ export function ProjectRightPanelControls({
         <MessageCircle className="h-4 w-4" />
       </Button>
       <Button
-        aria-label={terminalOpen ? "Hide Buzz Term" : "Open Buzz Term"}
+        aria-label={
+          terminalOpen
+            ? `Hide ${PRODUCT_SHORT} Term`
+            : `Open ${PRODUCT_SHORT} Term`
+        }
         aria-pressed={terminalOpen}
         className={cn(
           "h-7 w-7 text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
@@ -91,7 +96,7 @@ export function ProjectRightPanelControls({
         disabled={!terminalAvailable}
         onClick={toggleTerminalPanel}
         size="icon"
-        title="Buzz Term (⌘J)"
+        title={`${PRODUCT_SHORT} Term (⌘J)`}
         type="button"
         variant="ghost"
       >

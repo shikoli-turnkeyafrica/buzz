@@ -2,6 +2,7 @@ import { ImagePlus, Trash2 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 
+import { PRODUCT_NAME } from "@/brand";
 import {
   useCustomEmojiQuery,
   useOwnCustomEmojiQuery,
@@ -231,8 +232,8 @@ export function CustomEmojiSettingsCard() {
                     className="text-sm font-normal text-muted-foreground/70"
                     data-settings-subcopy
                   >
-                    Choose an image first; Buzz will suggest a name from the
-                    filename.
+                    Choose an image first; {PRODUCT_NAME} will suggest a name
+                    from the filename.
                   </p>
                 ) : ownDuplicate ? (
                   <p

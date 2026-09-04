@@ -1,6 +1,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 
+import { PRODUCT_NAME } from "@/brand";
 import {
   createNcryptsecBackup,
   saveNcryptsecCopy,
@@ -115,7 +116,7 @@ export function EncryptedBackupProvider({
   React.useEffect(() => {
     if (state.downloadPending) {
       toast.loading("Preparing backup…", {
-        description: "You can close this window while Buzz finishes.",
+        description: `You can close this window while ${PRODUCT_NAME} finishes.`,
         duration: Number.POSITIVE_INFINITY,
         id: BACKUP_READY_TOAST_ID,
       });

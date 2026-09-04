@@ -2,6 +2,7 @@ import { Check, Eye, EyeOff, FileKey2, FileUp } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import * as React from "react";
 
+import { PRODUCT_NAME } from "@/brand";
 import {
   verifyNcryptsecBackup,
   type BackupVerification,
@@ -264,7 +265,7 @@ export function BackupTestFlow({
           </p>
           <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
             {result.matchesCurrentIdentity
-              ? "It restores your current Buzz identity."
+              ? `It restores your current ${PRODUCT_NAME} identity.`
               : "It restores a different identity than the one signed in here."}
           </p>
           <div className="mt-3 flex justify-center">

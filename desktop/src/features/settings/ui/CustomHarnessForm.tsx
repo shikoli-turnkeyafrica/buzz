@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Plus, X } from "lucide-react";
 
+import { PRODUCT_NAME } from "@/brand";
 import {
   useManagedAgentPrereqsQuery,
   useSaveCustomHarnessMutation,
@@ -396,7 +397,7 @@ export function CustomHarnessForm({
           <p className="text-sm font-medium text-foreground">
             Env vars
             <span className={PERSONA_LABEL_OPTIONAL_CLASS}>
-              (override at spawn time; Buzz-managed vars always win)
+              (override at spawn time; {PRODUCT_NAME}-managed vars always win)
             </span>
           </p>
           <EnvEditor

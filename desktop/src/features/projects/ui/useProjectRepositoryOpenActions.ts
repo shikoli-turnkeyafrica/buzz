@@ -2,6 +2,7 @@ import { openPath } from "@tauri-apps/plugin-opener";
 import * as React from "react";
 import { toast } from "sonner";
 
+import { PRODUCT_NAME } from "@/brand";
 import type { Repository } from "@/features/projects/hooks";
 import { openProjectMergeRecoveryTerminal } from "@/shared/api/projectGit";
 import { useOpenProjectTerminal } from "./useOpenProjectTerminal";
@@ -38,7 +39,7 @@ export function useProjectRepositoryOpenActions({
   const handleOpenLocalRepository = React.useCallback(async () => {
     if (!localRepositoryPath) {
       toast.error("Couldn’t open repository folder", {
-        description: "Buzz could not find this repository’s local checkout.",
+        description: `${PRODUCT_NAME} could not find this repository’s local checkout.`,
       });
       return;
     }
@@ -46,7 +47,7 @@ export function useProjectRepositoryOpenActions({
       await openPath(localRepositoryPath);
     } catch {
       toast.error("Couldn’t open repository folder", {
-        description: "Buzz could not open this checkout in your file browser.",
+        description: `${PRODUCT_NAME} could not open this checkout in your file browser.`,
       });
     }
   }, [localRepositoryPath]);

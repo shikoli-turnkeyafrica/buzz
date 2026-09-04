@@ -1,5 +1,6 @@
 import type { Community } from "./types";
 import { homeDir } from "@tauri-apps/api/path";
+import { PRODUCT_NAME } from "@/brand";
 import { setLocalStorageItemWithRecovery } from "@/shared/lib/localStorageQuota";
 import { getStorageItem, removeStorageItem } from "@/shared/lib/safeStorage";
 
@@ -197,7 +198,7 @@ export function deriveCommunityName(relayUrl: string): string {
     const parts = host.split(".");
     // Detect staging environments (e.g. buzz-oss.stage.blox.sqprod.co)
     if (parts.some((p) => p === "stage" || p === "staging")) {
-      return "Buzz (staging)";
+      return `${PRODUCT_NAME} (staging)`;
     }
     // Use the first subdomain segment or the domain itself
     if (parts.length >= 2) {

@@ -48,7 +48,7 @@ test("prompt footer contains current page details", () => {
   const footer = projectDetailAgentContextBlock(
     buildProjectDetailAgentContext(base),
   );
-  assert.match(footer, /Current Buzz project page:/);
+  assert.match(footer, /Current Cybercare Commons project page:/);
   assert.match(footer, /Repository: "Buzz" \(address: "owner:buzz"\)/);
   assert.match(footer, /View: Files/);
   assert.match(footer, /File: "src\/app\.tsx"/);

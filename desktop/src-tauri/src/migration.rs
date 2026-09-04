@@ -296,12 +296,14 @@ pub(crate) fn migrate_legacy_app_data_dir_at(legacy: &Path, current: &Path) {
     }
     match copy_dir_all(legacy, current) {
         Ok(()) => eprintln!(
-            "buzz-desktop: app-data-migration: copied legacy data from {} to {}",
+            "{}: app-data-migration: copied legacy data from {} to {}",
+            crate::brand::LOG_PREFIX,
             legacy.display(),
             current.display()
         ),
         Err(error) => eprintln!(
-            "buzz-desktop: app-data-migration: failed to copy {} to {}: {error}",
+            "{}: app-data-migration: failed to copy {} to {}: {error}",
+            crate::brand::LOG_PREFIX,
             legacy.display(),
             current.display()
         ),
@@ -319,7 +321,10 @@ pub fn migrate_legacy_app_data_dir(app: &tauri::AppHandle) {
     let current_dir = match app.path().app_data_dir() {
         Ok(dir) => dir,
         Err(e) => {
-            eprintln!("buzz-desktop: app-data-migration: cannot resolve app data dir: {e}");
+            eprintln!(
+                "{}: app-data-migration: cannot resolve app data dir: {e}",
+                crate::brand::LOG_PREFIX
+            );
             return;
         }
     };
@@ -566,12 +571,18 @@ const LEGACY_NEST_KNOWLEDGE: &[&str] = &[
 /// frontend dedupes the hint, so re-firing while `~/.sprout` lingers is benign.
 pub fn migrate_legacy_nest() -> bool {
     let Some(home) = dirs::home_dir() else {
-        eprintln!("buzz-desktop: nest-migration: cannot resolve home directory");
+        eprintln!(
+            "{}: nest-migration: cannot resolve home directory",
+            crate::brand::LOG_PREFIX
+        );
         return false;
     };
     // Destination is the current build's nest dir (`.buzz` or `.buzz-dev`).
     let Some(current_nest) = crate::managed_agents::nest_dir() else {
-        eprintln!("buzz-desktop: nest-migration: cannot resolve nest directory");
+        eprintln!(
+            "{}: nest-migration: cannot resolve nest directory",
+            crate::brand::LOG_PREFIX
+        );
         return false;
     };
     migrate_legacy_nest_at(&home.join(".sprout"), &current_nest)
@@ -614,12 +625,14 @@ fn migrate_legacy_nest_at(legacy: &Path, current: &Path) -> bool {
         };
         match result {
             Ok(()) => eprintln!(
-                "buzz-desktop: nest-migration: migrated {} to {}",
+                "{}: nest-migration: migrated {} to {}",
+                crate::brand::LOG_PREFIX,
                 src.display(),
                 dst.display()
             ),
             Err(error) => eprintln!(
-                "buzz-desktop: nest-migration: failed to migrate {} to {}: {error}",
+                "{}: nest-migration: failed to migrate {} to {}: {error}",
+                crate::brand::LOG_PREFIX,
                 src.display(),
                 dst.display()
             ),
@@ -666,17 +679,22 @@ pub(crate) fn migrate_dev_repos_dir_at(home: &Path, dev_nest: &Path) {
     // ensure_nest() in the boot sequence, so the directory may not yet exist.
     if let Err(e) = std::fs::create_dir_all(dev_nest) {
         eprintln!(
-            "buzz-desktop: dev-nest-migration: failed to create dev nest {}: {e}",
+            "{}: dev-nest-migration: failed to create dev nest {}: {e}",
+            crate::brand::LOG_PREFIX,
             dev_nest.display()
         );
         return;
     }
     match std::fs::copy(&src, &dst) {
         Ok(_) => eprintln!(
-            "buzz-desktop: dev-nest-migration: migrated .repos-dir to {}",
+            "{}: dev-nest-migration: migrated .repos-dir to {}",
+            crate::brand::LOG_PREFIX,
             dst.display()
         ),
-        Err(e) => eprintln!("buzz-desktop: dev-nest-migration: failed to migrate .repos-dir: {e}"),
+        Err(e) => eprintln!(
+            "{}: dev-nest-migration: failed to migrate .repos-dir: {e}",
+            crate::brand::LOG_PREFIX
+        ),
     }
 }
 
@@ -716,7 +734,10 @@ pub(crate) fn maybe_migrate_dev_repos_dir(
 /// contents were copied (useful for a one-time log message, not required).
 pub fn migrate_dev_nest() -> bool {
     let Some(home) = dirs::home_dir() else {
-        eprintln!("buzz-desktop: dev-nest-migration: cannot resolve home directory");
+        eprintln!(
+            "{}: dev-nest-migration: cannot resolve home directory",
+            crate::brand::LOG_PREFIX
+        );
         return false;
     };
     let legacy = home.join(".buzz");
@@ -736,7 +757,8 @@ pub fn migrate_dev_nest() -> bool {
         let sentinel = current.join(DEV_NEST_MIGRATED_SENTINEL);
         if let Err(e) = std::fs::write(&sentinel, "") {
             eprintln!(
-                "buzz-desktop: dev-nest-migration: failed to write sentinel {}: {e}",
+                "{}: dev-nest-migration: failed to write sentinel {}: {e}",
+                crate::brand::LOG_PREFIX,
                 sentinel.display()
             );
         }
@@ -794,7 +816,8 @@ fn patch_json_records(
     };
     let Ok(mut records) = serde_json::from_str::<Vec<serde_json::Value>>(&content) else {
         eprintln!(
-            "buzz-desktop: patch-json-records: failed to parse {}",
+            "{}: patch-json-records: failed to parse {}",
+            crate::brand::LOG_PREFIX,
             path.display()
         );
         return;
@@ -808,7 +831,7 @@ fn patch_json_records(
     if changed {
         if let Ok(bytes) = serde_json::to_vec_pretty(&records) {
             if let Err(e) = crate::managed_agents::atomic_write_json_restricted(path, &bytes) {
-                eprintln!("buzz-desktop: patch-json-records: {e}");
+                eprintln!("{}: patch-json-records: {e}", crate::brand::LOG_PREFIX);
             }
         }
     }
@@ -879,7 +902,8 @@ fn refresh_builtin_agent_avatars_in_file(
     };
     let Ok(mut records) = serde_json::from_str::<Vec<serde_json::Value>>(&contents) else {
         eprintln!(
-            "buzz-desktop: refresh-builtin-agent-avatars: invalid JSON in {}",
+            "{}: refresh-builtin-agent-avatars: invalid JSON in {}",
+            crate::brand::LOG_PREFIX,
             path.display()
         );
         return;
@@ -959,7 +983,10 @@ fn refresh_builtin_agent_avatars_in_file(
     if changed {
         if let Ok(bytes) = serde_json::to_vec_pretty(&records) {
             if let Err(e) = crate::managed_agents::atomic_write_json_restricted(path, &bytes) {
-                eprintln!("buzz-desktop: refresh-builtin-agent-avatars: {e}");
+                eprintln!(
+                    "{}: refresh-builtin-agent-avatars: {e}",
+                    crate::brand::LOG_PREFIX
+                );
             }
         }
     }
@@ -1074,14 +1101,20 @@ pub fn sync_shared_agent_data(app: &tauri::AppHandle) {
         .and_then(|k| k.parse::<nostr::Keys>().ok())
         .is_some();
     if !has_valid_key {
-        eprintln!("buzz-desktop: shared-agent-sync: BUZZ_PRIVATE_KEY missing or invalid, skipping");
+        eprintln!(
+            "{}: shared-agent-sync: BUZZ_PRIVATE_KEY missing or invalid, skipping",
+            crate::brand::LOG_PREFIX
+        );
         return;
     }
 
     let current_dir = match app.path().app_data_dir() {
         Ok(dir) => dir,
         Err(e) => {
-            eprintln!("buzz-desktop: shared-agent-sync: cannot resolve app data dir: {e}");
+            eprintln!(
+                "{}: shared-agent-sync: cannot resolve app data dir: {e}",
+                crate::brand::LOG_PREFIX
+            );
             return;
         }
     };
@@ -1097,7 +1130,8 @@ pub fn sync_shared_agent_data(app: &tauri::AppHandle) {
         .is_some_and(is_dev_data_dir_name);
     if !is_dev {
         eprintln!(
-            "buzz-desktop: shared-agent-sync: skipping — data dir is not a dev dir ({})",
+            "{}: shared-agent-sync: skipping — data dir is not a dev dir ({})",
+            crate::brand::LOG_PREFIX,
             current_dir.display()
         );
         return;
@@ -1106,7 +1140,10 @@ pub fn sync_shared_agent_data(app: &tauri::AppHandle) {
     let canonical_dir = match canonical_dev_data_dir(&current_dir) {
         Some(dir) => dir,
         None => {
-            eprintln!("buzz-desktop: shared-agent-sync: cannot compute canonical dir (no parent)");
+            eprintln!(
+                "{}: shared-agent-sync: cannot compute canonical dir (no parent)",
+                crate::brand::LOG_PREFIX
+            );
             return;
         }
     };
@@ -1124,7 +1161,8 @@ pub fn sync_shared_agent_data(app: &tauri::AppHandle) {
     // Guard: skip if canonical dir doesn't exist.
     if !canonical_dir.exists() {
         eprintln!(
-            "buzz-desktop: shared-agent-sync: canonical dir does not exist: {}",
+            "{}: shared-agent-sync: canonical dir does not exist: {}",
+            crate::brand::LOG_PREFIX,
             canonical_dir.display()
         );
         return;
@@ -1156,7 +1194,8 @@ pub fn sync_shared_agent_data(app: &tauri::AppHandle) {
                 if let Some(file_parent) = canonical_file.parent() {
                     if let Err(e) = std::fs::create_dir_all(file_parent) {
                         eprintln!(
-                            "buzz-desktop: shared-agent-sync: failed to create {}: {e}",
+                            "{}: shared-agent-sync: failed to create {}: {e}",
+                            crate::brand::LOG_PREFIX,
                             file_parent.display()
                         );
                         break;
@@ -1164,7 +1203,8 @@ pub fn sync_shared_agent_data(app: &tauri::AppHandle) {
                 }
                 let _ = std::fs::rename(&sibling_file, &canonical_file);
                 eprintln!(
-                    "buzz-desktop: shared-agent-sync: seeded {rel} from {}",
+                    "{}: shared-agent-sync: seeded {rel} from {}",
+                    crate::brand::LOG_PREFIX,
                     sibling.display()
                 );
                 break;
@@ -1184,7 +1224,8 @@ pub fn sync_shared_agent_data(app: &tauri::AppHandle) {
         if let Some(parent) = dst.parent() {
             if let Err(e) = std::fs::create_dir_all(parent) {
                 eprintln!(
-                    "buzz-desktop: shared-agent-sync: failed to create {}: {e}",
+                    "{}: shared-agent-sync: failed to create {}: {e}",
+                    crate::brand::LOG_PREFIX,
                     parent.display()
                 );
                 continue;
@@ -1202,7 +1243,8 @@ pub fn sync_shared_agent_data(app: &tauri::AppHandle) {
         if !canonical_target.exists() {
             if let Err(e) = std::fs::create_dir_all(&canonical_target) {
                 eprintln!(
-                    "buzz-desktop: shared-agent-sync: failed to create {}: {e}",
+                    "{}: shared-agent-sync: failed to create {}: {e}",
+                    crate::brand::LOG_PREFIX,
                     canonical_target.display()
                 );
             }
@@ -1228,7 +1270,8 @@ pub fn sync_shared_agent_data(app: &tauri::AppHandle) {
                             // replace_with_symlink backs up any leftover real content.
                             replace_with_symlink(&canonical_target, &sibling_dir);
                             eprintln!(
-                                "buzz-desktop: shared-agent-sync: migrated {rel} from {}",
+                                "{}: shared-agent-sync: migrated {rel} from {}",
+                                crate::brand::LOG_PREFIX,
                                 sibling.display()
                             );
                             break;
@@ -1250,7 +1293,8 @@ pub fn sync_shared_agent_data(app: &tauri::AppHandle) {
         if let Some(parent) = dst.parent() {
             if let Err(e) = std::fs::create_dir_all(parent) {
                 eprintln!(
-                    "buzz-desktop: shared-agent-sync: failed to create {}: {e}",
+                    "{}: shared-agent-sync: failed to create {}: {e}",
+                    crate::brand::LOG_PREFIX,
                     parent.display()
                 );
                 continue;
@@ -1262,7 +1306,8 @@ pub fn sync_shared_agent_data(app: &tauri::AppHandle) {
 
     if synced > 0 {
         eprintln!(
-            "buzz-desktop: shared-agent-sync: {synced} item(s) linked to {}",
+            "{}: shared-agent-sync: {synced} item(s) linked to {}",
+            crate::brand::LOG_PREFIX,
             canonical_dir.display()
         );
     }
@@ -1310,7 +1355,8 @@ fn reconcile_mcp_commands_in_file(path: &Path) {
             return false;
         }
         eprintln!(
-            "buzz-desktop: runtime-reconcile: {:?} ({:?}): mcp_command {:?} → {:?}",
+            "{}: runtime-reconcile: {:?} ({:?}): mcp_command {:?} → {:?}",
+            crate::brand::LOG_PREFIX,
             obj.get("name").and_then(|v| v.as_str()).unwrap_or("?"),
             effective_command,
             current,
@@ -1336,7 +1382,8 @@ fn replace_command_field(
         return false;
     }
     eprintln!(
-        "buzz-desktop: command-rename-reconcile: {:?}: {field} {:?} → {:?}",
+        "{}: command-rename-reconcile: {:?}: {field} {:?} → {:?}",
+        crate::brand::LOG_PREFIX,
         obj.get("name").and_then(|v| v.as_str()).unwrap_or("?"),
         current,
         replacement,
@@ -1404,7 +1451,8 @@ fn reconcile_legacy_persona_runtimes_in_file(path: &Path) {
             return false;
         }
         eprintln!(
-            "buzz-desktop: command-rename-reconcile: persona {:?}: runtime {:?} → {:?}",
+            "{}: command-rename-reconcile: persona {:?}: runtime {:?} → {:?}",
+            crate::brand::LOG_PREFIX,
             obj.get("display_name")
                 .or_else(|| obj.get("displayName"))
                 .and_then(|v| v.as_str())
@@ -1467,13 +1515,15 @@ fn reconcile_legacy_team_persona_runtime_files(dir: &Path) {
         match std::fs::write(&path, updated) {
             Ok(()) => {
                 eprintln!(
-                    "buzz-desktop: command-rename-reconcile: updated {}",
+                    "{}: command-rename-reconcile: updated {}",
+                    crate::brand::LOG_PREFIX,
                     path.display()
                 );
             }
             Err(error) => {
                 eprintln!(
-                    "buzz-desktop: command-rename-reconcile: failed to update {}: {error}",
+                    "{}: command-rename-reconcile: failed to update {}: {error}",
+                    crate::brand::LOG_PREFIX,
                     path.display()
                 );
             }
@@ -1548,7 +1598,8 @@ fn reconcile_databricks_v1_to_v2_in_file(path: &Path, rewrite_v1_provider: bool)
                 .unwrap_or("?")
                 .to_string();
             eprintln!(
-                "buzz-desktop: databricks-v1-to-v2: {name:?}: provider \"databricks\" → \"databricks_v2\"",
+                "{}: databricks-v1-to-v2: {name:?}: provider \"databricks\" → \"databricks_v2\"",
+                crate::brand::LOG_PREFIX,
             );
             obj.insert(
                 "provider".to_string(),
@@ -1560,7 +1611,8 @@ fn reconcile_databricks_v1_to_v2_in_file(path: &Path, rewrite_v1_provider: bool)
             // buzz-agent config.rs). Clearing it lets the baked V2 default win.
             if obj.remove("model").is_some() {
                 eprintln!(
-                    "buzz-desktop: databricks-v1-to-v2: {name:?}: cleared stale V1 model field",
+                    "{}: databricks-v1-to-v2: {name:?}: cleared stale V1 model field",
+                    crate::brand::LOG_PREFIX,
                 );
             }
             changed = true;
@@ -1582,7 +1634,10 @@ fn reconcile_databricks_v1_to_v2_in_file(path: &Path, rewrite_v1_provider: bool)
                 .collect();
             for key in stale_keys {
                 env_vars.remove(key.as_str());
-                eprintln!("buzz-desktop: databricks-v1-to-v2: removed stale env_vars[\"{key}\"]",);
+                eprintln!(
+                    "{}: databricks-v1-to-v2: removed stale env_vars[\"{key}\"]",
+                    crate::brand::LOG_PREFIX,
+                );
                 changed = true;
             }
         }

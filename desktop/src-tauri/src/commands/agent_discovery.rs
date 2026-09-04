@@ -606,12 +606,16 @@ async fn restart_single_agent_after_install(
     let runtime_keys = match stop_result {
         Ok(Ok(runtime_keys)) => runtime_keys,
         Ok(Err(e)) => {
-            eprintln!("buzz-desktop: install_acp_runtime: skipping restart of {pubkey}: {e}");
+            eprintln!(
+                "{}: install_acp_runtime: skipping restart of {pubkey}: {e}",
+                crate::brand::LOG_PREFIX
+            );
             return InstallRestartOutcome::Skipped;
         }
         Err(e) => {
             eprintln!(
-                "buzz-desktop: install_acp_runtime: spawn_blocking failed for stop of {pubkey}: {e}"
+                "{}: install_acp_runtime: spawn_blocking failed for stop of {pubkey}: {e}",
+                crate::brand::LOG_PREFIX
             );
             return InstallRestartOutcome::Skipped;
         }
@@ -624,17 +628,19 @@ async fn restart_single_agent_after_install(
     {
         Ok(_) => {
             eprintln!(
-                "buzz-desktop: install_acp_runtime: restarted setup-mode agent {pubkey} after install"
+                "{}: install_acp_runtime: restarted setup-mode agent {pubkey} after install",
+                crate::brand::LOG_PREFIX
             );
             InstallRestartOutcome::Restarted
         }
         Err(e) => {
             eprintln!(
-                "buzz-desktop: install_acp_runtime: failed to start {pubkey} after install: {e}"
+                "{}: install_acp_runtime: failed to start {pubkey} after install: {e}",
+                crate::brand::LOG_PREFIX
             );
             if let Err(save_err) = persist_last_error_on_install(app, pubkey, &e) {
                 eprintln!(
-                    "buzz-desktop: install_acp_runtime: failed to persist last_error for {pubkey}: {save_err}"
+                    "{}: install_acp_runtime: failed to persist last_error for {pubkey}: {save_err}", crate::brand::LOG_PREFIX
                 );
             }
             InstallRestartOutcome::FailedAfterStop

@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+
+import { PRODUCT_NAME } from "@/brand";
 import {
   Archive,
   BellRing,
@@ -638,7 +640,7 @@ function ThemeSettingsCard() {
     >
       <SettingsSectionHeader
         title="Appearance"
-        description="Choose how Buzz looks and feels."
+        description={`Choose how ${PRODUCT_NAME} looks and feels.`}
       />
 
       <SettingsOptionGroupList>
@@ -698,7 +700,7 @@ function ThemeSettingsCard() {
                 className="text-sm font-normal text-muted-foreground/70"
                 data-settings-subcopy
               >
-                Choose the colors used throughout Buzz.
+                Choose the colors used throughout {PRODUCT_NAME}.
               </p>
             </div>
             <button

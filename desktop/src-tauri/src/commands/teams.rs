@@ -62,7 +62,10 @@ pub(in crate::commands) fn propagate_membership_best_effort(
         Ok(())
     })();
     if let Err(e) = result {
-        eprintln!("buzz-desktop: team-membership-propagate: {e}");
+        eprintln!(
+            "{}: team-membership-propagate: {e}",
+            crate::brand::LOG_PREFIX
+        );
     }
 }
 
@@ -240,7 +243,7 @@ pub(super) fn retain_team_pending(app: &AppHandle, state: &AppState, team: &Team
         )
     })();
     if let Err(e) = result {
-        eprintln!("buzz-desktop: team-retain: {e}");
+        eprintln!("{}: team-retain: {e}", crate::brand::LOG_PREFIX);
     }
 }
 
@@ -290,7 +293,7 @@ fn tombstone_team_pending(app: &AppHandle, state: &AppState, d_tag: &str) {
         )
     })();
     if let Err(e) = result {
-        eprintln!("buzz-desktop: team-tombstone: {e}");
+        eprintln!("{}: team-tombstone: {e}", crate::brand::LOG_PREFIX);
     }
 }
 

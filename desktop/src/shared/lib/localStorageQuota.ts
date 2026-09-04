@@ -7,6 +7,8 @@
  * — safe to drop, they repaint from the relay — and retries the write once.
  */
 
+import { PRODUCT_NAME } from "@/brand";
+
 const PURE_CACHE_KEY_PREFIXES = [
   "buzz-channel-messages.v1:",
   "buzz-channels.v1:",
@@ -131,8 +133,7 @@ function notifyStorageFull(): void {
   import("sonner")
     .then(({ toast }) => {
       toast.error("Local storage is full", {
-        description:
-          "Buzz could not save some local data — read positions may not persist across restarts.",
+        description: `${PRODUCT_NAME} could not save some local data — read positions may not persist across restarts.`,
       });
     })
     .catch(() => {});

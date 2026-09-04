@@ -1,6 +1,7 @@
 import { Bug, ImageIcon, ThumbsUp, Wrench, X } from "lucide-react";
 import * as React from "react";
 
+import { PRODUCT_NAME } from "@/brand";
 import { cn } from "@/shared/lib/cn";
 import { rewriteRelayUrl } from "@/shared/lib/mediaUrl";
 import { useMediaProxyPort } from "@/shared/lib/useMediaProxyPort";
@@ -167,8 +168,8 @@ export function SendFeedbackDialog({
             className="pt-2 text-sm text-muted-foreground"
             data-testid="feedback-privacy-disclosure"
           >
-            Feedback is sent privately to this Buzz deployment and is not posted
-            to a channel. Attachments are uploaded before you send.
+            Feedback is sent privately to this {PRODUCT_NAME} deployment and is
+            not posted to a channel. Attachments are uploaded before you send.
           </p>
         </DialogHeader>
 

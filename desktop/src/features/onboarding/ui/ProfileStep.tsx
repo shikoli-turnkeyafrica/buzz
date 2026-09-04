@@ -1,6 +1,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 
+import { PRODUCT_NAME } from "@/brand";
 import { SidebarRelayConnectionCompactCard } from "@/features/sidebar/ui/SidebarRelayConnectionCard";
 import { useRelayConnection } from "@/shared/api/useRelayConnection";
 import { useReconnectRelay } from "@/shared/api/useReconnectRelay";
@@ -224,8 +225,8 @@ export function ProfileStep({
           What should we call you?
         </h1>
         <p className="mt-5 text-sm leading-6 text-muted-foreground">
-          Pick the name people and agents will see in Buzz. You can change it
-          anytime.
+          Pick the name people and agents will see in {PRODUCT_NAME}. You can
+          change it anytime.
         </p>
       </div>
 

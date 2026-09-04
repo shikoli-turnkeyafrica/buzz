@@ -1,5 +1,6 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useUpdaterContext } from "./hooks/UpdaterProvider";
+import { PRODUCT_NAME } from "@/brand";
 import { Button } from "@/shared/ui/button";
 import {
   SettingsOptionGroup,
@@ -13,7 +14,7 @@ export function UpdateChecker() {
     <section className="min-w-0" data-testid="settings-updates">
       <SettingsSectionHeader
         title="Software Updates"
-        description="Keep Buzz up to date with the latest features and fixes."
+        description={`Keep ${PRODUCT_NAME} up to date with the latest features and fixes.`}
       />
 
       <SettingsOptionGroup title="Update status">

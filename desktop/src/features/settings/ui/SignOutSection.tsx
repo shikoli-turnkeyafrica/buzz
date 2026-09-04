@@ -1,6 +1,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 
+import { PRODUCT_NAME } from "@/brand";
 import { NsecMaskedDisplay } from "@/features/onboarding/ui/NsecMaskedDisplay";
 import { getNsec, signOut } from "@/shared/api/tauriIdentity";
 import {
@@ -162,8 +163,8 @@ export function SignOutSection() {
             <AlertDialogTitle>Sign out and wipe all data?</AlertDialogTitle>
             <AlertDialogDescription>
               This will delete your identity key, all agent settings, and cached
-              data from this device, then relaunch Buzz into first-run setup.
-              This cannot be undone.
+              data from this device, then relaunch {PRODUCT_NAME} into first-run
+              setup. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
 

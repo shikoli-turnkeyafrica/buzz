@@ -1,3 +1,4 @@
+import { PRODUCT_NAME } from "@/brand";
 import type { Channel, FeedItem, HomeFeedResponse } from "@/shared/api/types";
 import {
   formatNotificationTitle,
@@ -67,7 +68,7 @@ export function notificationBody(item: FeedItem) {
   const fallback =
     item.kind === 46010
       ? "A workflow is waiting for your approval."
-      : "Something in Buzz needs your attention.";
+      : `Something in ${PRODUCT_NAME} needs your attention.`;
   return truncateNotificationBody(item.content, fallback);
 }
 

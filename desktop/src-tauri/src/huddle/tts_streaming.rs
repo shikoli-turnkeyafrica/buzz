@@ -83,13 +83,14 @@ pub(super) fn synthesize_streaming(
         }
         Ok(false) => {
             eprintln!(
-                "buzz-desktop: tts stage=synthesis status=cancelled reason=stream_callback route_id={route_id}"
+                "{}: tts stage=synthesis status=cancelled reason=stream_callback route_id={route_id}", crate::brand::LOG_PREFIX
             );
             Some("cancelled")
         }
         Err(_) => {
             eprintln!(
-                "buzz-desktop: tts stage=synthesis status=failed reason=inference route_id={route_id}"
+                "{}: tts stage=synthesis status=failed reason=inference route_id={route_id}",
+                crate::brand::LOG_PREFIX
             );
             Some("failed")
         }

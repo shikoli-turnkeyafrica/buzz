@@ -125,7 +125,10 @@ pub async fn add_agent_to_huddle(
                 if active_after_error {
                     (true, None)
                 } else {
-                    eprintln!("buzz-desktop: add agent to parent channel failed: {e}");
+                    eprintln!(
+                        "{}: add agent to parent channel failed: {e}",
+                        crate::brand::LOG_PREFIX
+                    );
                     (false, Some(e))
                 }
             }
