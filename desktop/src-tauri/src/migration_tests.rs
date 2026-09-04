@@ -1064,17 +1064,20 @@ fn buzz_migration_completed_is_false_before_marker_and_true_after() {
     assert!(super::buzz_migration_completed(&commons));
 }
 
-/// Regression test for the coordinator's ruled-on failure scenario: without
-/// the marker guard, `migrate_legacy_app_data_dir` re-derives the same
-/// `buzz_dir` from `legacy_app_data_dir` on every boot and re-runs
-/// `copy_dir_all`, which only skips files already present at the
-/// destination — so a file the user deleted from Commons but which still
-/// exists in the still-runnable Buzz install would be silently resurrected,
-/// forever. This asserts the guard `migrate_legacy_app_data_dir` now checks
-/// first correctly reports "already migrated" in exactly that situation, so
-/// the caller never reaches `copy_dir_all` and the deletion sticks.
+/// Regression test for the coordinator's ruled-on failure scenario (fix
+/// round 2, Finding I1). The prior version of this test
+/// (`buzz_migration_completed_gates_against_resurrecting_a_deleted_file`)
+/// asserted `buzz_migration_completed(&commons)` and a file's non-existence
+/// right after deleting that same file itself — both tautologies that pass
+/// even with the guard at `migrate_legacy_app_data_dir_at`'s top deleted.
+/// This version actually calls `migrate_legacy_app_data_dir_at` twice — the
+/// same function `migrate_legacy_app_data_dir` calls — so removing its
+/// guard flips this test to failing: without the guard, `copy_dir_all` only
+/// skips files already present at the destination, so a file the user
+/// deleted from Commons but which still exists in the still-runnable Buzz
+/// install would be silently resurrected on the second call.
 #[test]
-fn buzz_migration_completed_gates_against_resurrecting_a_deleted_file() {
+fn migrate_legacy_app_data_dir_at_does_not_resurrect_a_deleted_file_on_second_run() {
     let dir = tempfile::tempdir().unwrap();
     let buzz = dir.path().join("xyz.block.buzz.app");
     let commons = dir.path().join("africa.cybota.cybercare.commons");
@@ -1082,16 +1085,86 @@ fn buzz_migration_completed_gates_against_resurrecting_a_deleted_file() {
     std::fs::write(buzz.join("identity.key"), "device-key").unwrap();
     std::fs::write(buzz.join("stray.txt"), "will be deleted by the user").unwrap();
 
-    super::migrate_buzz_app_data_at(&buzz, &commons);
+    // First run: no marker yet, so this genuinely imports — mirrors what
+    // `migrate_legacy_app_data_dir` does on an actual first boot.
+    super::migrate_legacy_app_data_dir_at(&buzz, &commons);
+    assert_eq!(
+        std::fs::read_to_string(commons.join("identity.key")).unwrap(),
+        "device-key"
+    );
     assert!(commons.join("stray.txt").exists());
 
-    // The user later deletes a file from Commons that Buzz still has.
+    // Establish the marker the way `migrate_buzz_app_data_at` would on a
+    // real boot (this test targets `migrate_legacy_app_data_dir_at`'s own
+    // guard, not `migrate_buzz_app_data_at`, so the marker is written
+    // directly rather than by calling that other function).
+    std::fs::write(commons.join(super::BUZZ_MIGRATION_MARKER), "").unwrap();
+
+    // The user deletes a file from Commons that Buzz still has.
     std::fs::remove_file(commons.join("stray.txt")).unwrap();
 
-    // The guard must report completion, which is what stops
-    // migrate_legacy_app_data_dir from ever reaching copy_dir_all again.
-    assert!(super::buzz_migration_completed(&commons));
-    assert!(!commons.join("stray.txt").exists());
+    // Second run: the guard must stop this before it ever reaches
+    // copy_dir_all, or stray.txt would be resurrected from Buzz.
+    super::migrate_legacy_app_data_dir_at(&buzz, &commons);
+
+    assert!(
+        !commons.join("stray.txt").exists(),
+        "guard must stop the deleted file being resurrected"
+    );
+}
+
+/// Finding C1 regression test: `sprout_app_data_dir` must return `None` for
+/// a Commons-identified directory. `reset.rs` uses this resolver (not
+/// `legacy_app_data_dir`) to compute what boot-time sign-out may rename to
+/// trash and delete; if this ever mapped a Commons directory to the live
+/// Buzz install, a Commons sign-out would delete that install — including
+/// its `identity.key` — at exactly the moment the brief guarantees it stays
+/// runnable as a fallback. The second assertion confirms the pre-existing
+/// Buzz→Sprout mapping this resolver exists for still works.
+#[test]
+fn sprout_app_data_dir_ignores_commons_but_still_maps_buzz_to_sprout() {
+    let parent = Path::new("/Users/me/Library/Application Support");
+    let commons = parent.join("africa.cybota.cybercare.commons");
+    assert_eq!(
+        super::sprout_app_data_dir(&commons),
+        None,
+        "a Commons directory must never resolve to a deletable Sprout/Buzz source"
+    );
+
+    let buzz = parent.join("xyz.block.buzz.app");
+    assert_eq!(
+        super::sprout_app_data_dir(&buzz),
+        Some(parent.join("xyz.block.sprout.app"))
+    );
+}
+
+/// Finding C2 regression test: the Commons ← Buzz import must not run when a
+/// reset completed this boot (RULING B). Without this, a user signing out
+/// specifically to remove their identity from the device would find the app
+/// signed back in as the same owner on the very next boot, restored from the
+/// still-runnable Buzz install.
+#[test]
+fn should_run_commons_buzz_import_is_false_after_a_completed_reset() {
+    let commons = Path::new("/home/u/.local/share/africa.cybota.cybercare.commons");
+    assert!(super::should_run_commons_buzz_import(commons, false));
+    assert!(!super::should_run_commons_buzz_import(commons, true));
+}
+
+/// Finding C3 regression test: the Commons ← Buzz import must run only for a
+/// release Commons-identified directory (RULING C), never for a dev build's
+/// `xyz.block.buzz.app.dev...` directory. `legacy_app_data_dir` maps that dev
+/// directory to the dev SPROUT directory, so without this gate a dev boot
+/// would run the Commons import against a Sprout source and write
+/// `BUZZ_MIGRATION_MARKER` for what is actually a Sprout import.
+#[test]
+fn should_run_commons_buzz_import_is_false_for_a_dev_data_dir() {
+    let commons = Path::new("/home/u/.local/share/africa.cybota.cybercare.commons");
+    let dev = Path::new("/home/u/.local/share/xyz.block.buzz.app.dev");
+    let dev_worktree = Path::new("/home/u/.local/share/xyz.block.buzz.app.dev.my-branch");
+
+    assert!(super::should_run_commons_buzz_import(commons, false));
+    assert!(!super::should_run_commons_buzz_import(dev, false));
+    assert!(!super::should_run_commons_buzz_import(dev_worktree, false));
 }
 
 #[test]

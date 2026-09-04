@@ -83,6 +83,33 @@ pub(crate) fn legacy_app_data_dir(current: &Path) -> Option<PathBuf> {
     current.parent().map(|parent| parent.join(legacy_name))
 }
 
+/// Map the current app-data directory to the Sprout directory this build's
+/// OWN identifier migrates from — i.e. only the pre-existing Buzz←Sprout
+/// rename, never the newer Commons←Buzz hop. Returns `None` for a
+/// Commons-identified directory (and for anything else outside the two
+/// Sprout-only families below).
+///
+/// This is deliberately a narrower sibling of `legacy_app_data_dir`, not a
+/// wrapper around it: `legacy_app_data_dir` resolves whatever one hop a
+/// directory maps to, which for a Commons-identified directory is the LIVE
+/// Buzz install — the exact directory `migrate_buzz_app_data_at` copies
+/// FROM and that the brief guarantees must survive as a fallback. Boot-time
+/// reset (`reset.rs`) uses this resolver, not `legacy_app_data_dir`, to
+/// compute what it may rename to trash and delete: pointing reset at
+/// `legacy_app_data_dir` would make a Commons sign-out delete the live Buzz
+/// install, identity key included.
+pub(crate) fn sprout_app_data_dir(current: &Path) -> Option<PathBuf> {
+    let name = current.file_name()?.to_str()?;
+    let legacy_name = if name.starts_with(CANONICAL_DEV_IDENTIFIER) {
+        name.replacen(CANONICAL_DEV_IDENTIFIER, LEGACY_CANONICAL_DEV_IDENTIFIER, 1)
+    } else if name.starts_with(crate::brand::BUZZ_IDENTIFIER) {
+        name.replacen(crate::brand::BUZZ_IDENTIFIER, LEGACY_RELEASE_IDENTIFIER, 1)
+    } else {
+        return None;
+    };
+    current.parent().map(|parent| parent.join(legacy_name))
+}
+
 fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(dst)?;
     for entry in std::fs::read_dir(src)? {
@@ -169,22 +196,27 @@ fn run_boot_migrations_inner(app: &tauri::AppHandle, reset_completed: bool) {
         maybe_migrate_dev_repos_dir(is_dev, reset_completed, &home, &dev_nest);
     }
 
-    // The Commons ← Buzz copy runs first and writes BUZZ_MIGRATION_MARKER.
-    // `legacy_app_data_dir` resolves exactly one hop, so on a Commons-
-    // identified directory it returns the Buzz path — the Sprout branch is
-    // unreachable here by construction, not "chained" after this. Once the
-    // marker exists, `migrate_legacy_app_data_dir` below skips its own copy
-    // (see `buzz_migration_completed`), so this is genuinely the only Buzz
-    // import per install. A Sprout-era install that never ran Buzz is NOT
-    // migrated directly to Commons: it must run Buzz once first so Buzz's
-    // own migration carries the Sprout data into the Buzz directory, which
-    // this hop then picks up.
+    // The Commons ← Buzz one-time import (app-data copy + keyring adoption)
+    // runs only when `should_run_commons_buzz_import` says so — see its doc
+    // comment for RULING B (skip after a completed reset) and RULING C
+    // (release-Commons-identified directories only). `legacy_app_data_dir`
+    // resolves exactly one hop, so on a Commons-identified directory it
+    // returns the live Buzz path; once `migrate_buzz_app_data_at` writes
+    // BUZZ_MIGRATION_MARKER, `migrate_legacy_app_data_dir` below skips its
+    // own copy of the same pair (see `buzz_migration_completed`), so this
+    // import genuinely fires at most once per Commons install. It is NOT a
+    // three-generation chain: a Sprout-era install that never ran Buzz is
+    // not migrated straight to Commons — it needs one Buzz launch first, so
+    // Buzz's own (unchanged) Sprout migration carries the data into the
+    // Buzz directory, which this hop then picks up on Commons's next boot.
     if let Ok(commons_dir) = app.path().app_data_dir() {
-        if let Some(buzz_dir) = legacy_app_data_dir(&commons_dir) {
-            migrate_buzz_app_data_at(&buzz_dir, &commons_dir);
+        if should_run_commons_buzz_import(&commons_dir, reset_completed) {
+            if let Some(buzz_dir) = legacy_app_data_dir(&commons_dir) {
+                migrate_buzz_app_data_at(&buzz_dir, &commons_dir);
+            }
+            adopt_buzz_keyring_blob();
         }
     }
-    adopt_buzz_keyring_blob();
 
     migrate_legacy_app_data_dir(app);
     sync_shared_agent_data(app);
@@ -231,10 +263,11 @@ pub(crate) fn buzz_migration_completed(current_dir: &Path) -> bool {
     current_dir.join(BUZZ_MIGRATION_MARKER).exists()
 }
 
-/// Copy one-time app state from the legacy app identifier directory to
-/// the current Buzz identifier directory. The Tauri identifier controls the app
-/// data path, so without this copy a product rename would look like a fresh
-/// install and users would lose their persisted identity and agent settings.
+/// Copy `legacy`'s app data into `current`, gated by
+/// [`buzz_migration_completed`] so a Commons build's own one-time import
+/// (`migrate_buzz_app_data_at`, above) is never repeated here. Pure paths, no
+/// `AppHandle` — mirrors `migrate_buzz_app_data_at`'s shape so both are
+/// directly unit-testable without a live Tauri runtime.
 ///
 /// On a Commons-identified build, the Commons ← Buzz hop is owned by
 /// `migrate_buzz_app_data_at` (called earlier in `run_boot_migrations_inner`,
@@ -244,6 +277,34 @@ pub(crate) fn buzz_migration_completed(current_dir: &Path) -> bool {
 /// boot, forever, silently resurrecting any file the user deleted from
 /// Commons because `copy_dir_all` only skips files that already exist. This
 /// function's own purpose is the older Buzz ← Sprout hop.
+pub(crate) fn migrate_legacy_app_data_dir_at(legacy: &Path, current: &Path) {
+    if buzz_migration_completed(current) {
+        return;
+    }
+    if !legacy.exists() {
+        return;
+    }
+    match copy_dir_all(legacy, current) {
+        Ok(()) => eprintln!(
+            "buzz-desktop: app-data-migration: copied legacy data from {} to {}",
+            legacy.display(),
+            current.display()
+        ),
+        Err(error) => eprintln!(
+            "buzz-desktop: app-data-migration: failed to copy {} to {}: {error}",
+            legacy.display(),
+            current.display()
+        ),
+    }
+}
+
+/// Copy one-time app state from the legacy app identifier directory to
+/// the current Buzz identifier directory. The Tauri identifier controls the app
+/// data path, so without this copy a product rename would look like a fresh
+/// install and users would lose their persisted identity and agent settings.
+///
+/// See [`migrate_legacy_app_data_dir_at`] for the marker-gated copy itself;
+/// this wrapper only resolves the two paths from a live `AppHandle`.
 pub fn migrate_legacy_app_data_dir(app: &tauri::AppHandle) {
     let current_dir = match app.path().app_data_dir() {
         Ok(dir) => dir,
@@ -252,27 +313,35 @@ pub fn migrate_legacy_app_data_dir(app: &tauri::AppHandle) {
             return;
         }
     };
-    if buzz_migration_completed(&current_dir) {
-        return;
-    }
     let Some(legacy_dir) = legacy_app_data_dir(&current_dir) else {
         return;
     };
-    if !legacy_dir.exists() {
-        return;
-    }
-    match copy_dir_all(&legacy_dir, &current_dir) {
-        Ok(()) => eprintln!(
-            "buzz-desktop: app-data-migration: copied legacy data from {} to {}",
-            legacy_dir.display(),
-            current_dir.display()
-        ),
-        Err(error) => eprintln!(
-            "buzz-desktop: app-data-migration: failed to copy {} to {}: {error}",
-            legacy_dir.display(),
-            current_dir.display()
-        ),
-    }
+    migrate_legacy_app_data_dir_at(&legacy_dir, &current_dir);
+}
+
+/// Returns `true` when the Commons ← Buzz one-time import (app-data copy via
+/// `migrate_buzz_app_data_at` plus `adopt_buzz_keyring_blob`) should run this
+/// boot. Composed gate, mirroring `should_migrate_dev_repos_dir` /
+/// `maybe_migrate_dev_repos_dir` above: a pure predicate the caller applies,
+/// directly unit-testable without an `AppHandle`.
+///
+/// RULING B: never when `reset_completed` — the user just explicitly wiped
+/// their Commons identity (sign-out); re-importing it from Buzz on the very
+/// next boot would silently undo the sign-out and leave the app signed back
+/// in as the same owner, governed-room admissions included.
+///
+/// RULING C: only when `commons_dir`'s file name is exactly the release
+/// Commons identifier (`crate::brand::APP_IDENTIFIER`). `legacy_app_data_dir`
+/// resolves one hop for ANY directory it recognizes — including a dev
+/// build's `xyz.block.buzz.app.dev...` directory, which it maps to the dev
+/// SPROUT directory, not a Buzz one. Without this check, a dev boot would
+/// run `migrate_buzz_app_data_at` against that Sprout dir and write
+/// `BUZZ_MIGRATION_MARKER` for what is actually a Sprout import — the wrong
+/// hop, wrongly named. The dev Sprout→Buzz hop already has its own owner:
+/// `migrate_legacy_app_data_dir`, below.
+pub(crate) fn should_run_commons_buzz_import(commons_dir: &Path, reset_completed: bool) -> bool {
+    !reset_completed
+        && commons_dir.file_name().and_then(|n| n.to_str()) == Some(crate::brand::APP_IDENTIFIER)
 }
 
 /// Copy an existing Buzz install's app data into the Commons directory.
@@ -321,7 +390,22 @@ pub(crate) fn migrate_buzz_app_data_at(buzz_dir: &Path, commons_dir: &Path) {
 /// SecretStore rather than `SecretStore::shared`, which memoizes the FIRST
 /// service name it is called with in a process-wide OnceLock and would hand
 /// back the Commons store for a Buzz request.
+///
+/// RULING D: restricted to the release keyring service. In a debug build
+/// `keyring_service()` returns `buzz-desktop-dev` (or a worktree-scoped
+/// variant), which on a fresh worktree is empty. Without this check that
+/// emptiness would satisfy the "Commons holds nothing" gate above and adopt
+/// the ENTIRE production `buzz-desktop` blob — the real `identity` nsec plus
+/// every `agent:<pubkey>` — into the dev service, so a developer resetting
+/// dev state and running a debug build without `BUZZ_PRIVATE_KEY` would boot
+/// holding the CEO's real device key and could act as the owner in every
+/// governed room. The dev path already has its own, narrower migration for
+/// this (`managed_agents::migrate_agent_keys_to_dev_service`), which
+/// deliberately copies only `agent:` keys, never `identity`.
 pub(crate) fn adopt_buzz_keyring_blob() {
+    if crate::app_state::keyring_service() != crate::brand::KEYRING_SERVICE {
+        return;
+    }
     let commons = crate::secret_store::SecretStore::shared(crate::app_state::keyring_service());
     match commons.load_all_readonly() {
         Ok(Some(entries)) if !entries.is_empty() => return,
@@ -335,8 +419,16 @@ pub(crate) fn adopt_buzz_keyring_blob() {
         }
     }
     let buzz = crate::secret_store::SecretStore::keyring(crate::brand::BUZZ_KEYRING_SERVICE);
-    let Ok(Some(entries)) = buzz.load_all_readonly() else {
-        return;
+    let entries = match buzz.load_all_readonly() {
+        Ok(Some(entries)) => entries,
+        Ok(None) => return,
+        Err(error) => {
+            eprintln!(
+                "{}: keyring-migration: cannot read Buzz keyring ({error}); skipping",
+                crate::brand::LOG_PREFIX
+            );
+            return;
+        }
     };
     if entries.is_empty() {
         return;

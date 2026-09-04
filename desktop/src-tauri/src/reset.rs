@@ -123,7 +123,12 @@ pub(crate) fn run_boot_reset(app_data_dir: &Path) -> ResetOutcome {
 
     let store = crate::secret_store::SecretStore::keyring(crate::app_state::keyring_service());
     let home_dir = dirs::home_dir();
-    let legacy_dir = crate::migration::legacy_app_data_dir(app_data_dir);
+    // Sprout-only resolver (not `legacy_app_data_dir`): a Commons-identified
+    // `app_data_dir` must resolve here to `None`, never to the live Buzz
+    // install — see `sprout_app_data_dir`'s doc comment for why pointing
+    // reset at the wrong resolver would delete the fallback the brief
+    // guarantees stays runnable.
+    let legacy_dir = crate::migration::sprout_app_data_dir(app_data_dir);
     let nest_dir = crate::managed_agents::nest_dir();
 
     let ctx = ResetContext {
