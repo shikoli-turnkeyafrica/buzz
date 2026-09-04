@@ -14,6 +14,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
+import 'package:buzz/brand.dart' as brand;
+
 import '../../shared/clipboard_utils.dart';
 import '../../shared/deeplink/deep_link.dart';
 import '../../shared/deeplink/pending_deep_link_provider.dart';
@@ -173,7 +175,13 @@ class MessageContent extends HookConsumerWidget {
         (String channelId) {
           ref
               .read(pendingDeepLinkProvider.notifier)
-              .open(Uri(scheme: 'buzz', host: 'channel', path: channelId));
+              .open(
+                Uri(
+                  scheme: brand.deepLinkScheme,
+                  host: 'channel',
+                  path: channelId,
+                ),
+              );
         };
     final channelPresentationKey = [
       for (final entry
@@ -355,7 +363,7 @@ class MessageContent extends HookConsumerWidget {
 
     final baseStyle = fallbackStyle ?? linkStyle;
     final uri = Uri.tryParse(url);
-    final buzzLink = uri?.scheme == 'buzz'
+    final buzzLink = uri?.scheme == brand.deepLinkScheme
         ? parseBuzzDeepLink(uri!) ?? parseEntityDeepLink(uri)
         : null;
     final isBuzzLink =
@@ -442,7 +450,7 @@ class MessageContent extends HookConsumerWidget {
         // references so detail-page callers can suppress self-navigation.
         // Message and join links still need the top-level authenticated
         // dispatcher.
-        if (uri.scheme == 'buzz') {
+        if (uri.scheme == brand.deepLinkScheme) {
           final deepLink = parseBuzzDeepLink(uri);
           if (deepLink case ChannelDeepLink(:final channelId)) {
             resolvedChannelTap(channelId);

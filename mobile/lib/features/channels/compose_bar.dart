@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' show FlutterView;
 
+import 'package:buzz/brand.dart' as brand;
 import 'package:camera/camera.dart' as camera;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';

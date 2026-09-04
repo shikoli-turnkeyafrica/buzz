@@ -1,10 +1,14 @@
+import 'package:buzz/brand.dart' as brand;
+
 const _markdownDelimiters = ['***', '___', '**', '__', '~~', '*', '_'];
 
+final _firstPartyLinkPrefix =
+    '${brand.deepLinkScheme}://(?:message\\?|join\\?|channel/|(?:pr|issue|repo)\\?)';
 final _autolinkPattern = RegExp(
-  r'<((?:https?://|buzz://(?:message\?|join\?|channel/|(?:pr|issue|repo)\?))[^>]+)>',
+  '<((?:https?://|$_firstPartyLinkPrefix)[^>]+)>',
 );
 final _bareLinkPattern = RegExp(
-  r'(?<![(\]=])(?:https?://|buzz://(?:message\?|join\?|channel/|(?:pr|issue|repo)\?))[^\s)>\]]+',
+  '(?<![(\\]=])(?:https?://|$_firstPartyLinkPrefix)[^\\s)>\\]]+',
 );
 final _trailingPunctuationPattern = RegExp(r'[.,!?:;]+$');
 final _backtickRunPattern = RegExp(r'`+');
@@ -126,7 +130,7 @@ String _normalizeBareLink(String segment, Match match) {
   final matched = match[0]!;
   var url = matched;
   var trailing = '';
-  final isBuzzUrl = matched.startsWith('buzz://');
+  final isBuzzUrl = matched.startsWith('${brand.deepLinkScheme}://');
   final start = match.start;
 
   if (isBuzzUrl) {
