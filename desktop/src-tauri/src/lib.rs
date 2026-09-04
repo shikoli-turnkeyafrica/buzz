@@ -2,6 +2,7 @@
 mod app_menu;
 mod app_state;
 mod archive;
+mod brand;
 mod builderlab;
 mod commands;
 mod deep_link;
