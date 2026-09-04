@@ -43,7 +43,9 @@ class _AppearanceSection extends ConsumerWidget {
             MaterialPageRoute<void>(builder: (_) => const ThemePickerPage()),
           ),
         ),
-        if (!isBuzzTheme(effectiveTheme(schemeName, mode)?.name ?? schemeName))
+        if (!isCybercareTheme(
+          effectiveTheme(schemeName, mode)?.name ?? schemeName,
+        ))
           AppListRow(
             icon: LucideIcons.droplet,
             title: 'Accent color',

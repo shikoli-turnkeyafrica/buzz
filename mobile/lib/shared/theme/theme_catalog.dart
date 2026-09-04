@@ -33,7 +33,7 @@ class ThemeColors {
 
 /// Known light theme names — used to show sun/moon icons before loading.
 const lightThemeNames = <String>{
-  'buzz',
+  'cybercare',
   'catppuccin-latte',
   'everforest-light',
   'github-light',
@@ -80,24 +80,24 @@ const themeCatalog = <ThemeColors>[
     added: Color(0xFF70BF56),
     deleted: Color(0xFFF26D78),
   ),
-  // Buzz and Buzz Dark are first-party: they borrow the GitHub Light / GitHub
-  // Dark palettes wholesale and are distinguished only by the branded gradient
-  // painted across the app's top section (see buzz_theme.dart).
+  // Cybercare and Cybercare Dark are first-party: the Cybota palette,
+  // distinguished by the flat navy painted across the app's top section (see
+  // buzz_theme.dart).
   ThemeColors(
-    name: 'buzz',
-    bg: Color(0xFFFFFFFF),
-    fg: Color(0xFF24292E),
-    comment: Color(0xFF6A737D),
+    name: 'cybercare',
+    bg: Color(0xFFFAFAFA),
+    fg: Color(0xFF1A2857),
+    comment: Color(0xFF6B6B6B),
     added: Color(0xFF28A745),
-    deleted: Color(0xFFD73A49),
+    deleted: Color(0xFFC1292E),
   ),
   ThemeColors(
-    name: 'buzz-dark',
-    bg: Color(0xFF24292E),
-    fg: Color(0xFFE1E4E8),
-    comment: Color(0xFF6A737D),
+    name: 'cybercare-dark',
+    bg: Color(0xFF161925),
+    fg: Color(0xFFE9ECEF),
+    comment: Color(0xFF99A2B8),
     added: Color(0xFF34D058),
-    deleted: Color(0xFFEA4A5A),
+    deleted: Color(0xFFF26E6E),
   ),
   ThemeColors(
     name: 'catppuccin-frappe',
@@ -539,10 +539,17 @@ const themeCatalog = <ThemeColors>[
   ),
 ];
 
+/// Pre-rebrand names still present in SharedPreferences on upgraded installs.
+const _legacyThemeAliases = <String, String>{
+  'buzz': 'cybercare',
+  'buzz-dark': 'cybercare-dark',
+};
+
 /// Lookup a theme by name. Returns null if not found.
 ThemeColors? findTheme(String name) {
+  final resolved = _legacyThemeAliases[name] ?? name;
   for (final t in themeCatalog) {
-    if (t.name == name) return t;
+    if (t.name == resolved) return t;
   }
   return null;
 }

@@ -4,10 +4,11 @@ import 'theme_catalog.dart';
 /// (`desktop/src/shared/theme/theme-loader.ts`) so both clients offer the same
 /// System-mode pairings.
 ///
-/// Buzz leads the map the way it leads desktop's, so the first-party pair sorts
-/// ahead of the borrowed syntax themes wherever insertion order is preserved.
+/// Cybercare leads the map the way it leads desktop's, so the first-party pair
+/// sorts ahead of the borrowed syntax themes wherever insertion order is
+/// preserved.
 const themePairs = <String, String>{
-  'buzz': 'buzz-dark',
+  'cybercare': 'cybercare-dark',
   'catppuccin-latte': 'catppuccin-mocha',
   'everforest-light': 'everforest-dark',
   'github-light': 'github-dark',

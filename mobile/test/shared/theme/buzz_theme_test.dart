@@ -4,51 +4,55 @@ import 'package:buzz/shared/theme/theme.dart';
 import 'package:buzz/shared/widgets/frosted_app_bar.dart';
 
 void main() {
-  group('Buzz theme catalog entries', () {
+  group('Cybercare theme catalog entries', () {
     test('both halves are in the catalog', () {
-      expect(findTheme(buzzThemeName), isNotNull);
-      expect(findTheme(buzzDarkThemeName), isNotNull);
+      expect(findTheme(cybercareThemeName), isNotNull);
+      expect(findTheme(cybercareDarkThemeName), isNotNull);
     });
 
-    test('borrow the GitHub palettes', () {
-      final buzz = findTheme(buzzThemeName)!;
-      final github = findTheme('github-light')!;
-      expect(buzz.bg, github.bg);
-      expect(buzz.fg, github.fg);
-      expect(buzz.comment, github.comment);
+    test('carry the Cybota palette', () {
+      final light = findTheme(cybercareThemeName)!;
+      expect(light.bg, const Color(0xFFFAFAFA));
+      expect(light.fg, const Color(0xFF1A2857));
+      expect(light.comment, const Color(0xFF6B6B6B));
 
-      final buzzDark = findTheme(buzzDarkThemeName)!;
-      final githubDark = findTheme('github-dark')!;
-      expect(buzzDark.bg, githubDark.bg);
-      expect(buzzDark.fg, githubDark.fg);
-      expect(buzzDark.comment, githubDark.comment);
+      final dark = findTheme(cybercareDarkThemeName)!;
+      expect(dark.bg, const Color(0xFF161925));
+      expect(dark.fg, const Color(0xFFE9ECEF));
+      expect(dark.comment, const Color(0xFF99A2B8));
     });
 
     test('are a light/dark pair', () {
-      expect(findTheme(buzzThemeName)!.isDark, isFalse);
-      expect(findTheme(buzzDarkThemeName)!.isDark, isTrue);
-      expect(themePairFor(buzzThemeName), buzzDarkThemeName);
-      expect(themePairFor(buzzDarkThemeName), buzzThemeName);
+      expect(findTheme(cybercareThemeName)!.isDark, isFalse);
+      expect(findTheme(cybercareDarkThemeName)!.isDark, isTrue);
+      expect(themePairFor(cybercareThemeName), cybercareDarkThemeName);
+      expect(themePairFor(cybercareDarkThemeName), cybercareThemeName);
     });
 
-    test('appear as a single System-mode option labelled "Buzz"', () {
+    test('appear as a single System-mode option labelled "Cybercare"', () {
       final paired = themeGroups().paired.map((t) => t.name);
-      expect(paired, contains(buzzThemeName));
-      expect(paired, isNot(contains(buzzDarkThemeName)));
-      expect(pairedThemeLabel(buzzThemeName), 'Buzz');
-      expect(themeSelectionLabel(buzzThemeName, ThemeMode.system), 'Buzz');
-      expect(themeSelectionLabel(buzzDarkThemeName, ThemeMode.system), 'Buzz');
+      expect(paired, contains(cybercareThemeName));
+      expect(paired, isNot(contains(cybercareDarkThemeName)));
+      expect(pairedThemeLabel(cybercareThemeName), 'Cybercare');
+      expect(
+        themeSelectionLabel(cybercareThemeName, ThemeMode.system),
+        'Cybercare',
+      );
+      expect(
+        themeSelectionLabel(cybercareDarkThemeName, ThemeMode.system),
+        'Cybercare',
+      );
     });
 
     test('forces neutral rendering without changing the stored accent', () {
       const storedAccent = '#ef4444';
 
       expect(
-        effectiveAccentIndex(buzzThemeName, storedAccent),
+        effectiveAccentIndex(cybercareThemeName, storedAccent),
         neutralAccentIndex,
       );
       expect(
-        effectiveAccentIndex(buzzDarkThemeName, storedAccent),
+        effectiveAccentIndex(cybercareDarkThemeName, storedAccent),
         neutralAccentIndex,
       );
       expect(
@@ -59,30 +63,30 @@ void main() {
     });
 
     test('resolve across brightnesses like any other pair', () {
-      final resolved = resolveSchemes(buzzThemeName, ThemeMode.system);
+      final resolved = resolveSchemes(cybercareThemeName, ThemeMode.system);
       expect(resolved.forcedMode, isNull);
       expect(resolved.light.brightness, Brightness.light);
       expect(resolved.dark.brightness, Brightness.dark);
-      expect(resolved.lightTheme?.name, buzzThemeName);
-      expect(resolved.darkTheme?.name, buzzDarkThemeName);
+      expect(resolved.lightTheme?.name, cybercareThemeName);
+      expect(resolved.darkTheme?.name, cybercareDarkThemeName);
 
       expect(
-        effectiveTheme(buzzThemeName, ThemeMode.dark)?.name,
-        buzzDarkThemeName,
+        effectiveTheme(cybercareThemeName, ThemeMode.dark)?.name,
+        cybercareDarkThemeName,
       );
       expect(
-        effectiveTheme(buzzDarkThemeName, ThemeMode.light)?.name,
-        buzzThemeName,
+        effectiveTheme(cybercareDarkThemeName, ThemeMode.light)?.name,
+        cybercareThemeName,
       );
     });
 
     test(
-      'fallbacks expose the effective Buzz theme for gradient selection',
+      'fallbacks expose the effective Cybercare theme for gradient selection',
       () {
         final coerced = resolveSchemes('nord', ThemeMode.light);
-        expect(coerced.lightTheme?.name, buzzThemeName);
+        expect(coerced.lightTheme?.name, cybercareThemeName);
         expect(
-          buzzTopSectionGradient(
+          cybercareTopSectionGradient(
             coerced.lightTheme!.name,
             coerced.light.brightness,
           ),
@@ -90,9 +94,9 @@ void main() {
         );
 
         final unknown = resolveSchemes('not-a-theme', ThemeMode.light);
-        expect(unknown.lightTheme?.name, buzzThemeName);
+        expect(unknown.lightTheme?.name, cybercareThemeName);
         expect(
-          buzzTopSectionGradient(
+          cybercareTopSectionGradient(
             unknown.lightTheme!.name,
             unknown.light.brightness,
           ),
@@ -102,15 +106,18 @@ void main() {
     );
   });
 
-  group('buzzTopSectionGradient', () {
-    test('is null for non-Buzz themes', () {
-      expect(buzzTopSectionGradient('github-light', Brightness.light), isNull);
-      expect(buzzTopSectionGradient('nord', Brightness.dark), isNull);
+  group('cybercareTopSectionGradient', () {
+    test('is null for non-Cybercare themes', () {
+      expect(
+        cybercareTopSectionGradient('github-light', Brightness.light),
+        isNull,
+      );
+      expect(cybercareTopSectionGradient('nord', Brightness.dark), isNull);
     });
 
     test('paints top to bottom for both halves of the pair', () {
-      for (final name in [buzzThemeName, buzzDarkThemeName]) {
-        final gradient = buzzTopSectionGradient(name, Brightness.light);
+      for (final name in [cybercareThemeName, cybercareDarkThemeName]) {
+        final gradient = cybercareTopSectionGradient(name, Brightness.light);
         expect(gradient, isNotNull, reason: '$name should be gradient-backed');
         expect(gradient!.begin, Alignment.topCenter);
         expect(gradient.end, Alignment.bottomCenter);
@@ -121,23 +128,48 @@ void main() {
     test('brightness selects the stops, not the theme name', () {
       // Both halves enable the gradient, so System mode keeps it on across an
       // OS switch — the applied brightness alone decides which stops are used.
-      final light = buzzTopSectionGradient(buzzThemeName, Brightness.light)!;
-      final dark = buzzTopSectionGradient(buzzThemeName, Brightness.dark)!;
+      final light = cybercareTopSectionGradient(
+        cybercareThemeName,
+        Brightness.light,
+      )!;
+      final dark = cybercareTopSectionGradient(
+        cybercareThemeName,
+        Brightness.dark,
+      )!;
 
       expect(light.colors, isNot(dark.colors));
       expect(
-        buzzTopSectionGradient(buzzDarkThemeName, Brightness.dark)!.colors,
+        cybercareTopSectionGradient(
+          cybercareDarkThemeName,
+          Brightness.dark,
+        )!.colors,
         dark.colors,
       );
       expect(
-        buzzTopSectionGradient(buzzDarkThemeName, Brightness.light)!.colors,
+        cybercareTopSectionGradient(
+          cybercareDarkThemeName,
+          Brightness.light,
+        )!.colors,
         light.colors,
       );
     });
 
+    test('is flat: top and bottom stops are the same navy', () {
+      for (final brightness in Brightness.values) {
+        final gradient = cybercareTopSectionGradient(
+          cybercareThemeName,
+          brightness,
+        )!;
+        expect(gradient.colors[0], gradient.colors[1]);
+      }
+    });
+
     test('is opaque so the color replaces the frosted fill', () {
       for (final brightness in Brightness.values) {
-        final gradient = buzzTopSectionGradient(buzzThemeName, brightness)!;
+        final gradient = cybercareTopSectionGradient(
+          cybercareThemeName,
+          brightness,
+        )!;
         for (final color in gradient.colors) {
           expect(color.a, 1.0);
         }
@@ -178,8 +210,8 @@ void main() {
       await tester.pumpWidget(
         harness(
           AppTheme.light(
-            topSectionGradient: buzzTopSectionGradient(
-              buzzThemeName,
+            topSectionGradient: cybercareTopSectionGradient(
+              cybercareThemeName,
               Brightness.light,
             ),
           ),
@@ -192,7 +224,7 @@ void main() {
       expect(decoration.color, isNull);
     });
 
-    testWidgets('non-Buzz themes keep the frosted surface fill', (
+    testWidgets('non-Cybercare themes keep the frosted surface fill', (
       tester,
     ) async {
       await tester.pumpWidget(harness(AppTheme.light()));
@@ -202,14 +234,14 @@ void main() {
       expect(decoration.color, isNotNull);
     });
 
-    testWidgets('Buzz section labels use 80% neutral foreground', (
+    testWidgets('Cybercare section labels use 80% white foreground', (
       tester,
     ) async {
       await tester.pumpWidget(
         harness(
           AppTheme.light(
-            topSectionGradient: buzzTopSectionGradient(
-              buzzThemeName,
+            topSectionGradient: cybercareTopSectionGradient(
+              cybercareThemeName,
               Brightness.light,
             ),
           ),
@@ -219,11 +251,11 @@ void main() {
       final context = tester.element(find.text('Home'));
       expect(
         navigationSectionForeground(context),
-        Colors.black.withValues(alpha: 0.8),
+        Colors.white.withValues(alpha: 0.8),
       );
     });
 
-    testWidgets('navigation roles inherit non-Buzz theme tokens', (
+    testWidgets('navigation roles inherit non-Cybercare theme tokens', (
       tester,
     ) async {
       const primaryForeground = Color(0xFF123456);
@@ -256,12 +288,12 @@ void main() {
     });
   });
 
-  group('isBuzzTheme', () {
-    test('matches only the Buzz pair', () {
-      expect(isBuzzTheme(buzzThemeName), isTrue);
-      expect(isBuzzTheme(buzzDarkThemeName), isTrue);
-      expect(isBuzzTheme('github-light'), isFalse);
-      expect(isBuzzTheme(''), isFalse);
+  group('isCybercareTheme', () {
+    test('matches only the Cybercare pair', () {
+      expect(isCybercareTheme(cybercareThemeName), isTrue);
+      expect(isCybercareTheme(cybercareDarkThemeName), isTrue);
+      expect(isCybercareTheme('github-light'), isFalse);
+      expect(isCybercareTheme(''), isFalse);
     });
   });
 }

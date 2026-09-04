@@ -168,8 +168,10 @@ void main() {
     });
   });
 
-  group('Buzz accent behavior', () {
-    testWidgets('settings hides accent navigation for Buzz', (tester) async {
+  group('Cybercare accent behavior', () {
+    testWidgets('settings hides accent navigation for Cybercare', (
+      tester,
+    ) async {
       await _pumpPicker(
         tester,
         SettingsPage(
@@ -183,7 +185,7 @@ void main() {
       expect(find.text('Accent color'), findsNothing);
     });
 
-    testWidgets('settings restores accent navigation away from Buzz', (
+    testWidgets('settings restores accent navigation away from Cybercare', (
       tester,
     ) async {
       await _pumpPicker(

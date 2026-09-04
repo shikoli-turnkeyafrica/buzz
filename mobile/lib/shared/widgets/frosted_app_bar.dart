@@ -113,8 +113,8 @@ class FrostedAppBar extends StatelessWidget {
   final Color? iconColor;
 
   /// Paints over the frosted fill instead of the default translucent surface.
-  /// Used by the Buzz themes to carry their branded gradient across the app's
-  /// top section — see [buzzTopSectionGradient].
+  /// Used by the Cybercare themes to carry their flat navy fill across the
+  /// app's top section — see [cybercareTopSectionGradient].
   final Gradient? gradient;
 
   /// Whether to apply the translucent blur treatment behind the app bar.

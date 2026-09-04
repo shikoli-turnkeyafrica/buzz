@@ -9,7 +9,7 @@ import 'theme_provider.dart' show effectiveTheme, schemeForAppearanceMode;
 
 const communityThemeDTag = 'community-theme';
 const defaultCommunityTheme = CommunityThemePreference(
-  theme: 'buzz',
+  theme: 'cybercare',
   accent: '#3b82f6',
   followSystem: true,
 );
@@ -148,7 +148,7 @@ class CommunityThemeStorage {
         ThemeMode.values.where((value) => value.name == modeName).firstOrNull ??
         ThemeMode.system;
     final storedTheme = prefs.getString(_legacySchemeKey);
-    final theme = findTheme(storedTheme ?? 'buzz')?.name ?? 'buzz';
+    final theme = findTheme(storedTheme ?? 'cybercare')?.name ?? 'cybercare';
     final legacyAccent = prefs.getInt(_legacyAccentKey);
     final resolvedTheme = switch (mode) {
       ThemeMode.system => schemeForAppearanceMode(theme, mode) ?? theme,

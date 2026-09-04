@@ -25,7 +25,7 @@ void main() {
     for (final payload in [
       {
         'version': 2,
-        'theme': 'buzz',
+        'theme': 'cybercare',
         'accent': '#3b82f6',
         'followSystem': true,
       },
@@ -37,7 +37,7 @@ void main() {
       },
       {
         'version': 1,
-        'theme': 'buzz',
+        'theme': 'cybercare',
         'accent': '#000000',
         'followSystem': true,
       },
@@ -54,7 +54,7 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     final storage = CommunityThemeStorage(prefs);
     const a = CommunityThemePreference(
-      theme: 'buzz',
+      theme: 'cybercare',
       accent: '#3b82f6',
       followSystem: true,
     );
