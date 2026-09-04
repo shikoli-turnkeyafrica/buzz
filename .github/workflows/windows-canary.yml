@@ -143,6 +143,34 @@ jobs:
           cargo build --release --target "$TARGET" -p buzz-acp -p buzz-agent -p buzz-dev-mcp -p git-credential-nostr -p buzz-cli
           ./scripts/bundle-sidecars.sh "$TARGET"
 
+      # Tasks 1-3 of the brand plan added migration and keyring tests that
+      # cannot run on the Linux dev host (the desktop crate needs GTK dev
+      # libraries). This is the only place they execute, and they guard the
+      # identity carry-over — the highest-risk part of the rebrand.
+      #
+      # desktop/src-tauri is its own Cargo workspace, excluded from the repo
+      # root's (root Cargo.toml: `exclude = ["desktop/src-tauri"]`), so
+      # `-p buzz-desktop` alone would not resolve from here — hence
+      # --manifest-path. CMAKE_POLICY_VERSION_MINIMUM matches the "Build
+      # Windows NSIS installer" step below: this crate's opus/neteq native
+      # deps need it too when compiled directly (as `cargo test` does here).
+      - name: Run desktop Rust tests
+        shell: bash
+        run: cargo test --manifest-path desktop/src-tauri/Cargo.toml --target "$TARGET" -p buzz-desktop
+        env:
+          CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+
+      # crates/buzz-cli is a member of the ROOT workspace, not
+      # desktop/src-tauri's, so the step above does not reach it. Its
+      # golden_format_matches_desktop test reads test-fixtures/entity-links.json,
+      # the shared link-format contract between the CLI, the desktop frontend
+      # and the desktop backend — this is the only place that contract is
+      # checked. The crate is already compiled by "Build sidecars" above, so
+      # this is cheap.
+      - name: Run buzz-cli tests
+        shell: bash
+        run: cargo test --target "$TARGET" -p buzz-cli
+
       # The cache's `!**/release/bundle` exclusion does not take on Windows:
       # run #3 restored run #2's installer and uploaded it (byte-identical,
       # wrong version) while the freshly built one sat beside it. Clear any
@@ -167,7 +195,7 @@ jobs:
         run: |
           set -euo pipefail
           BUNDLE_DIR="desktop/src-tauri/target/${TARGET}/release/bundle"
-          mapfile -t EXES < <(find "$BUNDLE_DIR/nsis" -name "*_${VERSION}_*.exe" -type f)
+          mapfile -t EXES < <(find "$BUNDLE_DIR/nsis" -name "Cybercare Commons_${VERSION}_*.exe" -type f)
           if [[ ${#EXES[@]} -ne 1 ]]; then
             echo "::error::Expected exactly one installer for $VERSION in $BUNDLE_DIR/nsis, found ${#EXES[@]}:"
             find "$BUNDLE_DIR/nsis" -name '*.exe' -type f || true
@@ -178,7 +206,7 @@ jobs:
       - name: Upload Windows canary installer
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: buzz-windows-canary-${{ github.sha }}
+          name: cybercare-commons-windows-canary-${{ github.sha }}
           path: ${{ steps.artifact.outputs.exe }}
           if-no-files-found: error
           retention-days: 7
