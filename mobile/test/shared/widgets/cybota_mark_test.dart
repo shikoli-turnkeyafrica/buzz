@@ -1,6 +1,7 @@
 import 'package:buzz/shared/widgets/cybota_mark.dart';
 import 'package:buzz/shared/widgets/tappable_cybota_mark.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
@@ -62,5 +63,31 @@ void main() {
       ),
     );
     expect(find.bySemanticsLabel('Cybota mark'), findsOneWidget);
+  });
+
+  testWidgets('reduced motion drops the tap affordance from the mark', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MediaQuery(
+          data: MediaQueryData(disableAnimations: true),
+          child: MaterialApp(
+            home: Center(
+              child: TappableCybotaMark(size: 80, color: Colors.black),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final semantics = tester
+        .getSemantics(find.bySemanticsLabel('Cybota mark'))
+        .getSemanticsData();
+    expect(semantics.hasAction(SemanticsAction.tap), isFalse);
+    expect(semantics.flagsCollection.isButton, isFalse);
+
+    handle.dispose();
   });
 }

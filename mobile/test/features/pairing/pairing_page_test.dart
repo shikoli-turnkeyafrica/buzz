@@ -152,6 +152,12 @@ void main() {
       expect(find.text('Hide pairing code'), findsOneWidget);
       expect(find.text('Connect'), findsOneWidget);
       expect(find.byType(TextField), findsOneWidget);
+
+      final textField = tester.widget<TextField>(find.byType(TextField));
+      expect(
+        textField.decoration?.hintText,
+        contains('${brand.deepLinkScheme}://'),
+      );
     });
 
     testWidgets('connect button is below text field, not beside it', (

@@ -135,7 +135,7 @@ class _PairingWelcomeView extends StatelessWidget {
                                           alpha: 0.7,
                                         ),
                                         hintText:
-                                            'nostrpair://... or cybercare://...',
+                                            'nostrpair://... or ${brand.deepLinkScheme}://...',
                                         hintStyle: context.textTheme.bodyMedium
                                             ?.copyWith(
                                               color: _onboardingMutedInk,

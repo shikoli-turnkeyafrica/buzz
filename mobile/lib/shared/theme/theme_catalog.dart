@@ -31,29 +31,6 @@ class ThemeColors {
       .join(' ');
 }
 
-/// Known light theme names — used to show sun/moon icons before loading.
-const lightThemeNames = <String>{
-  'cybercare',
-  'catppuccin-latte',
-  'everforest-light',
-  'github-light',
-  'github-light-default',
-  'github-light-high-contrast',
-  'gruvbox-light-hard',
-  'gruvbox-light-medium',
-  'gruvbox-light-soft',
-  'kanagawa-lotus',
-  'light-plus',
-  'material-theme-lighter',
-  'min-light',
-  'one-light',
-  'rose-pine-dawn',
-  'slack-ochin',
-  'snazzy-light',
-  'solarized-light',
-  'vitesse-light',
-};
-
 /// All available color schemes, sorted alphabetically.
 const themeCatalog = <ThemeColors>[
   ThemeColors(
@@ -79,25 +56,6 @@ const themeCatalog = <ThemeColors>[
     comment: Color(0xFF5A6673),
     added: Color(0xFF70BF56),
     deleted: Color(0xFFF26D78),
-  ),
-  // Cybercare and Cybercare Dark are first-party: the Cybota palette,
-  // distinguished by the flat navy painted across the app's top section (see
-  // buzz_theme.dart).
-  ThemeColors(
-    name: 'cybercare',
-    bg: Color(0xFFFAFAFA),
-    fg: Color(0xFF1A2857),
-    comment: Color(0xFF6B6B6B),
-    added: Color(0xFF28A745),
-    deleted: Color(0xFFC1292E),
-  ),
-  ThemeColors(
-    name: 'cybercare-dark',
-    bg: Color(0xFF161925),
-    fg: Color(0xFFE9ECEF),
-    comment: Color(0xFF99A2B8),
-    added: Color(0xFF34D058),
-    deleted: Color(0xFFF26E6E),
   ),
   ThemeColors(
     name: 'catppuccin-frappe',
@@ -130,6 +88,25 @@ const themeCatalog = <ThemeColors>[
     comment: Color(0xFF9399B2),
     added: Color(0xFFA6E3A1),
     deleted: Color(0xFFF38BA8),
+  ),
+  // Cybercare and Cybercare Dark are first-party: the Cybota palette,
+  // distinguished by the flat navy painted across the app's top section (see
+  // buzz_theme.dart).
+  ThemeColors(
+    name: 'cybercare',
+    bg: Color(0xFFFAFAFA),
+    fg: Color(0xFF1A2857),
+    comment: Color(0xFF6B6B6B),
+    added: Color(0xFF28A745),
+    deleted: Color(0xFFC1292E),
+  ),
+  ThemeColors(
+    name: 'cybercare-dark',
+    bg: Color(0xFF161925),
+    fg: Color(0xFFE9ECEF),
+    comment: Color(0xFF99A2B8),
+    added: Color(0xFF34D058),
+    deleted: Color(0xFFF26E6E),
   ),
   ThemeColors(
     name: 'dark-plus',

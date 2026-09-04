@@ -237,7 +237,6 @@ printf '%s\n' "$clean_out" | grep -q 'africa\.cybota\.cybercare\.commons\.featur
 printf '%s\n' "$clean_out" | grep -q 'africa\.cybota\.cybercare\.commons\.w_2fast' \
   && pass "cleanup targets letter-prefixed suffixed installs" \
   || fail "cleanup must list w_-prefixed installs, got: $clean_out"
-printf '%s\n' "$clean_out" | grep -q 'mobile\.feature_work_1' || true
 if printf '%s\n' "$clean_out" | grep -Eq '(would uninstall|uninstalling).*africa\.cybota\.cybercare\.commons$'; then
   fail "cleanup must never target the production Android app id"
 else

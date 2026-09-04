@@ -114,7 +114,8 @@ final schemeProvider = NotifierProvider<SchemeNotifier, String?>(
 ///
 /// System mode only offers paired themes because they have both light and dark
 /// variants. Switching to it from an unpaired or unknown selection therefore
-/// falls back to the first paired theme, matching the picker ordering.
+/// falls back to the first-party default pair (Cybercare) when it is paired,
+/// and otherwise to the first paired theme in the picker's ordering.
 String? schemeForAppearanceMode(String? schemeName, ThemeMode mode) {
   if (mode != ThemeMode.system) return schemeName;
 

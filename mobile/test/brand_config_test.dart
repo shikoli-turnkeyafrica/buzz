@@ -49,7 +49,15 @@ void main() {
 
   test('Info.plist pins the brand name and URL scheme', () {
     final plist = _read('ios/Runner/Info.plist');
-    expect(plist, contains('<string>${brand.productName}</string>'));
+    // CFBundleName is capped at 15 characters by Apple, so it pins the short
+    // product name; CFBundleDisplayName is $(APP_DISPLAY_NAME), pinned to the
+    // full product name via the xcconfig test above.
+    expect(
+      plist,
+      contains(
+        '<key>CFBundleName</key>\n\t<string>${brand.productShort}</string>',
+      ),
+    );
     expect(plist, contains('<string>${brand.deepLinkScheme}</string>'));
     expect(
       plist,

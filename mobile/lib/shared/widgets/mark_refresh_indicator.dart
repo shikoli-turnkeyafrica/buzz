@@ -3,7 +3,6 @@ import 'dart:async' show unawaited;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../theme/theme.dart';
 import 'cybota_mark.dart';
@@ -13,7 +12,7 @@ import 'cybota_mark.dart';
 /// Flutter continues to own the gesture, refresh lifecycle, and accessibility
 /// semantics. This widget maps those states into the elastic pull, retained
 /// loading gap, and mark animation.
-class MarkRefreshIndicator extends HookConsumerWidget {
+class MarkRefreshIndicator extends HookWidget {
   /// Called when the user completes a pull, to load fresh data.
   ///
   /// The mark keeps spinning until this future settles, so it should
@@ -45,7 +44,7 @@ class MarkRefreshIndicator extends HookConsumerWidget {
   static const _settleDuration = Duration(milliseconds: 180);
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final status = useState<RefreshIndicatorStatus?>(null);
     final pullProgress = useState(0.0);
     final pullDistance = useState(0.0);

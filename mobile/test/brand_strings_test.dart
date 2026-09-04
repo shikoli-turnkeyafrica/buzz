@@ -62,6 +62,11 @@ void main() {
     for (final entity in Directory('lib').listSync(recursive: true)) {
       if (entity is! File || !entity.path.endsWith('.dart')) continue;
       final lines = entity.readAsLinesSync();
+      // Line-scoped: each line is checked independently, so a multi-line
+      // string literal is still caught line by line. The only blind spot is
+      // a single line that both says "Buzz" and matches an `_allowed` regex
+      // — which is why every `_allowed` entry above must be narrow and
+      // commented with why it's safe.
       for (var i = 0; i < lines.length; i++) {
         final line = lines[i];
         if (!RegExp(r'\bbuzz\b', caseSensitive: false).hasMatch(line)) continue;

@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../brand.dart' as brand;
 import 'cybota_mark.dart';
 
 /// The Cybota mark; one tap spins the arcs a full turn.
 ///
-/// When reduced motion is enabled, the mark stays static.
-class TappableCybotaMark extends HookConsumerWidget {
+/// When reduced motion is enabled, the mark stays static and exposes no tap
+/// affordance, since `spin()` is a no-op in that state.
+class TappableCybotaMark extends HookWidget {
   final double size;
   final Color color;
 
@@ -19,7 +19,7 @@ class TappableCybotaMark extends HookConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final animation = useAnimationController(
       duration: const Duration(milliseconds: 900),
     );
@@ -28,6 +28,19 @@ class TappableCybotaMark extends HookConsumerWidget {
     void spin() {
       if (reducedMotion) return;
       animation.forward(from: 0);
+    }
+
+    final mark = AnimatedBuilder(
+      animation: animation,
+      builder: (context, _) => CybotaMark(
+        size: size,
+        color: color,
+        spin: Curves.easeInOutCubic.transform(animation.value),
+      ),
+    );
+
+    if (reducedMotion) {
+      return Semantics(label: '${brand.vendor} mark', child: mark);
     }
 
     return Semantics(
@@ -39,14 +52,7 @@ class TappableCybotaMark extends HookConsumerWidget {
         behavior: HitTestBehavior.opaque,
         excludeFromSemantics: true,
         onTap: spin,
-        child: AnimatedBuilder(
-          animation: animation,
-          builder: (context, _) => CybotaMark(
-            size: size,
-            color: color,
-            spin: Curves.easeInOutCubic.transform(animation.value),
-          ),
-        ),
+        child: mark,
       ),
     );
   }
