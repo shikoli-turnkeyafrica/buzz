@@ -44,11 +44,22 @@ def foreground(size: int) -> Image.Image:
     return out
 
 
+def app_icon(size: int) -> Image.Image:
+    """iOS AppIcon.appiconset render: tile composited onto the #FAFAFA ground and
+    saved opaque RGB. Xcode archive / App Store Connect validation rejects app
+    icons carrying an alpha channel, most strictly the 1024x1024 marketing icon."""
+    out = Image.new("RGB", (size, size), GROUND[:3])
+    tile = square(size)
+    out.paste(tile, (0, 0), tile)
+    return out
+
+
 def on_ground(size: int) -> Image.Image:
     """Splash image: tile at 60% on the light ground."""
     out = Image.new("RGBA", (size, size), GROUND)
     inner = round(size * 0.6)
-    out.paste(square(inner), ((size - inner) // 2, (size - inner) // 2), square(inner))
+    tile = square(inner)
+    out.paste(tile, ((size - inner) // 2, (size - inner) // 2), tile)
     return out
 
 
@@ -65,7 +76,7 @@ for name, scale in DPI.items():
     write(d / "ic_launcher_foreground.png", foreground(round(108 * scale)))
     write(d / "launch_image.png", on_ground(round(288 * scale)))
 
-for setname, render in [("AppIcon.appiconset", square), ("LaunchImage.imageset", on_ground)]:
+for setname, render in [("AppIcon.appiconset", app_icon), ("LaunchImage.imageset", on_ground)]:
     d = ROOT / "ios/Runner/Assets.xcassets" / setname
     contents = json.loads((d / "Contents.json").read_text())
     for entry in contents["images"]:
