@@ -56,6 +56,58 @@ pub(crate) fn delete_sentinel(app_data_dir: &Path) -> Result<(), String> {
     }
 }
 
+/// Record that the Buzz import already happened for this install, so a
+/// post-reset boot cannot re-import the identity the wipe just removed.
+/// Step 8 of the boot-time reset, extracted so its failure path is testable
+/// (it takes only the target directory, so a caller can force the write to
+/// fail).
+///
+/// Release-Commons-only. The Commons ← Buzz hop runs only for an app-data
+/// directory named exactly [`crate::brand::APP_IDENTIFIER`] (see
+/// `migration::should_run_commons_buzz_import`), so writing the marker into
+/// any other directory records a hop that never applied there — and, because
+/// `migration::migrate_legacy_app_data_dir_at` returns early whenever the
+/// marker exists, would permanently disable that install's own Sprout → Buzz
+/// hop.
+///
+/// The whole anti-re-import invariant rests on this write. Step 5 deleted
+/// `app_data_dir`, Step 7 deleted the sentinel, and Step 6's verification has
+/// already run — so nothing downstream notices a failure here. If the
+/// directory cannot be recreated or the marker cannot be written (permissions
+/// on the recreated directory, a full disk, an antivirus lock on Windows),
+/// the next boot finds no marker and `reset_completed` false, re-copies the
+/// Buzz app data, and re-adopts the entire `buzz-desktop` keyring blob —
+/// `identity` included — silently signing the user back in as the same owner
+/// with the same governed-room admissions. So on failure the reset sentinel
+/// is re-armed: the wipe is idempotent, and the next boot re-runs it rather
+/// than proceeding with a broken invariant. The sentinel lives in
+/// `app_data_dir`'s PARENT (see [`sentinel_path`]), so it is still writable
+/// in the case where `app_data_dir` itself cannot be created.
+pub(crate) fn record_buzz_migration_marker_after_reset(app_data_dir: &Path) {
+    if app_data_dir.file_name().and_then(|n| n.to_str()) != Some(crate::brand::APP_IDENTIFIER) {
+        return;
+    }
+    let written = std::fs::create_dir_all(app_data_dir).and_then(|()| {
+        std::fs::write(
+            app_data_dir.join(crate::migration::BUZZ_MIGRATION_MARKER),
+            b"",
+        )
+    });
+    if let Err(e) = written {
+        eprintln!(
+            "buzz-desktop reset: could not record the Buzz migration marker in {} ({e}); \
+             re-arming the reset sentinel so the next boot retries the wipe",
+            app_data_dir.display()
+        );
+        if let Err(e) = write_sentinel(app_data_dir) {
+            eprintln!(
+                "buzz-desktop reset: could not re-arm the reset sentinel after a failed \
+                 marker write ({e}); the next boot may re-import the Buzz identity"
+            );
+        }
+    }
+}
+
 // ── Keychain abstraction (enables unit testing) ───────────────────────────────
 
 /// Keychain operations needed by the boot-time reset.
@@ -314,22 +366,17 @@ pub(crate) fn run_boot_reset_with_keychain(ctx: ResetContext<'_>) -> ResetOutcom
     // Step 5 deleted app_data_dir entirely (RULING E), which is where
     // BUZZ_MIGRATION_MARKER normally lives — so the marker is gone along
     // with everything else the wipe removed. app_data_dir is NOT recreated
-    // by any earlier step; it is created here for this purpose. Without this,
-    // the very next boot's `should_run_commons_buzz_import` finds no marker,
-    // sees `reset_completed` is false again (a fresh boot, not the reset
-    // boot itself), and re-copies the entire Buzz install into the
+    // by any earlier step; the helper creates it for this purpose. Without
+    // this, the very next boot's `should_run_commons_buzz_import` finds no
+    // marker, sees `reset_completed` is false again (a fresh boot, not the
+    // reset boot itself), and re-copies the entire Buzz install into the
     // freshly-wiped directory; `adopt_buzz_keyring_blob` likewise finds the
     // Commons keyring service empty (this wipe emptied it) and re-adopts the
     // whole Buzz keyring blob, `identity` included — silently undoing the
-    // sign-out the user asked for.
-    if let Err(e) = std::fs::create_dir_all(app_data_dir) {
-        eprintln!("buzz-desktop reset: failed to recreate app data dir for migration marker: {e}");
-    } else if let Err(e) = std::fs::write(
-        app_data_dir.join(crate::migration::BUZZ_MIGRATION_MARKER),
-        "",
-    ) {
-        eprintln!("buzz-desktop reset: failed to write Buzz migration marker: {e}");
-    }
+    // sign-out the user asked for. See
+    // `record_buzz_migration_marker_after_reset` for why this is
+    // release-Commons-only and why a failed write re-arms the sentinel.
+    record_buzz_migration_marker_after_reset(app_data_dir);
 
     ResetOutcome {
         completed: true,
@@ -509,18 +556,127 @@ mod tests {
 
         assert!(outcome.completed, "should complete");
         assert!(!outcome.failed, "should not fail");
-        // RULING E (fix round 3): app-data is recreated holding ONLY the
-        // Buzz-migration marker, so a post-reset boot does not re-import the
-        // identity/history this wipe just deleted. Its CONTENT is gone —
-        // it is no longer literally absent from disk.
-        assert!(
-            app_data.exists(),
-            "app-data is recreated to carry the post-reset migration marker"
-        );
-        assert_recreated_with_only_migration_marker(&app_data);
+        // This app-data dir is Buzz-identified (`xyz.block.buzz.app`), not
+        // Commons — so the post-reset Buzz-migration marker is NOT written
+        // here (fix round 4, Finding R3: the Buzz hop is release-Commons-only,
+        // and marking a non-Commons install would disable its own
+        // Sprout → Buzz hop). The directory therefore stays literally absent.
+        // `commons_app_data_is_recreated_holding_only_the_migration_marker`
+        // covers the Commons case.
+        assert!(!app_data.exists(), "app-data must be gone");
         assert!(!legacy_dir.exists(), "legacy app-data must be gone");
         assert!(!sentinel_path(&app_data).exists(), "sentinel must be gone");
         assert_eq!(kc.delete_calls.get(), 1, "keychain deleted once");
+    }
+
+    // ── Fix round 4: the post-reset Buzz-migration marker ─────────────────────
+
+    /// A Commons-identified app-data directory — the only shape for which the
+    /// post-reset Buzz-migration marker is written (Finding R3).
+    fn make_commons_app_data(tmp: &TempDir) -> PathBuf {
+        let dir = tmp
+            .path()
+            .join("Application Support")
+            .join(crate::brand::APP_IDENTIFIER);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// The positive half of Finding R3, driven through the real reset flow:
+    /// on a Commons-identified install a completed wipe recreates app-data
+    /// holding ONLY the Buzz-migration marker, so the next boot cannot
+    /// re-import the identity this wipe just removed.
+    #[test]
+    fn commons_app_data_is_recreated_holding_only_the_migration_marker() {
+        let tmp = TempDir::new().unwrap();
+        let app_data = make_commons_app_data(&tmp);
+        std::fs::write(app_data.join("identity.key"), b"device-key").unwrap();
+        std::fs::write(app_data.join("retention.db"), b"history").unwrap();
+
+        write_sentinel(&app_data).unwrap();
+        let kc = FakeKeychain::ok();
+
+        let outcome = run_boot_reset_with_keychain(make_ctx(&app_data, &kc, false));
+
+        assert!(outcome.completed, "should complete");
+        assert!(!outcome.failed, "should not fail");
+        assert!(
+            app_data.exists(),
+            "Commons app-data is recreated to carry the post-reset migration marker"
+        );
+        assert_recreated_with_only_migration_marker(&app_data);
+        assert!(
+            !sentinel_path(&app_data).exists(),
+            "a successful marker write must leave the sentinel deleted"
+        );
+    }
+
+    /// Finding R3: the marker must NOT be written for a non-Commons app-data
+    /// directory. `migration::migrate_legacy_app_data_dir_at` returns early
+    /// whenever the marker exists, so marking a dev- or Buzz-identified
+    /// install would permanently disable its own Sprout → Buzz hop for a
+    /// Commons ← Buzz hop that never applied to it.
+    #[test]
+    fn no_migration_marker_is_recorded_for_a_non_commons_app_data_dir() {
+        let tmp = TempDir::new().unwrap();
+        let parent = tmp.path().join("Application Support");
+        std::fs::create_dir_all(&parent).unwrap();
+
+        for name in ["xyz.block.buzz.app", "xyz.block.buzz.app.dev"] {
+            let app_data = parent.join(name);
+            // Deliberately NOT created: the helper must not create it either.
+            record_buzz_migration_marker_after_reset(&app_data);
+
+            assert!(
+                !app_data.exists(),
+                "{name}: a non-Commons app-data dir must not be recreated"
+            );
+            assert!(
+                !sentinel_path(&app_data).exists(),
+                "{name}: skipping the marker is not a failure, so no sentinel is armed"
+            );
+        }
+    }
+
+    /// Finding R1 (fix round 4): the whole anti-re-import invariant rests on
+    /// the Step 8 marker write, which runs AFTER Step 6's verification and
+    /// AFTER Step 7 deleted the sentinel — so nothing downstream can notice
+    /// it failing. If it fails, the reset must re-arm the sentinel so the
+    /// next boot retries the (idempotent) wipe, rather than booting with no
+    /// marker and re-adopting the entire `buzz-desktop` keyring blob,
+    /// `identity` included.
+    ///
+    /// The failure is induced through the extracted helper's only parameter:
+    /// `app_data_dir` already exists as a regular FILE, so `create_dir_all`
+    /// cannot turn it into a directory and the marker can never be written.
+    /// The sentinel lives in the parent (a normal, writable directory), so
+    /// the re-arm itself is still possible — which is exactly the situation
+    /// this guard exists for.
+    #[test]
+    fn failed_marker_write_re_arms_the_reset_sentinel() {
+        let tmp = TempDir::new().unwrap();
+        let parent = tmp.path().join("Application Support");
+        std::fs::create_dir_all(&parent).unwrap();
+        let app_data = parent.join(crate::brand::APP_IDENTIFIER);
+        std::fs::write(&app_data, b"a regular file, not a directory").unwrap();
+
+        assert!(
+            !sentinel_path(&app_data).exists(),
+            "precondition: Step 7 has already deleted the sentinel"
+        );
+
+        record_buzz_migration_marker_after_reset(&app_data);
+
+        assert!(
+            sentinel_path(&app_data).exists(),
+            "a failed marker write must re-arm the sentinel so the next boot retries the wipe"
+        );
+        assert!(
+            !app_data
+                .join(crate::migration::BUZZ_MIGRATION_MARKER)
+                .exists(),
+            "precondition check: the marker genuinely was not written"
+        );
     }
 
     // ── NIP-49: the boot wipe destroys the app-managed key backup ─────────────
@@ -916,14 +1072,10 @@ mod tests {
         };
         let second = run_boot_reset_with_keychain(ctx2);
         assert!(second.completed, "second attempt must complete");
-        // RULING E (fix round 3): recreated with only the marker, not
-        // literally absent — see the identical note on
-        // test_sentinel_present_full_wipe_succeeds.
-        assert!(
-            app_data.exists(),
-            "app-data is recreated to carry the post-reset migration marker"
-        );
-        assert_recreated_with_only_migration_marker(&app_data);
+        // Buzz-identified app-data dir, so no post-reset migration marker is
+        // written and the directory stays absent — see the identical note on
+        // test_sentinel_present_full_wipe_succeeds (fix round 4, Finding R3).
+        assert!(!app_data.exists(), "app-data must be gone");
         assert!(!legacy.exists(), "legacy must be gone");
         // No trash directories should remain.
         let trash_app = app_support.join("xyz.block.buzz.app.reset-trash");

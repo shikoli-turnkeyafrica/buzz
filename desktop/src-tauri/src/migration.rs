@@ -425,7 +425,37 @@ pub(crate) fn should_adopt_buzz_keyring(service: &str, commons_dir: &Path) -> bo
     service == crate::brand::KEYRING_SERVICE && !buzz_migration_completed(commons_dir)
 }
 
-/// Adopt an existing Buzz keyring blob into the Commons keyring service.
+/// What [`adopt_buzz_keyring_blob_with_service`] did, so a caller — in
+/// practice, a unit test — can observe whether the gate refused before any
+/// keyring was touched.
+///
+/// This exists because `adopt_buzz_keyring_blob_with_service` has no
+/// injectable keyring backend: without a returned decision, a test cannot
+/// distinguish "the gate refused" from "the gate allowed it and the keyring
+/// read happened to fail", so reverting the gate to the earlier
+/// release-service-only check would leave every test green.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum KeyringAdoption {
+    /// [`should_adopt_buzz_keyring`] refused: not the release service, or the
+    /// Buzz import is already recorded for this directory. Neither keyring
+    /// was opened, read, or written.
+    Skipped,
+    /// The gate allowed it, so the function went on to the keyring. Says
+    /// nothing about whether entries were actually adopted — the Commons
+    /// service may already hold a blob, the Buzz service may hold none, or
+    /// either read may have failed.
+    Attempted,
+}
+
+/// Adopt an existing Buzz keyring blob into the Commons keyring service,
+/// against an explicitly supplied `service` name.
+///
+/// Split out from [`adopt_buzz_keyring_blob`] purely as a test seam. Under
+/// `cfg(test)` the debug `keyring_service()` returns the dev service, which
+/// short-circuits [`should_adopt_buzz_keyring`] on its RULING D clause before
+/// the RULING E marker clause is ever reached — so with the service baked in,
+/// no test could reach the marker clause and the call site's use of the
+/// predicate went unproven for two review rounds running.
 ///
 /// Runs only when [`should_adopt_buzz_keyring`] says so (release service,
 /// no prior Buzz import recorded for `commons_dir`) AND the Commons service
@@ -434,36 +464,39 @@ pub(crate) fn should_adopt_buzz_keyring(service: &str, commons_dir: &Path) -> bo
 /// than `SecretStore::shared`, which memoizes the FIRST service name it is
 /// called with in a process-wide OnceLock and would hand back the Commons
 /// store for a Buzz request.
-pub(crate) fn adopt_buzz_keyring_blob(commons_dir: &Path) {
-    if !should_adopt_buzz_keyring(crate::app_state::keyring_service(), commons_dir) {
-        return;
+pub(crate) fn adopt_buzz_keyring_blob_with_service(
+    service: &'static str,
+    commons_dir: &Path,
+) -> KeyringAdoption {
+    if !should_adopt_buzz_keyring(service, commons_dir) {
+        return KeyringAdoption::Skipped;
     }
-    let commons = crate::secret_store::SecretStore::shared(crate::app_state::keyring_service());
+    let commons = crate::secret_store::SecretStore::shared(service);
     match commons.load_all_readonly() {
-        Ok(Some(entries)) if !entries.is_empty() => return,
+        Ok(Some(entries)) if !entries.is_empty() => return KeyringAdoption::Attempted,
         Ok(_) => {}
         Err(error) => {
             eprintln!(
                 "{}: keyring-migration: cannot read Commons keyring ({error}); skipping",
                 crate::brand::LOG_PREFIX
             );
-            return;
+            return KeyringAdoption::Attempted;
         }
     }
     let buzz = crate::secret_store::SecretStore::keyring(crate::brand::BUZZ_KEYRING_SERVICE);
     let entries = match buzz.load_all_readonly() {
         Ok(Some(entries)) => entries,
-        Ok(None) => return,
+        Ok(None) => return KeyringAdoption::Attempted,
         Err(error) => {
             eprintln!(
                 "{}: keyring-migration: cannot read Buzz keyring ({error}); skipping",
                 crate::brand::LOG_PREFIX
             );
-            return;
+            return KeyringAdoption::Attempted;
         }
     };
     if entries.is_empty() {
-        return;
+        return KeyringAdoption::Attempted;
     }
     match commons.store_all(&entries) {
         Ok(()) => eprintln!(
@@ -476,6 +509,16 @@ pub(crate) fn adopt_buzz_keyring_blob(commons_dir: &Path) {
             crate::brand::LOG_PREFIX
         ),
     }
+    KeyringAdoption::Attempted
+}
+
+/// Adopt an existing Buzz keyring blob into the Commons keyring service.
+///
+/// Thin wrapper: resolves the running build's keyring service and delegates
+/// to [`adopt_buzz_keyring_blob_with_service`], which holds the logic and is
+/// the unit-testable entry point.
+pub(crate) fn adopt_buzz_keyring_blob(commons_dir: &Path) {
+    adopt_buzz_keyring_blob_with_service(crate::app_state::keyring_service(), commons_dir);
 }
 
 /// Knowledge directories and files carried from the legacy nest into the live

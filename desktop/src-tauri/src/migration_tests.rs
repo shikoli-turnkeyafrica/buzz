@@ -1247,6 +1247,56 @@ fn should_adopt_buzz_keyring_is_false_for_non_release_service() {
     ));
 }
 
+/// Finding R2 (fix round 4) — the CALL-SITE test the predicate tests above
+/// could not provide. `should_adopt_buzz_keyring` was fully tested as a pure
+/// predicate, but nothing proved `adopt_buzz_keyring_blob` actually consulted
+/// it: reverting its guard to the earlier release-service-only check left
+/// every test green, because under `cfg(test)` the debug `keyring_service()`
+/// returns the dev service and short-circuits the function on RULING D before
+/// the RULING E marker clause is ever reached.
+///
+/// `adopt_buzz_keyring_blob_with_service` takes the service explicitly, so
+/// this can pass the RELEASE service — the one case where only the marker
+/// clause can refuse. With the marker present the function must report
+/// `Skipped`, meaning it returned before constructing either SecretStore and
+/// therefore never read the Buzz keyring. Reverting the guard to
+/// `service == KEYRING_SERVICE` makes this return `Attempted` and fails here.
+#[test]
+fn adopt_buzz_keyring_blob_does_not_read_the_buzz_keyring_once_the_marker_is_present() {
+    let dir = tempfile::tempdir().unwrap();
+    let commons = dir.path().join(crate::brand::APP_IDENTIFIER);
+    std::fs::create_dir_all(&commons).unwrap();
+    // Exactly the state `reset.rs`'s Step 8 leaves behind after a completed
+    // sign-out: the Commons directory recreated, holding only the marker,
+    // and the Commons keyring service wiped empty.
+    std::fs::write(commons.join(super::BUZZ_MIGRATION_MARKER), "").unwrap();
+
+    assert_eq!(
+        super::adopt_buzz_keyring_blob_with_service(crate::brand::KEYRING_SERVICE, &commons),
+        super::KeyringAdoption::Skipped,
+        "with the marker present the release service must refuse before touching any keyring — \
+         otherwise a post-reset boot re-adopts the whole buzz-desktop blob, `identity` included"
+    );
+}
+
+/// Companion to the test above: with no marker, the release service is the
+/// one service allowed to proceed — so the RULING D half of the guard is what
+/// must refuse a dev service, and this proves the call site applies that half
+/// too. Deliberately does NOT assert the release/no-marker case, which would
+/// reach the real OS keyring.
+#[test]
+fn adopt_buzz_keyring_blob_does_not_read_the_buzz_keyring_for_a_dev_service() {
+    let dir = tempfile::tempdir().unwrap();
+    let commons = dir.path().join(crate::brand::APP_IDENTIFIER);
+    std::fs::create_dir_all(&commons).unwrap();
+
+    assert_eq!(
+        super::adopt_buzz_keyring_blob_with_service("buzz-desktop-dev", &commons),
+        super::KeyringAdoption::Skipped,
+        "a dev keyring service must never adopt the production Buzz blob, marker or no marker"
+    );
+}
+
 #[test]
 fn migrate_legacy_nest_preserves_user_edited_agents_md() {
     let dir = tempfile::tempdir().unwrap();
