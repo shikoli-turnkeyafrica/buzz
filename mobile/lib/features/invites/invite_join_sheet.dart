@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import 'package:buzz/brand.dart' as brand;
+
 import '../../shared/theme/theme.dart';
 import '../../shared/widgets/buzz_loading_indicator.dart';
 import '../../shared/widgets/modal_presentation.dart';
@@ -41,7 +43,7 @@ class InviteJoinSheet extends ConsumerWidget {
             Icon(LucideIcons.userPlus, size: 40, color: context.colors.primary),
             const SizedBox(height: Grid.sm),
             Text(
-              'Join this Buzz community?',
+              'Join this ${brand.productShort} community?',
               style: context.textTheme.titleLarge,
             ),
             const SizedBox(height: Grid.xxs),

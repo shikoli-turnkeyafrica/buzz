@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:buzz/brand.dart' as brand;
+
 import 'observer_models.dart';
 
 const _buzzReadTools = <String>{
@@ -234,7 +236,7 @@ _parsePromptText(String text) {
     userText: eventContent,
     userTitle: eventKind != null && eventKind.isNotEmpty
         ? _titleCase(eventKind)
-        : 'Buzz event',
+        : '${brand.productShort} event',
   );
 }
 

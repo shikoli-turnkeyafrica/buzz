@@ -3,6 +3,8 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:photo_manager/photo_manager.dart';
 
+import 'package:buzz/brand.dart' as brand;
+
 const _recentPhotoCount = 30;
 const _photoPermissionRequest = PermissionRequestOption(
   androidPermission: AndroidPermission(
@@ -11,7 +13,7 @@ const _photoPermissionRequest = PermissionRequestOption(
   ),
 );
 
-/// A recent photo exposed to Buzz's compact in-composer gallery.
+/// A recent photo exposed to the app's compact in-composer gallery.
 @immutable
 class RecentPhoto {
   /// The platform photo-library identifier.
@@ -39,7 +41,7 @@ class PhotoLibraryAccessException implements Exception {
   const PhotoLibraryAccessException();
 
   @override
-  String toString() => 'Photo access is turned off for Buzz.';
+  String toString() => 'Photo access is turned off for ${brand.productShort}.';
 }
 
 /// Provides the device photo library. Tests can override this with fixtures.

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Accent colors matching the desktop Buzz app.
+/// Accent colors matching the Cybercare Commons Desktop app.
 class AccentColor {
   final String name;
   final Color light;

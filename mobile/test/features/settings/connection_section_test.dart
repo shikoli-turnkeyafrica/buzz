@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:buzz/brand.dart' as brand;
 import 'package:buzz/features/pairing/pairing_provider.dart';
 import 'package:buzz/features/settings/settings_page.dart';
 import 'package:buzz/shared/auth/auth.dart';
@@ -86,7 +87,9 @@ void main() {
     expect(pairing.resetCalls, 1);
     expect(find.text('Identity recovery'), findsNothing);
     expect(
-      find.text('Buzz did not return to the foreground. Try again.'),
+      find.text(
+        '${brand.productShort} did not return to the foreground. Try again.',
+      ),
       findsOneWidget,
     );
   });

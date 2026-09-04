@@ -8,6 +8,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:nostr/nostr.dart' as nostr;
 import 'package:package_info_plus/package_info_plus.dart';
 
+import 'package:buzz/brand.dart' as brand;
+
 import '../../shared/auth/auth.dart';
 import '../../shared/clipboard_utils.dart';
 import '../../shared/community/community_membership_provider.dart';

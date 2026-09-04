@@ -4,6 +4,8 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
+import 'package:buzz/brand.dart' as brand;
+
 import '../../shared/auth/auth.dart';
 import '../../shared/custom_emoji/custom_emoji.dart';
 import '../../shared/custom_emoji/custom_emoji_provider.dart';
@@ -221,29 +223,29 @@ final dmDirectoryPreviewUsers = List<DirectoryUser>.unmodifiable([
     pubkey: '1111111111111111111111111111111111111111111111111111111111111111',
     displayName: 'Maya Chen',
     avatarUrl: _mockEmojiAvatar('🎨', '#8AADF4'),
-    nip05Handle: 'maya@demo.buzz',
+    nip05Handle: 'maya@demo.${brand.deepLinkScheme}',
   ),
   DirectoryUser(
     pubkey: '2222222222222222222222222222222222222222222222222222222222222222',
     displayName: 'Jordan Brooks',
     avatarUrl: _mockEmojiAvatar('🌱', '#A6DA95'),
-    nip05Handle: 'jordan@demo.buzz',
+    nip05Handle: 'jordan@demo.${brand.deepLinkScheme}',
   ),
   const DirectoryUser(
     pubkey: '3333333333333333333333333333333333333333333333333333333333333333',
     displayName: 'Priya Shah',
-    nip05Handle: 'priya@demo.buzz',
+    nip05Handle: 'priya@demo.${brand.deepLinkScheme}',
   ),
   DirectoryUser(
     pubkey: '4444444444444444444444444444444444444444444444444444444444444444',
     displayName: 'Theo Martin',
     avatarUrl: _mockEmojiAvatar('💻', '#C6A0F6'),
-    nip05Handle: 'theo@demo.buzz',
+    nip05Handle: 'theo@demo.${brand.deepLinkScheme}',
   ),
   const DirectoryUser(
     pubkey: '5555555555555555555555555555555555555555555555555555555555555555',
     displayName: 'Sam Rivera',
-    nip05Handle: 'sam@demo.buzz',
+    nip05Handle: 'sam@demo.${brand.deepLinkScheme}',
   ),
 ]);
 
@@ -270,7 +272,7 @@ final currentPubkeyProvider = Provider<String?>((ref) {
 
 /// Extracts the unique member pubkeys advertised by relay membership events.
 ///
-/// Buzz relays use `member` tags, while older NIP-29-compatible relays may
+/// Upstream Buzz relays use `member` tags, while older NIP-29-compatible relays may
 /// still expose the same directory through `p` tags.
 @visibleForTesting
 List<String> relayMemberPubkeysFromEvents(List<NostrEvent> events) {
