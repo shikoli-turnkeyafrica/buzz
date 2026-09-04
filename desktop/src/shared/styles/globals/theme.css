@@ -531,7 +531,14 @@
 :root[data-buzz-sidebar][data-prominent-active-tab]
   [data-testid="settings-sidebar"]
   [data-active="true"] {
-  --sidebar-active-foreground: var(--sidebar-foreground);
+  /*
+   * The prominent pill is white at 82% (light) / 18% (dark), so its text
+   * follows the content foreground, not the canvas `--sidebar-foreground`
+   * (white on the navy canvas since fix round 3 — white-on-white here).
+   * Light: #1A2856 on #D6D8E1 = 9.98:1. Dark: pale on white-18% over
+   * #161925, unchanged in practice.
+   */
+  --sidebar-active-foreground: var(--foreground);
   background-color: var(--sidebar-row-active-surface);
   box-shadow: none;
 }
@@ -712,6 +719,65 @@
   [data-testid="sidebar-primary-menu"]
   [data-sidebar="menu-button"]:not([data-active="true"]) {
   color: var(--buzz-nav-fg);
+}
+
+/*
+ * Sidebar text on the navy canvas (fix round 3, 2026-09-04 — v0.5.18-test.5
+ * shipped with invisible channel/nav/Settings rows).
+ *
+ * Upstream's light gradient was pale (#e6e6b6 -> #c4d0da), so the base
+ * light `--sidebar-foreground` (234 16% 35%, a dark grey-blue) read fine on
+ * it. The rebrand painted the canvas navy (#1a2857) but only re-tinted the
+ * `--buzz-muted-foreground` / `--buzz-chrome-foreground` tokens above, so
+ * section labels stayed legible while every row that inherits
+ * `--sidebar-foreground` — channels, DMs, the primary nav, the Settings
+ * sidebar items, and the active row's `var(--foreground)` text — rendered
+ * navy on navy. Cybercare Dark is unaffected: the base dark palette already
+ * carries a pale `--sidebar-foreground`.
+ *
+ * SCOPED to the painted chrome canvases, NOT :root, for the same reason as
+ * the active-token override below: `bg-sidebar text-sidebar-foreground` is
+ * also consumed by portaled dialogs (HarnessCatalogDialog,
+ * PersonaCatalogDialog) that sit on the light `--sidebar-background`, and
+ * a root-level white foreground would blank them.
+ *
+ * Ratios, computed from the literal values against #1a2857 (Lrel 0.0243):
+ *   --sidebar-foreground 0 0% 100% (white)               14.14:1
+ *   white at 70% (Settings rows, `text-sidebar-foreground/70`)   7.66:1
+ *   white at 45% (`EphemeralChannelBadge`, `/45`)                4.06:1 (badge, non-text)
+ *   (for the record: the base 234 16% 35% foreground on navy was 1.77:1)
+ *   --sidebar-accent 226 45% 40% (#384E94) is the avatar/initials chip
+ *   fill (`bg-sidebar-accent/60|80 text-sidebar-foreground`): the old
+ *   near-white accent under white initials would have been white-on-pale.
+ *   white at 80% over accent-at-60% over navy (#2C3F7C)           7.07:1
+ *   --sidebar-row-subtle-active-surface white 16% mirrors the dark value;
+ *   the light default (black 7%) is imperceptible on navy.
+ *   --buzz-active-foreground white on that surface (#3F4A72)      8.60:1
+ */
+:root[data-buzz-sidebar]:not(.dark) [data-testid="app-sidebar"],
+:root[data-buzz-sidebar]:not(.dark) [data-testid="settings-sidebar"],
+:root[data-buzz-sidebar]:not(.dark) [data-testid="app-top-chrome"],
+:root[data-buzz-sidebar]:not(.dark) [data-testid="community-rail"],
+:root[data-buzz-sidebar]:not(.dark)
+  [data-sidebar="sidebar"][data-mobile="true"] {
+  --sidebar-foreground: 0 0% 100%;
+  --sidebar-accent-foreground: 0 0% 100%;
+  --sidebar-accent: 226 45% 40%;
+  --sidebar-row-subtle-active-surface: rgb(255 255 255 / 16%);
+  --buzz-active-foreground: 0 0% 100%;
+}
+
+/*
+ * Opaque content cards nested inside the sidebar (HuddleProfileControl:
+ * `bg-background ... text-sidebar-foreground` + `data-buzz-content-surface`)
+ * sit on the light content surface, so their text follows the content
+ * foreground (#1A2856 on #FAFAFA, 13.57:1) rather than the canvas white.
+ */
+:root[data-buzz-sidebar]:not(.dark)
+  [data-testid="app-sidebar"]
+  [data-buzz-content-surface] {
+  --sidebar-foreground: var(--foreground);
+  --sidebar-accent-foreground: var(--foreground);
 }
 
 /* Follow Cybercare's selected appearance, independent of the OS color scheme. */
