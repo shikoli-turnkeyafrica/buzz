@@ -40,6 +40,7 @@ void main() {
     expect(plist, contains('<string>${brand.deepLinkScheme}</string>'));
     expect(plist, contains('<string>${brand.iosBundleIdentifier}.deeplink</string>'));
     expect(plist, isNot(contains('<string>buzz</string>')));
+    expect(plist, isNot(contains('Buzz')));
   });
 
   test('pubspec description names the product', () {
