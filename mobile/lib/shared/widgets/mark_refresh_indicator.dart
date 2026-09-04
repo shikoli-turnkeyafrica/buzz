@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -37,9 +39,9 @@ class MarkRefreshIndicator extends HookConsumerWidget {
   static const _markSize = 44.0;
   static const _triggerDistance = 100.0;
   static const _loadingGap = 72.0;
-  static const _beeVerticalAlignment = 0.75;
-  static const _beeInitialScale = 0.6;
-  static const _beeRevealStartProgress = 0.18;
+  static const _markVerticalAlignment = 0.75;
+  static const _markInitialScale = 0.6;
+  static const _markRevealStartProgress = 0.18;
   static const _settleDuration = Duration(milliseconds: 180);
 
   @override
@@ -65,9 +67,9 @@ class MarkRefreshIndicator extends HookConsumerWidget {
     final reducedMotion = MediaQuery.disableAnimationsOf(context);
 
     void triggerArmHaptic() {
-      if (didTriggerArmHaptic.value) return;
+      if (activePointers.value.isEmpty || didTriggerArmHaptic.value) return;
       didTriggerArmHaptic.value = true;
-      HapticFeedback.mediumImpact();
+      unawaited(HapticFeedback.mediumImpact());
     }
 
     void updateStatus(RefreshIndicatorStatus? nextStatus) {
@@ -174,19 +176,19 @@ class MarkRefreshIndicator extends HookConsumerWidget {
       _ => false,
     };
     final dragRevealProgress =
-        ((pullProgress.value - _beeRevealStartProgress) /
-                (1 - _beeRevealStartProgress))
+        ((pullProgress.value - _markRevealStartProgress) /
+                (1 - _markRevealStartProgress))
             .clamp(0.0, 1.0);
     final isVisible =
         status.value != null &&
         (isLoading || dragRevealProgress > 0 || completionProgress > 0);
     final retainedGap = _loadingGap * gapProgress;
     final visibleGap = pullDistance.value + retainedGap;
-    final top = edgeOffset + (visibleGap - _markSize) * _beeVerticalAlignment;
+    final top = edgeOffset + (visibleGap - _markSize) * _markVerticalAlignment;
     final opacity = isLoading ? 1 - completionProgress : dragRevealProgress;
     final markScale = isLoading
         ? 1.0
-        : _beeInitialScale + (1 - _beeInitialScale) * dragRevealProgress;
+        : _markInitialScale + (1 - _markInitialScale) * dragRevealProgress;
     final spin = reducedMotion
         ? 0.0
         : isLoading
