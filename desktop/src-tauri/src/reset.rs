@@ -34,11 +34,42 @@ pub(crate) fn sentinel_path(app_data_dir: &Path) -> PathBuf {
     }
 }
 
+/// Payload written into the sentinel when [`record_buzz_migration_marker_after_reset`]
+/// re-arms the reset after a failed marker write. Existence is still the
+/// signal that a wipe is pending; this payload only marks the sentinel as
+/// machine-generated, so the next boot can tell a retry apart from a fresh
+/// user-requested sign-out and refuse to re-arm a second time. A
+/// user-requested sentinel carries whatever [`write_sentinel`] writes (today:
+/// nothing), and any other content — including an unreadable file — is
+/// treated as "not a retry", so a first failure always gets its one retry.
+pub(crate) const RESET_RETRY_SENTINEL: &[u8] = b"retry-after-marker-write-failure";
+
+/// Atomically write the sentinel file carrying `payload`.
+pub(crate) fn write_sentinel_with_payload(
+    app_data_dir: &Path,
+    payload: &[u8],
+) -> Result<(), String> {
+    let path = sentinel_path(app_data_dir);
+    std::fs::write(&path, payload).map_err(|e| format!("write sentinel {}: {e}", path.display()))
+}
+
 /// Atomically write the sentinel file. Content is intentionally empty —
 /// existence is the signal.
 pub(crate) fn write_sentinel(app_data_dir: &Path) -> Result<(), String> {
-    let path = sentinel_path(app_data_dir);
-    std::fs::write(&path, b"").map_err(|e| format!("write sentinel {}: {e}", path.display()))
+    write_sentinel_with_payload(app_data_dir, b"")
+}
+
+/// Return `true` when the sentinel currently on disk is one this module
+/// re-armed after a failed marker write (see [`RESET_RETRY_SENTINEL`]).
+///
+/// Must be read BEFORE Step 7 deletes the sentinel. An absent, unreadable, or
+/// differently-shaped sentinel reads as `false` — "not a retry" — so a
+/// user-requested sign-out always gets its one retry, and a read failure can
+/// never suppress one.
+pub(crate) fn sentinel_is_marker_write_retry(app_data_dir: &Path) -> bool {
+    std::fs::read(sentinel_path(app_data_dir))
+        .map(|bytes| bytes == RESET_RETRY_SENTINEL)
+        .unwrap_or(false)
 }
 
 /// Return `true` when the sentinel file exists.
@@ -59,8 +90,8 @@ pub(crate) fn delete_sentinel(app_data_dir: &Path) -> Result<(), String> {
 /// Record that the Buzz import already happened for this install, so a
 /// post-reset boot cannot re-import the identity the wipe just removed.
 /// Step 8 of the boot-time reset, extracted so its failure path is testable
-/// (it takes only the target directory, so a caller can force the write to
-/// fail).
+/// (it takes the target directory as a plain path, so a caller can force the
+/// write to fail, and the retry state as a plain flag).
 ///
 /// Release-Commons-only. The Commons ← Buzz hop runs only for an app-data
 /// directory named exactly [`crate::brand::APP_IDENTIFIER`] (see
@@ -83,28 +114,56 @@ pub(crate) fn delete_sentinel(app_data_dir: &Path) -> Result<(), String> {
 /// than proceeding with a broken invariant. The sentinel lives in
 /// `app_data_dir`'s PARENT (see [`sentinel_path`]), so it is still writable
 /// in the case where `app_data_dir` itself cannot be created.
-pub(crate) fn record_buzz_migration_marker_after_reset(app_data_dir: &Path) {
+///
+/// The retry is bounded to EXACTLY ONE attempt. Re-arming while this boot
+/// still reports `completed: true, failed: false` means the app proceeds into
+/// onboarding and the NEXT boot wipes whatever the user created there. For a
+/// self-healing failure (a full disk that is later freed) one retry fixes the
+/// invariant; for a persistent one (a permanently locked or occupied
+/// app-data path) unbounded retries would be an unbounded wipe loop in which
+/// the user can never complete onboarding and nothing says why. So
+/// `consumed_sentinel_was_retry` — read from the sentinel THIS reset consumed,
+/// before Step 7 deleted it (see [`sentinel_is_marker_write_retry`]) —
+/// suppresses a second re-arm and logs the compound failure by path instead.
+/// That trades a silent wipe loop for a diagnosable one-line warning; the
+/// residual risk it accepts is the original one, that a later boot may
+/// re-import the previous Buzz identity.
+pub(crate) fn record_buzz_migration_marker_after_reset(
+    app_data_dir: &Path,
+    consumed_sentinel_was_retry: bool,
+) {
     if app_data_dir.file_name().and_then(|n| n.to_str()) != Some(crate::brand::APP_IDENTIFIER) {
         return;
     }
-    let written = std::fs::create_dir_all(app_data_dir).and_then(|()| {
-        std::fs::write(
-            app_data_dir.join(crate::migration::BUZZ_MIGRATION_MARKER),
-            b"",
-        )
-    });
-    if let Err(e) = written {
+    let marker = app_data_dir.join(crate::migration::BUZZ_MIGRATION_MARKER);
+    let error =
+        match std::fs::create_dir_all(app_data_dir).and_then(|()| std::fs::write(&marker, b"")) {
+            Ok(()) => return,
+            Err(e) => e,
+        };
+
+    if consumed_sentinel_was_retry {
         eprintln!(
-            "buzz-desktop reset: could not record the Buzz migration marker in {} ({e}); \
-             re-arming the reset sentinel so the next boot retries the wipe",
-            app_data_dir.display()
+            "buzz-desktop reset: could not write the Buzz migration marker {} on two \
+             consecutive boots ({error}); NOT re-arming the wipe again — repeating it would \
+             destroy whatever is set up after each boot and onboarding could never complete. \
+             A later boot may re-import the previous Buzz identity from the still-installed \
+             Buzz app. Free or unlock that path, then sign out again.",
+            marker.display()
         );
-        if let Err(e) = write_sentinel(app_data_dir) {
-            eprintln!(
-                "buzz-desktop reset: could not re-arm the reset sentinel after a failed \
-                 marker write ({e}); the next boot may re-import the Buzz identity"
-            );
-        }
+        return;
+    }
+
+    eprintln!(
+        "buzz-desktop reset: could not record the Buzz migration marker in {} ({error}); \
+         re-arming the reset sentinel so the next boot retries the wipe once",
+        app_data_dir.display()
+    );
+    if let Err(e) = write_sentinel_with_payload(app_data_dir, RESET_RETRY_SENTINEL) {
+        eprintln!(
+            "buzz-desktop reset: could not re-arm the reset sentinel after a failed \
+             marker write ({e}); the next boot may re-import the Buzz identity"
+        );
     }
 }
 
@@ -354,6 +413,11 @@ pub(crate) fn run_boot_reset_with_keychain(ctx: ResetContext<'_>) -> ResetOutcom
         };
     }
 
+    // Read the consumed sentinel's payload BEFORE Step 7 deletes it: Step 8
+    // needs it to bound its own retry to exactly one attempt, and by the time
+    // Step 8 runs the sentinel is gone.
+    let consumed_sentinel_was_retry = sentinel_is_marker_write_retry(app_data_dir);
+
     // ── Step 7: delete sentinel → success ────────────────────────────────────
     if let Err(e) = delete_sentinel(app_data_dir) {
         eprintln!("buzz-desktop reset: delete sentinel: {e}");
@@ -375,8 +439,9 @@ pub(crate) fn run_boot_reset_with_keychain(ctx: ResetContext<'_>) -> ResetOutcom
     // whole Buzz keyring blob, `identity` included — silently undoing the
     // sign-out the user asked for. See
     // `record_buzz_migration_marker_after_reset` for why this is
-    // release-Commons-only and why a failed write re-arms the sentinel.
-    record_buzz_migration_marker_after_reset(app_data_dir);
+    // release-Commons-only, why a failed write re-arms the sentinel, and why
+    // that re-arm is bounded to one attempt.
+    record_buzz_migration_marker_after_reset(app_data_dir, consumed_sentinel_was_retry);
 
     ResetOutcome {
         completed: true,
@@ -625,7 +690,7 @@ mod tests {
         for name in ["xyz.block.buzz.app", "xyz.block.buzz.app.dev"] {
             let app_data = parent.join(name);
             // Deliberately NOT created: the helper must not create it either.
-            record_buzz_migration_marker_after_reset(&app_data);
+            record_buzz_migration_marker_after_reset(&app_data, false);
 
             assert!(
                 !app_data.exists(),
@@ -646,14 +711,20 @@ mod tests {
     /// marker and re-adopting the entire `buzz-desktop` keyring blob,
     /// `identity` included.
     ///
-    /// The failure is induced through the extracted helper's only parameter:
-    /// `app_data_dir` already exists as a regular FILE, so `create_dir_all`
-    /// cannot turn it into a directory and the marker can never be written.
-    /// The sentinel lives in the parent (a normal, writable directory), so
-    /// the re-arm itself is still possible — which is exactly the situation
-    /// this guard exists for.
+    /// The failure is induced through the extracted helper's only path
+    /// parameter: `app_data_dir` already exists as a regular FILE, so
+    /// `create_dir_all` cannot turn it into a directory and the marker can
+    /// never be written. The sentinel lives in the parent (a normal, writable
+    /// directory), so the re-arm itself is still possible — which is exactly
+    /// the situation this guard exists for.
+    ///
+    /// Finding R4 (fix round 5) added the payload assertion: the re-armed
+    /// sentinel must be distinguishable from a user-requested one, or the
+    /// next boot's failure cannot be recognised as a repeat and the bound in
+    /// `second_consecutive_marker_write_failure_does_not_re_arm_the_sentinel`
+    /// has nothing to key off.
     #[test]
-    fn failed_marker_write_re_arms_the_reset_sentinel() {
+    fn failed_marker_write_re_arms_the_reset_sentinel_once() {
         let tmp = TempDir::new().unwrap();
         let parent = tmp.path().join("Application Support");
         std::fs::create_dir_all(&parent).unwrap();
@@ -665,11 +736,19 @@ mod tests {
             "precondition: Step 7 has already deleted the sentinel"
         );
 
-        record_buzz_migration_marker_after_reset(&app_data);
+        // `false`: the sentinel this reset consumed was a user-requested
+        // sign-out, not a machine-generated retry.
+        record_buzz_migration_marker_after_reset(&app_data, false);
 
         assert!(
             sentinel_path(&app_data).exists(),
-            "a failed marker write must re-arm the sentinel so the next boot retries the wipe"
+            "a first failed marker write must re-arm the sentinel so the next boot retries the wipe"
+        );
+        assert_eq!(
+            std::fs::read(sentinel_path(&app_data)).unwrap(),
+            RESET_RETRY_SENTINEL,
+            "the re-armed sentinel must carry the retry payload — without it the next boot \
+             cannot tell this apart from a fresh sign-out, and the wipe loops forever"
         );
         assert!(
             !app_data
@@ -677,6 +756,88 @@ mod tests {
                 .exists(),
             "precondition check: the marker genuinely was not written"
         );
+    }
+
+    /// Finding R4 (fix round 5): the retry is bounded to exactly one attempt.
+    ///
+    /// Re-arming keeps `completed: true, failed: false`, so this boot still
+    /// proceeds into onboarding and the NEXT boot wipes whatever the user set
+    /// up there. Against a persistently failing path — permanently locked or
+    /// occupied, not the self-healing disk-full case — re-arming every time
+    /// would be an unbounded wipe loop in which onboarding can never complete
+    /// and nothing explains why. The second consecutive failure must
+    /// therefore log and stop, leaving no sentinel behind.
+    ///
+    /// This walks the same two boots the real flow would: boot 1 consumes a
+    /// user-requested sentinel and re-arms with the retry payload; boot 2
+    /// reads that payload before Step 7 deletes it (`delete_sentinel` here
+    /// standing in for Step 7), then fails again.
+    #[test]
+    fn second_consecutive_marker_write_failure_does_not_re_arm_the_sentinel() {
+        let tmp = TempDir::new().unwrap();
+        let parent = tmp.path().join("Application Support");
+        std::fs::create_dir_all(&parent).unwrap();
+        let app_data = parent.join(crate::brand::APP_IDENTIFIER);
+        // A path that is permanently occupied by a regular file: every
+        // attempt to create the directory fails, on this boot and the next.
+        std::fs::write(&app_data, b"a permanently occupied path").unwrap();
+
+        // ── Boot 1: user-requested sign-out; marker write fails; re-armed ──
+        record_buzz_migration_marker_after_reset(&app_data, false);
+        let sentinel = sentinel_path(&app_data);
+        assert_eq!(
+            std::fs::read(&sentinel).unwrap(),
+            RESET_RETRY_SENTINEL,
+            "boot 1 must re-arm with the retry payload"
+        );
+
+        // ── Boot 2: the wipe runs again against the same broken path ───────
+        let was_retry = sentinel_is_marker_write_retry(&app_data);
+        assert!(
+            was_retry,
+            "boot 2 must recognise the sentinel it is consuming as a machine-generated retry"
+        );
+        // Step 7 consumes (deletes) the sentinel before Step 8 runs.
+        delete_sentinel(&app_data).unwrap();
+
+        record_buzz_migration_marker_after_reset(&app_data, was_retry);
+
+        assert!(
+            !sentinel.exists(),
+            "a second consecutive failure must NOT re-arm: otherwise every boot wipes what the \
+             last one created and the user can never finish onboarding"
+        );
+    }
+
+    /// Finding R4 (fix round 5), the "not a retry" side of the payload check:
+    /// an empty (user-requested) or unreadable sentinel must never be mistaken
+    /// for a retry, or a first genuine failure would be denied its one retry
+    /// and the identity could be silently re-imported with no attempt to stop
+    /// it.
+    #[test]
+    fn only_the_retry_payload_counts_as_a_retry_sentinel() {
+        let tmp = TempDir::new().unwrap();
+        let parent = tmp.path().join("Application Support");
+        std::fs::create_dir_all(&parent).unwrap();
+        let app_data = parent.join(crate::brand::APP_IDENTIFIER);
+
+        // No sentinel at all.
+        assert!(!sentinel_is_marker_write_retry(&app_data));
+
+        // A user-requested sign-out sentinel (empty payload).
+        write_sentinel(&app_data).unwrap();
+        assert!(
+            !sentinel_is_marker_write_retry(&app_data),
+            "a user-requested sentinel must still get its one retry"
+        );
+
+        // Some other content entirely.
+        write_sentinel_with_payload(&app_data, b"something else").unwrap();
+        assert!(!sentinel_is_marker_write_retry(&app_data));
+
+        // The real thing.
+        write_sentinel_with_payload(&app_data, RESET_RETRY_SENTINEL).unwrap();
+        assert!(sentinel_is_marker_write_retry(&app_data));
     }
 
     // ── NIP-49: the boot wipe destroys the app-managed key backup ─────────────
