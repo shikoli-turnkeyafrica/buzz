@@ -29,6 +29,10 @@ const GLYPHS: Readonly<Record<string, readonly string[]>> = {
   e: ["       ", " ▄███▄ ", "██▄▄▄█ ", "██     ", " ▀███▀ "],
   r: ["       ", "██ ▄██ ", "███▀▀  ", "██     ", "██     "],
   m: ["        ", "██▄██▄██", "██ ██ ██", "██ ██ ██", "██ ██ ██"],
+  c: ["       ", " ▄████ ", "██     ", "██     ", " ▀████ "],
+  o: ["       ", " ▄███▄ ", "██   ██", "██   ██", " ▀███▀ "],
+  n: ["       ", "██▄██▄ ", "███  ██", "██   ██", "██   ██"],
+  s: ["       ", " ▄████ ", "██▄▄▄  ", "   ▀▀██", "█████▀ "],
   " ": ["   ", "   ", "   ", "   ", "   "],
 };
 
@@ -68,12 +72,16 @@ function trimRight(value: string): string {
   return value.replace(/\s+$/, "");
 }
 
+const WORDMARK_TEXT = "commons";
+
 function wordmark(gap: number): readonly string[] {
   const rows = Array.from({ length: 5 }, () => "");
-  for (const [index, letter] of [..."buzz term"].entries()) {
+  const letters = [...WORDMARK_TEXT];
+  for (const [index, letter] of letters.entries()) {
     const glyph = GLYPHS[letter];
     for (let row = 0; row < rows.length; row += 1) {
-      rows[row] += glyph[row] + (index < 8 ? " ".repeat(gap) : "");
+      rows[row] +=
+        glyph[row] + (index < letters.length - 1 ? " ".repeat(gap) : "");
     }
   }
   return rows.map(trimRight).filter((row) => row.trim());
