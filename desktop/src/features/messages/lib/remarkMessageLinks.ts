@@ -1,13 +1,12 @@
 /**
- * Remark plugin that detects bare `buzz://message?…` URLs in text nodes and
- * replaces each with a custom `message-link` HAST element. Legacy
- * `buzz://message?…` URLs are accepted during the rename. The `markdown.tsx`
+ * Remark plugin that detects bare `cybercare://message?…` URLs in text nodes and
+ * replaces each with a custom `message-link` HAST element. The `markdown.tsx`
  * components map renders that as an inline pill (channel name + click-to-open)
  * instead of the raw 100-char URL.
  *
  * Why this plugin exists: `remark-gfm`'s autolinker only covers `http(s)://`
- * and `www.`. Custom schemes like `buzz://` only reach the `<a>` component
- * override when the user wrote an explicit `[label](buzz://…)` link.
+ * and `www.`. Custom schemes like `cybercare://` only reach the `<a>` component
+ * override when the user wrote an explicit `[label](cybercare://…)` link.
  *
  * Mirrors `remarkChannelLinks` / `remarkMentions` — same factory, same HAST
  * shape — so the rendering layer treats all three uniformly. Trailing
@@ -18,9 +17,13 @@
 // Explicit `.ts` extension lets this plugin be imported both by the Vite-built
 // `markdown.tsx` and by `markdown.test.mjs` running under `node --test
 // --experimental-strip-types`. `tsconfig.json` enables `allowImportingTsExtensions`.
+import { DEEP_LINK_SCHEME } from "@/brand";
 import { createRemarkPrefixPlugin } from "../../../shared/lib/createRemarkPrefixPlugin.ts";
 
-const MESSAGE_URL_PATTERN = /(?:buzz|buzz):\/\/message\?[^\s<>"')\]]+/g;
+const MESSAGE_URL_PATTERN = new RegExp(
+  `${DEEP_LINK_SCHEME}://message\\?[^\\s<>"')\\]]+`,
+  "g",
+);
 const TRAILING_PUNCTUATION_PATTERN = /[.,;:!?]+$/;
 
 function trimMessageLinkMatch(matchText: string) {

@@ -9,6 +9,7 @@ import { Extension, type KeyboardShortcutCommand } from "@tiptap/core";
 import { Plugin, Selection, TextSelection } from "@tiptap/pm/state";
 import type { ResolvedPos } from "@tiptap/pm/model";
 
+import { DEEP_LINK_SCHEME } from "@/brand";
 import { readTextFromSystemClipboard } from "@/shared/api/tauriMedia";
 import {
   hasPrimaryShortcutModifier,
@@ -478,7 +479,7 @@ export function useRichTextEditor({
           // Allow Buzz message links through TipTap's URL sanitiser.
           // http(s) and mailto are accepted by default; non-listed protocols are
           // stripped on paste/typed input.
-          protocols: ["buzz"],
+          protocols: [DEEP_LINK_SCHEME],
           HTMLAttributes: {
             class: "text-primary underline underline-offset-4 cursor-text",
           },

@@ -3,6 +3,7 @@ import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { TextSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 
+import { DEEP_LINK_SCHEME } from "@/brand";
 import {
   buildIssueLink,
   buildProjectLink,
@@ -30,10 +31,18 @@ export type ComposerMessageLinkAttributes = {
   href: string;
 };
 
-const BARE_BUZZ_LINK_AT_START =
-  /^buzz:\/\/(?:message\?|channel\/|(?:pr|issue|repo|project)\?)[^\s<>"')\]}*]+/i;
+const BARE_BUZZ_LINK_AT_START = new RegExp(
+  `^${DEEP_LINK_SCHEME}:\\/\\/(?:message\\?|channel\\/|(?:pr|issue|repo|project)\\?)[^\\s<>"')\\]}*]+`,
+  "i",
+);
 const BUZZ_LINK_SUFFIX_AT_START =
   /^:\/\/(?:message\?|channel\/|(?:pr|issue|repo|project)\?)[^\s<>"')\]}*]+/i;
+// Trailing chars of `state.pending` (the just-tokenized plain-text token
+// markdown-it hasn't flushed yet) that spell the scheme word without its
+// `://` — i.e. the user has typed exactly up through "cybercare" and the
+// next chars are "://...". Kept as a RegExp (not a plain suffix check) so
+// this stays correct if the scheme word itself is ever revisited.
+const SCHEME_WORD_AT_END = new RegExp(`${DEEP_LINK_SCHEME}$`, "i");
 const TRAILING_PUNCTUATION = /[.,;:!?]+$/;
 
 function trimBareBuzzLink(value: string): string {
@@ -179,9 +188,10 @@ export function registerComposerMessageLinkMarkdownIt(
     const fullMatch = BARE_BUZZ_LINK_AT_START.exec(remaining);
     const suffixMatch = BUZZ_LINK_SUFFIX_AT_START.exec(remaining);
     const resumesTextToken =
-      !fullMatch && suffixMatch && /buzz$/i.test(state.pending ?? "");
+      !fullMatch && suffixMatch && SCHEME_WORD_AT_END.test(state.pending ?? "");
     const rawHref =
-      fullMatch?.[0] ?? (resumesTextToken ? `buzz${suffixMatch[0]}` : null);
+      fullMatch?.[0] ??
+      (resumesTextToken ? `${DEEP_LINK_SCHEME}${suffixMatch[0]}` : null);
     if (!rawHref) return false;
     const href = trimBareBuzzLink(rawHref);
     const attrs = resolveComposerMessageLinkAttributes(
@@ -190,11 +200,12 @@ export function registerComposerMessageLinkMarkdownIt(
     );
     if (!attrs) return false;
     if (!silent) {
-      if (resumesTextToken) state.pending = state.pending.slice(0, -4);
+      if (resumesTextToken)
+        state.pending = state.pending.slice(0, -DEEP_LINK_SCHEME.length);
       const token = state.push(tokenType, "span", 0);
       token.meta = attrs;
     }
-    state.pos += href.length - (resumesTextToken ? 4 : 0);
+    state.pos += href.length - (resumesTextToken ? DEEP_LINK_SCHEME.length : 0);
     return true;
   };
 

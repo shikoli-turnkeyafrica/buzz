@@ -129,8 +129,9 @@ pub fn run() {
                 let _ = w.set_focus();
             }
             // Forward any deep link URLs from the duplicate launch.
+            let scheme_prefix = format!("{}://", crate::brand::DEEP_LINK_SCHEME);
             for arg in &argv {
-                if arg.starts_with("buzz://") {
+                if arg.starts_with(&scheme_prefix) {
                     handle_deep_link_url(app, arg);
                 }
             }

@@ -521,8 +521,8 @@ test("rehypeImageGallery: leaves a single trailing image in the text flow", () =
 
 // Regression test: react-markdown's `defaultUrlTransform` strips unknown
 // schemes (returns `""`) before our `a` component override can see them,
-// which would break copy → paste → click for `buzz://message?…` links and
-// `buzz://pr|issue|repo?…` entity links end-to-end. We pass a custom
+// which would break copy → paste → click for `cybercare://message?…` links and
+// `cybercare://pr|issue|repo?…` entity links end-to-end. We pass a custom
 // `urlTransform` (`buzzDeepLinkUrlTransform`) that preserves valid Buzz
 // deep links and delegates everything else to `defaultUrlTransform`.
 //
@@ -561,39 +561,45 @@ function renderMarkdown(content) {
   );
 }
 
-test("messageLinkUrlTransform: preserves buzz://message href", () => {
+test("messageLinkUrlTransform: preserves cybercare://message href", () => {
   const html = renderMarkdown(
-    "Click [here](buzz://message?channel=abc&id=xyz)",
+    "Click [here](cybercare://message?channel=abc&id=xyz)",
   );
   // HTML-encoded `&` in attributes is fine — the browser decodes back to `&`.
-  assert.match(html, /href="buzz:\/\/message\?channel=abc&(?:amp;)?id=xyz"/);
-});
-
-test("messageLinkUrlTransform: preserves buzz://message autolink href", () => {
-  const html = renderMarkdown("<buzz://message?channel=abc&id=xyz>");
-  assert.match(html, /href="buzz:\/\/message\?channel=abc&(?:amp;)?id=xyz"/);
-});
-
-test("messageLinkUrlTransform: preserves buzz://message href with thread", () => {
-  const html = renderMarkdown(
-    "[link](buzz://message?channel=c1&id=m1&thread=t1)",
+  assert.match(
+    html,
+    /href="cybercare:\/\/message\?channel=abc&(?:amp;)?id=xyz"/,
   );
-  assert.match(html, /href="buzz:\/\/message\?[^"]*thread=t1"/);
 });
 
-test("messageLinkUrlTransform: preserves buzz://channel href", () => {
+test("messageLinkUrlTransform: preserves cybercare://message autolink href", () => {
+  const html = renderMarkdown("<cybercare://message?channel=abc&id=xyz>");
+  assert.match(
+    html,
+    /href="cybercare:\/\/message\?channel=abc&(?:amp;)?id=xyz"/,
+  );
+});
+
+test("messageLinkUrlTransform: preserves cybercare://message href with thread", () => {
   const html = renderMarkdown(
-    "Click [here](buzz://channel/580ca78b-9dae-46f3-8854-bd671853ba32)",
+    "[link](cybercare://message?channel=c1&id=m1&thread=t1)",
+  );
+  assert.match(html, /href="cybercare:\/\/message\?[^"]*thread=t1"/);
+});
+
+test("messageLinkUrlTransform: preserves cybercare://channel href", () => {
+  const html = renderMarkdown(
+    "Click [here](cybercare://channel/580ca78b-9dae-46f3-8854-bd671853ba32)",
   );
   assert.match(
     html,
-    /href="buzz:\/\/channel\/580ca78b-9dae-46f3-8854-bd671853ba32"/,
+    /href="cybercare:\/\/channel\/580ca78b-9dae-46f3-8854-bd671853ba32"/,
   );
 });
 
-test("messageLinkUrlTransform: rejects malformed buzz://channel href", () => {
+test("messageLinkUrlTransform: rejects malformed cybercare://channel href", () => {
   const html = renderMarkdown(
-    "Click [here](buzz://channel/580ca78b-9dae-46f3-8854-bd671853ba32?extra=true)",
+    "Click [here](cybercare://channel/580ca78b-9dae-46f3-8854-bd671853ba32?extra=true)",
   );
   assert.match(html, /href=""/);
 });
@@ -610,56 +616,59 @@ test("messageLinkUrlTransform: passes http(s) through unchanged", () => {
   assert.match(html, /href="https:\/\/example\.com\/path"/);
 });
 
-test("messageLinkUrlTransform: preserves legacy buzz://message href", () => {
+test("messageLinkUrlTransform: preserves legacy cybercare://message href", () => {
   const html = renderMarkdown(
-    "Click [here](buzz://message?channel=abc&id=xyz)",
+    "Click [here](cybercare://message?channel=abc&id=xyz)",
   );
-  assert.match(html, /href="buzz:\/\/message\?channel=abc&(?:amp;)?id=xyz"/);
+  assert.match(
+    html,
+    /href="cybercare:\/\/message\?channel=abc&(?:amp;)?id=xyz"/,
+  );
 });
 
-test("messageLinkUrlTransform: leaves non-entity buzz:// schemes to default", () => {
-  // `buzz://connect?relay=…` is handled by a different code path (Tauri
+test("messageLinkUrlTransform: leaves non-entity cybercare:// schemes to default", () => {
+  // `cybercare://connect?relay=…` is handled by a different code path (Tauri
   // single-instance). The markdown renderer should let it pass through
   // defaultUrlTransform (which strips it) since it's not clickable in-app.
   const html = renderMarkdown(
-    "[connect](buzz://connect?relay=wss://relay.example)",
+    "[connect](cybercare://connect?relay=wss://relay.example)",
   );
   assert.match(html, /href=""/);
 });
 
-test("buzzDeepLinkUrlTransform: preserves buzz://pr entity link href", () => {
-  const prLink = `buzz://pr?id=${EVENT_HEX}&owner=${OWNER_HEX}&d=buzz-world`;
+test("buzzDeepLinkUrlTransform: preserves cybercare://pr entity link href", () => {
+  const prLink = `cybercare://pr?id=${EVENT_HEX}&owner=${OWNER_HEX}&d=buzz-world`;
   const html = renderMarkdown(`[My PR](${prLink})`);
   // The href must survive — our transform preserves valid entity links.
-  assert.match(html, /href="buzz:\/\/pr\?/);
+  assert.match(html, /href="cybercare:\/\/pr\?/);
   assert.doesNotMatch(html, /href=""/);
 });
 
-test("buzzDeepLinkUrlTransform: preserves buzz://pr autolink href", () => {
-  const prLink = `buzz://pr?id=${EVENT_HEX}&owner=${OWNER_HEX}&d=buzz-world`;
+test("buzzDeepLinkUrlTransform: preserves cybercare://pr autolink href", () => {
+  const prLink = `cybercare://pr?id=${EVENT_HEX}&owner=${OWNER_HEX}&d=buzz-world`;
   const html = renderMarkdown(`<${prLink}>`);
-  assert.match(html, /href="buzz:\/\/pr\?/);
+  assert.match(html, /href="cybercare:\/\/pr\?/);
   assert.doesNotMatch(html, /href=""/);
 });
 
-test("buzzDeepLinkUrlTransform: preserves buzz://issue entity link href", () => {
-  const issueLink = `buzz://issue?id=${EVENT_HEX}&owner=${OWNER_HEX}&d=buzz-world`;
+test("buzzDeepLinkUrlTransform: preserves cybercare://issue entity link href", () => {
+  const issueLink = `cybercare://issue?id=${EVENT_HEX}&owner=${OWNER_HEX}&d=buzz-world`;
   const html = renderMarkdown(`[Issue title](${issueLink})`);
-  assert.match(html, /href="buzz:\/\/issue\?/);
+  assert.match(html, /href="cybercare:\/\/issue\?/);
   assert.doesNotMatch(html, /href=""/);
 });
 
-test("buzzDeepLinkUrlTransform: preserves buzz://repo entity link href", () => {
-  const repoLink = `buzz://repo?owner=${OWNER_HEX}&d=buzz-world`;
+test("buzzDeepLinkUrlTransform: preserves cybercare://repo entity link href", () => {
+  const repoLink = `cybercare://repo?owner=${OWNER_HEX}&d=buzz-world`;
   const html = renderMarkdown(`[My repo](${repoLink})`);
-  assert.match(html, /href="buzz:\/\/repo\?/);
+  assert.match(html, /href="cybercare:\/\/repo\?/);
   assert.doesNotMatch(html, /href=""/);
 });
 
-test("buzzDeepLinkUrlTransform: strips malformed buzz://pr (unknown param)", () => {
+test("buzzDeepLinkUrlTransform: strips malformed cybercare://pr (unknown param)", () => {
   // Strict parser rejects unknown params — transform falls back to default sanitizer.
   const html = renderMarkdown(
-    `[link](buzz://pr?id=${EVENT_HEX}&owner=${OWNER_HEX}&d=buzz-world&extra=ignored)`,
+    `[link](cybercare://pr?id=${EVENT_HEX}&owner=${OWNER_HEX}&d=buzz-world&extra=ignored)`,
   );
   assert.match(html, /href=""/);
 });
@@ -732,8 +741,8 @@ test("renderEntityLinkAnchor_noRelayOrigin_cloneUrlReturnsNull", () => {
 });
 
 test("renderEntityLinkAnchor_directEntityLink_returnsAnchorRegardlessOfOrigin", () => {
-  // A direct buzz://pr link always resolves in-app — it does not require origin.
-  const prLink = `buzz://pr?id=${EVENT_HEX}&owner=${OWNER_HEX}&d=buzz-world`;
+  // A direct cybercare://pr link always resolves in-app — it does not require origin.
+  const prLink = `cybercare://pr?id=${EVENT_HEX}&owner=${OWNER_HEX}&d=buzz-world`;
   const el = renderEntityLinkAnchor({
     children: React.createElement("span", null, "My PR"),
     href: prLink,
@@ -743,7 +752,7 @@ test("renderEntityLinkAnchor_directEntityLink_returnsAnchorRegardlessOfOrigin", 
   assert.notEqual(
     el,
     null,
-    "direct buzz://pr link must produce an entity anchor regardless of origin",
+    "direct cybercare://pr link must produce an entity anchor regardless of origin",
   );
 });
 
@@ -768,7 +777,7 @@ test("remarkSpoilers: block delimiter spoilers expose a block prop to React", ()
   assert.equal(spoilerProps?.["data-block-spoiler"], "");
 });
 
-// `remark-gfm`'s autolinker only covers http(s)://, so bare `buzz://message`
+// `remark-gfm`'s autolinker only covers http(s)://, so bare `cybercare://message`
 // URLs in plain text never reach any rendering path without this plugin.
 // The plugin emits a custom `message-link` HAST element which markdown.tsx
 // renders as an inline pill. Tests operate on the mdast tree directly —
@@ -789,26 +798,26 @@ function text(value) {
   return { type: "text", value };
 }
 
-test("remarkMessageLinks: bare buzz://message URL is replaced", () => {
-  const tree = runPlugin(paragraph(text("buzz://message?channel=c&id=m")));
+test("remarkMessageLinks: bare cybercare://message URL is replaced", () => {
+  const tree = runPlugin(paragraph(text("cybercare://message?channel=c&id=m")));
   const para = tree.children[0];
   assert.equal(para.children.length, 1);
   assert.equal(para.children[0].type, "message-link");
-  assert.equal(para.children[0].value, "buzz://message?channel=c&id=m");
+  assert.equal(para.children[0].value, "cybercare://message?channel=c&id=m");
   assert.equal(para.children[0].data.hName, "message-link");
 });
 
-test("remarkMessageLinks: legacy bare buzz://message URL is replaced", () => {
-  const tree = runPlugin(paragraph(text("buzz://message?channel=c&id=m")));
+test("remarkMessageLinks: legacy bare cybercare://message URL is replaced", () => {
+  const tree = runPlugin(paragraph(text("cybercare://message?channel=c&id=m")));
   const para = tree.children[0];
   assert.equal(para.children.length, 1);
   assert.equal(para.children[0].type, "message-link");
-  assert.equal(para.children[0].value, "buzz://message?channel=c&id=m");
+  assert.equal(para.children[0].value, "cybercare://message?channel=c&id=m");
 });
 
 test("remarkMessageLinks: mid-sentence URL splits surrounding text", () => {
   const tree = runPlugin(
-    paragraph(text("see buzz://message?channel=c&id=m here")),
+    paragraph(text("see cybercare://message?channel=c&id=m here")),
   );
   const kids = tree.children[0].children;
   assert.equal(kids.length, 3);
@@ -823,28 +832,32 @@ test("remarkMessageLinks: two URLs in one text node both replaced", () => {
   const tree = runPlugin(
     paragraph(
       text(
-        "first buzz://message?channel=a&id=1 then buzz://message?channel=b&id=2 done",
+        "first cybercare://message?channel=a&id=1 then cybercare://message?channel=b&id=2 done",
       ),
     ),
   );
   const kids = tree.children[0].children;
   const links = kids.filter((c) => c.type === "message-link");
   assert.equal(links.length, 2);
-  assert.equal(links[0].value, "buzz://message?channel=a&id=1");
-  assert.equal(links[1].value, "buzz://message?channel=b&id=2");
+  assert.equal(links[0].value, "cybercare://message?channel=a&id=1");
+  assert.equal(links[1].value, "cybercare://message?channel=b&id=2");
 });
 
 test("remarkMessageLinks: trailing sentence punctuation stays outside URL", () => {
   for (const punctuation of [".", ",", ";", ":", "!", "?"]) {
     const tree = runPlugin(
-      paragraph(text(`see buzz://message?channel=c&id=m${punctuation}`)),
+      paragraph(text(`see cybercare://message?channel=c&id=m${punctuation}`)),
     );
     const kids = tree.children[0].children;
 
     assert.equal(kids.length, 3, punctuation);
     assert.equal(kids[0].value, "see ", punctuation);
     assert.equal(kids[1].type, "message-link", punctuation);
-    assert.equal(kids[1].value, "buzz://message?channel=c&id=m", punctuation);
+    assert.equal(
+      kids[1].value,
+      "cybercare://message?channel=c&id=m",
+      punctuation,
+    );
     assert.equal(kids[2].type, "text", punctuation);
     assert.equal(kids[2].value, punctuation, punctuation);
   }
@@ -852,20 +865,20 @@ test("remarkMessageLinks: trailing sentence punctuation stays outside URL", () =
 
 test("remarkMessageLinks: URL inside parens keeps closing paren outside", () => {
   const tree = runPlugin(
-    paragraph(text("see (buzz://message?channel=c&id=m) for details")),
+    paragraph(text("see (cybercare://message?channel=c&id=m) for details")),
   );
   const kids = tree.children[0].children;
 
   assert.equal(kids.length, 3);
   assert.equal(kids[0].value, "see (");
   assert.equal(kids[1].type, "message-link");
-  assert.equal(kids[1].value, "buzz://message?channel=c&id=m");
+  assert.equal(kids[1].value, "cybercare://message?channel=c&id=m");
   assert.equal(kids[2].type, "text");
   assert.equal(kids[2].value, ") for details");
 });
 
 test("remarkMessageLinks: URL without trailing punctuation matches end-to-end", () => {
-  const value = "buzz://message?channel=c&id=m";
+  const value = "cybercare://message?channel=c&id=m";
   const tree = runPlugin(paragraph(text(value)));
   const kids = tree.children[0].children;
 
@@ -874,8 +887,8 @@ test("remarkMessageLinks: URL without trailing punctuation matches end-to-end", 
   assert.equal(kids[0].value, value);
 });
 
-test("remarkMessageLinks: non-message buzz:// URLs are not matched", () => {
-  const original = "buzz://connect?relay=wss://x.example";
+test("remarkMessageLinks: non-message cybercare:// URLs are not matched", () => {
+  const original = "cybercare://connect?relay=wss://x.example";
   const tree = runPlugin(paragraph(text(original)));
   const kids = tree.children[0].children;
   assert.equal(kids.length, 1);
@@ -894,7 +907,7 @@ test("remarkMessageLinks: text inside inlineCode is left alone", () => {
       {
         type: "paragraph",
         children: [
-          { type: "inlineCode", value: "buzz://message?channel=c&id=m" },
+          { type: "inlineCode", value: "cybercare://message?channel=c&id=m" },
         ],
       },
     ],
@@ -903,7 +916,7 @@ test("remarkMessageLinks: text inside inlineCode is left alone", () => {
   const kids = tree.children[0].children;
   assert.equal(kids.length, 1);
   assert.equal(kids[0].type, "inlineCode");
-  assert.equal(kids[0].value, "buzz://message?channel=c&id=m");
+  assert.equal(kids[0].value, "cybercare://message?channel=c&id=m");
 });
 
 // ── selectProseOrNudge render-level guard ─────────────────────────────────────
@@ -1062,16 +1075,16 @@ test("nudgeGuard_noSentinel_proseRenderedCardAbsent", () => {
 
 test("bare Buzz permalinks render cohesive icon-prefixed chips", () => {
   const channelId = "580ca78b-9dae-46f3-8854-bd671853ba32";
-  const messageLink = `buzz://message?channel=${channelId}&id=${EVENT_HEX}`;
-  const compatibilityMessageLink = `buzz://channel/${channelId}/${EVENT_HEX}`;
-  const channelLink = `buzz://channel/${channelId}`;
+  const messageLink = `cybercare://message?channel=${channelId}&id=${EVENT_HEX}`;
+  const compatibilityMessageLink = `cybercare://channel/${channelId}/${EVENT_HEX}`;
+  const channelLink = `cybercare://channel/${channelId}`;
   const links = [
     messageLink,
     compatibilityMessageLink,
     channelLink,
-    `buzz://pr?id=${EVENT_HEX}&owner=${OWNER_HEX}&d=buzz-world`,
-    `buzz://issue?id=${EVENT_HEX}&owner=${OWNER_HEX}&d=buzz-world`,
-    `buzz://repo?owner=${OWNER_HEX}&d=buzz-world`,
+    `cybercare://pr?id=${EVENT_HEX}&owner=${OWNER_HEX}&d=buzz-world`,
+    `cybercare://issue?id=${EVENT_HEX}&owner=${OWNER_HEX}&d=buzz-world`,
+    `cybercare://repo?owner=${OWNER_HEX}&d=buzz-world`,
   ];
   const markdown = renderCachedMarkdown({
     components: createMarkdownComponents(true, false),
@@ -1111,10 +1124,10 @@ test("bare Buzz permalinks render cohesive icon-prefixed chips", () => {
 test("authored Buzz permalink labels remain ordinary links", () => {
   const channelId = "580ca78b-9dae-46f3-8854-bd671853ba32";
   const links = [
-    `[the message](buzz://message?channel=${channelId}&id=${EVENT_HEX})`,
-    `[the compatibility message](buzz://channel/${channelId}/${EVENT_HEX})`,
-    `[**design discussion**](buzz://channel/${channelId})`,
-    `[the issue](buzz://issue?id=${EVENT_HEX}&owner=${OWNER_HEX}&d=buzz-world)`,
+    `[the message](cybercare://message?channel=${channelId}&id=${EVENT_HEX})`,
+    `[the compatibility message](cybercare://channel/${channelId}/${EVENT_HEX})`,
+    `[**design discussion**](cybercare://channel/${channelId})`,
+    `[the issue](cybercare://issue?id=${EVENT_HEX}&owner=${OWNER_HEX}&d=buzz-world)`,
   ];
   const markdown = renderCachedMarkdown({
     components: createMarkdownComponents(true, false),
@@ -1153,8 +1166,8 @@ test("bare Buzz permalinks shorten unavailable channel identifiers", () => {
   const markdown = renderCachedMarkdown({
     components: createMarkdownComponents(true, false),
     content: [
-      `buzz://message?channel=${channelId}&id=${EVENT_HEX}`,
-      `buzz://channel/${channelId}`,
+      `cybercare://message?channel=${channelId}&id=${EVENT_HEX}`,
+      `cybercare://channel/${channelId}`,
     ].join(" "),
     variant: "unknown-channel-buzz-link-integration-test",
   });
@@ -1271,7 +1284,7 @@ test("agent mentions retain the bot treatment instead of the human icon", () => 
 });
 
 test("renderEntityLinkAnchor renders Buzz entity links as chips", () => {
-  const prLink = `buzz://pr?id=${EVENT_HEX}&owner=${OWNER_HEX}&d=buzz-world`;
+  const prLink = `cybercare://pr?id=${EVENT_HEX}&owner=${OWNER_HEX}&d=buzz-world`;
   const el = renderEntityLinkAnchor({
     children: "PR · abc123",
     href: prLink,
@@ -1286,7 +1299,7 @@ test("renderEntityLinkAnchor renders Buzz entity links as chips", () => {
 });
 
 test("renderEntityLinkAnchor keeps chip styling when interaction is disabled", () => {
-  const repoLink = `buzz://repo?owner=${OWNER_HEX}&d=buzz-world`;
+  const repoLink = `cybercare://repo?owner=${OWNER_HEX}&d=buzz-world`;
   const el = renderEntityLinkAnchor({
     children: "buzz-world",
     href: repoLink,

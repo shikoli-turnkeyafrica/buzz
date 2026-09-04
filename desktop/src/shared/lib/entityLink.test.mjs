@@ -102,7 +102,7 @@ test("commit links select an exact repository commit", () => {
   });
   assert.equal(
     link,
-    `buzz://repo?owner=${OWNER}&d=buzz-world&tab=commits&commit=${EVENT_ID}`,
+    `cybercare://repo?owner=${OWNER}&d=buzz-world&tab=commits&commit=${EVENT_ID}`,
   );
   assert.deepEqual(parseEntityLink(link), {
     ok: true,
@@ -116,7 +116,7 @@ test("commit links select an exact repository commit", () => {
   });
   assert.deepEqual(
     parseEntityLink(
-      `buzz://repo?owner=${OWNER}&d=buzz-world&tab=files&commit=${EVENT_ID}`,
+      `cybercare://repo?owner=${OWNER}&d=buzz-world&tab=files&commit=${EVENT_ID}`,
     ),
     { ok: false, reason: "invalid-commit" },
   );
@@ -124,7 +124,7 @@ test("commit links select an exact repository commit", () => {
 
 test("parseEntityLink lowercase-normalizes hex identifiers", () => {
   const parsed = parseEntityLink(
-    `buzz://issue?id=${EVENT_ID.toUpperCase()}&owner=${OWNER.toUpperCase()}&d=buzz-world`,
+    `cybercare://issue?id=${EVENT_ID.toUpperCase()}&owner=${OWNER.toUpperCase()}&d=buzz-world`,
   );
   assert.deepEqual(parsed, {
     ok: true,
@@ -136,12 +136,12 @@ test("parseEntityLink rejects malformed links", () => {
   const cases = [
     ["not a url at all", "invalid-url"],
     [`https://pr?id=${EVENT_ID}&owner=${OWNER}&d=repo`, "wrong-scheme"],
-    [`buzz://message?channel=x&id=${EVENT_ID}`, "wrong-host"],
-    [`buzz://pr?id=${EVENT_ID}&owner=nope&d=repo`, "invalid-owner"],
-    [`buzz://pr?id=${EVENT_ID}&owner=${OWNER}&d=.hidden`, "invalid-dtag"],
-    [`buzz://pr?id=${EVENT_ID}&owner=${OWNER}`, "invalid-dtag"],
-    [`buzz://pr?owner=${OWNER}&d=repo`, "invalid-id"],
-    [`buzz://issue?id=short&owner=${OWNER}&d=repo`, "invalid-id"],
+    [`cybercare://message?channel=x&id=${EVENT_ID}`, "wrong-host"],
+    [`cybercare://pr?id=${EVENT_ID}&owner=nope&d=repo`, "invalid-owner"],
+    [`cybercare://pr?id=${EVENT_ID}&owner=${OWNER}&d=.hidden`, "invalid-dtag"],
+    [`cybercare://pr?id=${EVENT_ID}&owner=${OWNER}`, "invalid-dtag"],
+    [`cybercare://pr?owner=${OWNER}&d=repo`, "invalid-id"],
+    [`cybercare://issue?id=short&owner=${OWNER}&d=repo`, "invalid-id"],
   ];
   for (const [href, reason] of cases) {
     assert.deepEqual(parseEntityLink(href), { ok: false, reason }, href);
@@ -149,11 +149,11 @@ test("parseEntityLink rejects malformed links", () => {
 });
 
 test("isEntityLink matches entity hosts and excludes message links", () => {
-  assert.equal(isEntityLink(`buzz://pr?id=${EVENT_ID}`), true);
-  assert.equal(isEntityLink(`buzz://issue?id=${EVENT_ID}`), true);
-  assert.equal(isEntityLink(`buzz://repo?owner=${OWNER}`), true);
-  assert.equal(isEntityLink(`buzz://project?owner=${OWNER}`), true);
-  assert.equal(isEntityLink("buzz://message?channel=x&id=y"), false);
+  assert.equal(isEntityLink(`cybercare://pr?id=${EVENT_ID}`), true);
+  assert.equal(isEntityLink(`cybercare://issue?id=${EVENT_ID}`), true);
+  assert.equal(isEntityLink(`cybercare://repo?owner=${OWNER}`), true);
+  assert.equal(isEntityLink(`cybercare://project?owner=${OWNER}`), true);
+  assert.equal(isEntityLink("cybercare://message?channel=x&id=y"), false);
   assert.equal(isEntityLink("https://github.com/block/buzz"), false);
   assert.equal(isEntityLink(null), false);
 });
@@ -186,7 +186,7 @@ test("coordinate links carry an optional workspace tab", () => {
     dtag: "buzz-world",
     tab: "prs",
   });
-  assert.equal(link, `buzz://project?owner=${OWNER}&d=buzz-world&tab=prs`);
+  assert.equal(link, `cybercare://project?owner=${OWNER}&d=buzz-world&tab=prs`);
   assert.deepEqual(parseEntityLink(link), {
     ok: true,
     value: { type: "project", owner: OWNER, dtag: "buzz-world", tab: "prs" },
@@ -208,16 +208,18 @@ test("coordinate links carry an optional workspace tab", () => {
     buildRepoLink({ owner: OWNER, dtag: "buzz-world", tab: "overview" }),
   );
   assert.deepEqual(
-    parseEntityLink(`buzz://repo?owner=${OWNER}&d=buzz-world&tab=overview`),
+    parseEntityLink(
+      `cybercare://repo?owner=${OWNER}&d=buzz-world&tab=overview`,
+    ),
     { ok: false, reason: "invalid-tab" },
   );
   assert.deepEqual(
-    parseEntityLink(`buzz://repo?owner=${OWNER}&d=buzz-world&tab=`),
+    parseEntityLink(`cybercare://repo?owner=${OWNER}&d=buzz-world&tab=`),
     { ok: false, reason: "invalid-tab" },
   );
   assert.deepEqual(
     parseEntityLink(
-      `buzz://pr?id=${EVENT_ID}&owner=${OWNER}&d=buzz-world&tab=prs`,
+      `cybercare://pr?id=${EVENT_ID}&owner=${OWNER}&d=buzz-world&tab=prs`,
     ),
     { ok: false, reason: "unknown-param" },
   );
@@ -237,25 +239,27 @@ test("parseEntityLink rejects noncanonical extras", () => {
   // Unexpected path segments — reserved for future versioning.
   assert.deepEqual(
     parseEntityLink(
-      `buzz://pr/ignored?id=${EVENT_ID}&owner=${OWNER}&d=buzz-world`,
+      `cybercare://pr/ignored?id=${EVENT_ID}&owner=${OWNER}&d=buzz-world`,
     ),
     { ok: false, reason: "unexpected-path" },
   );
   // Fragment — not part of the canonical format.
   assert.deepEqual(
-    parseEntityLink(`buzz://repo?owner=${OWNER}&d=buzz-world#section`),
+    parseEntityLink(`cybercare://repo?owner=${OWNER}&d=buzz-world#section`),
     { ok: false, reason: "unexpected-fragment" },
   );
   // Unknown query parameter — reject to preserve forward-compat posture.
   assert.deepEqual(
     parseEntityLink(
-      `buzz://repo?owner=${OWNER}&d=buzz-world&relay=wss%3A%2F%2Frelay.example`,
+      `cybercare://repo?owner=${OWNER}&d=buzz-world&relay=wss%3A%2F%2Frelay.example`,
     ),
     { ok: false, reason: "unknown-param" },
   );
   // Duplicate required parameter — reject.
   assert.deepEqual(
-    parseEntityLink(`buzz://repo?owner=${OWNER}&d=buzz-world&owner=${OWNER}`),
+    parseEntityLink(
+      `cybercare://repo?owner=${OWNER}&d=buzz-world&owner=${OWNER}`,
+    ),
     { ok: false, reason: "duplicate-param" },
   );
 });

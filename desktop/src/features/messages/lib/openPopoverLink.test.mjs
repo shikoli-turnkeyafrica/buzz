@@ -20,9 +20,12 @@ function makeSpies() {
   };
 }
 
-test("buzz://message deep-link routes in-app, not the OS opener", () => {
+test("cybercare://message deep-link routes in-app, not the OS opener", () => {
   const { handlers, external, inApp } = makeSpies();
-  openPopoverLink(`buzz://message?channel=${CHANNEL}&id=${MESSAGE}`, handlers);
+  openPopoverLink(
+    `cybercare://message?channel=${CHANNEL}&id=${MESSAGE}`,
+    handlers,
+  );
   assert.equal(external.length, 0);
   assert.deepEqual(inApp, [
     { channelId: CHANNEL, messageId: MESSAGE, threadRootId: null },
@@ -36,18 +39,18 @@ test("http(s) URLs go to the OS opener", () => {
   assert.equal(inApp.length, 0);
 });
 
-test("non-message buzz:// URLs fall through to the OS opener", () => {
+test("non-message cybercare:// URLs fall through to the OS opener", () => {
   const { handlers, external, inApp } = makeSpies();
-  openPopoverLink("buzz://channel?foo=bar", handlers);
-  assert.deepEqual(external, ["buzz://channel?foo=bar"]);
+  openPopoverLink("cybercare://channel?foo=bar", handlers);
+  assert.deepEqual(external, ["cybercare://channel?foo=bar"]);
   assert.equal(inApp.length, 0);
 });
 
-test("malformed buzz://message URL falls back to the OS opener", () => {
+test("malformed cybercare://message URL falls back to the OS opener", () => {
   const { handlers, external, inApp } = makeSpies();
-  // Matches isMessageLink (starts with buzz://message?) but is missing the
+  // Matches isMessageLink (starts with cybercare://message?) but is missing the
   // required channel/id params, so parse fails and we don't navigate in-app.
-  openPopoverLink("buzz://message?nope=1", handlers);
-  assert.deepEqual(external, ["buzz://message?nope=1"]);
+  openPopoverLink("cybercare://message?nope=1", handlers);
+  assert.deepEqual(external, ["cybercare://message?nope=1"]);
   assert.equal(inApp.length, 0);
 });

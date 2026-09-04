@@ -51,9 +51,9 @@ export type SupportedLinkPreview = {
 // their distinctive path shape (`/git/<64-hex-pubkey>/<repo>`) rather than by
 // hostname, and require an explicit scheme. Generic previews remain HTTPS-only.
 const SUPPORTED_URL_RE =
-  /(^|[\s([{<>"'])(https:\/\/[^\s<>"'\]]+|https?:\/\/[^\s<>"'\]]+\/git\/[a-f0-9]{64}\/[^\s<>"'\]]+|buzz:\/\/(?:pr|issue|repo|project)\?[^\s<>"'\]]+|(?:(?:www\.)?github\.com|(?:www\.)?linear\.app|drive\.google\.com|docs\.google\.com)\/[^\s<>"'\]]+)/gi;
+  /(^|[\s([{<>"'])(https:\/\/[^\s<>"'\]]+|https?:\/\/[^\s<>"'\]]+\/git\/[a-f0-9]{64}\/[^\s<>"'\]]+|cybercare:\/\/(?:pr|issue|repo|project)\?[^\s<>"'\]]+|(?:(?:www\.)?github\.com|(?:www\.)?linear\.app|drive\.google\.com|docs\.google\.com)\/[^\s<>"'\]]+)/gi;
 const MARKDOWN_SUPPORTED_LINK_RE =
-  /!?\[([^\]\n]+)\]\((https:\/\/[^)\s<>"']+|https?:\/\/[^)\s<>"']+\/git\/[a-f0-9]{64}\/[^)\s<>"']+|buzz:\/\/(?:pr|issue|repo|project)\?[^)\s<>"']+|(?:(?:www\.)?github\.com|(?:www\.)?linear\.app|drive\.google\.com|docs\.google\.com)\/[^)\s<>"']+)\)/gi;
+  /!?\[([^\]\n]+)\]\((https:\/\/[^)\s<>"']+|https?:\/\/[^)\s<>"']+\/git\/[a-f0-9]{64}\/[^)\s<>"']+|cybercare:\/\/(?:pr|issue|repo|project)\?[^)\s<>"']+|(?:(?:www\.)?github\.com|(?:www\.)?linear\.app|drive\.google\.com|docs\.google\.com)\/[^)\s<>"']+)\)/gi;
 const MAX_PREVIEWS = 8;
 
 type HiddenRange = {
@@ -305,7 +305,7 @@ export function buzzEntityFallbackTitle(link: ParsedEntityLink): string {
 }
 
 /**
- * Map a `buzz://pr|issue|repo|project` deep link onto a preview card. The
+ * Map a `cybercare://pr|issue|repo|project` deep link onto a preview card. The
  * href is rebuilt through the canonical builders so equivalent links (case
  * or query order variants) dedupe to a single card.
  */
@@ -357,8 +357,8 @@ const BUZZ_GIT_PATH_RE =
 /**
  * Recognize a Buzz relay git URL (`{relay-origin}/git/<owner-pubkey>/<repo>`,
  * the clone URL shape agents paste when announcing work). The preview href
- * is normalized to the canonical `buzz://repo` deep link: the raw git
- * transport endpoint is not a browsable page, and the buzz:// href gives the
+ * is normalized to the canonical `cybercare://repo` deep link: the raw git
+ * transport endpoint is not a browsable page, and the cybercare:// href gives the
  * card the same in-app click navigation as explicit entity links (and
  * dedupes the two spellings of the same repository).
  *
