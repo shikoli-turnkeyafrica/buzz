@@ -96,10 +96,22 @@ void main() {
       expect(fakeAuth.lastCommunity, isNull);
     });
 
-    test('accepts buzz scheme prefix', () async {
+    test('legacy pairing payload with buzz:// prefix', () async {
       container = createContainer();
 
       final code = 'buzz://${_encodePairingCode()}';
+      await container.read(pairingProvider.notifier).pair(code);
+
+      final state = container.read(pairingProvider);
+      expect(state.status, PairingStatus.error);
+      expect(state.errorMessage, contains('missing nsec'));
+      expect(fakeAuth.lastCommunity, isNull);
+    });
+
+    test('legacy pairing payload with cybercare:// prefix', () async {
+      container = createContainer();
+
+      final code = 'cybercare://${_encodePairingCode()}';
       await container.read(pairingProvider.notifier).pair(code);
 
       final state = container.read(pairingProvider);

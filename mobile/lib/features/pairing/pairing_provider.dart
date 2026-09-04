@@ -7,6 +7,8 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:nostr/nostr.dart' as nostr;
 
+import 'package:buzz/brand.dart' as brand;
+
 import '../../shared/auth/auth.dart';
 import '../../shared/crypto/ecdh.dart';
 import '../../shared/crypto/nip44.dart';
@@ -131,7 +133,7 @@ class PairingNotifier extends Notifier<PairingState> {
     if (trimmed.startsWith('nostrpair://')) {
       return _pairNipAb(trimmed);
     }
-    // Legacy buzz:// flow.
+    // Legacy prefixed-payload flow (cybercare:// or the pre-rebrand buzz://).
     return _pairLegacy(trimmed);
   }
 
@@ -828,7 +830,7 @@ class PairingNotifier extends Notifier<PairingState> {
     );
   }
 
-  // ── Legacy buzz:// flow ───────────────────────────────────────────────
+  // ── Legacy prefixed-payload flow (cybercare:// or the pre-rebrand buzz://) ──
 
   Future<void> _pairLegacy(String rawInput) async {
     state = const PairingState(status: PairingStatus.connecting);
@@ -894,8 +896,11 @@ class PairingNotifier extends Notifier<PairingState> {
   Community _parseLegacyInput(String raw) {
     var payload = raw.trim();
 
-    if (payload.startsWith('buzz://')) {
-      payload = payload.substring('buzz://'.length);
+    for (final prefix in ['${brand.deepLinkScheme}://', 'buzz://']) {
+      if (payload.startsWith(prefix)) {
+        payload = payload.substring(prefix.length);
+        break;
+      }
     }
 
     final normalized = base64Url.normalize(payload);
