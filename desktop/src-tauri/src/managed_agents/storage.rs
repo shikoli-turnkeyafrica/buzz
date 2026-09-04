@@ -444,9 +444,9 @@ fn persist_agent_keys_with(store: &impl KeyStore, records: &mut [ManagedAgentRec
 }
 
 /// One-time migration of agent keys from the production keyring service
-/// (`"buzz-desktop"`) to the dev service (`"buzz-desktop-dev"`). Only runs
-/// in debug builds — release builds never touch `"buzz-desktop"` from this
-/// path.
+/// (`"cybercare-commons"`) to the dev service (`"buzz-desktop-dev"`). Only
+/// runs in debug builds — release builds never touch `"cybercare-commons"`
+/// from this path.
 ///
 /// Idempotent: skips any key that already exists in the dev service so
 /// repeated boots after migration are no-ops. Leaves the production keyring
@@ -481,7 +481,7 @@ pub fn migrate_agent_keys_to_dev_service(app: &tauri::AppHandle) {
     // A fresh non-singleton store for the prod service — its own empty
     // cache so reads go to the OS keyring without polluting the dev
     // singleton's cache.
-    let prod_store = crate::secret_store::SecretStore::keyring("buzz-desktop");
+    let prod_store = crate::secret_store::SecretStore::keyring(crate::brand::KEYRING_SERVICE);
     let dev_store = crate::secret_store::SecretStore::shared(keyring_service());
     copy_agent_keys_between_stores(&pubkeys, &prod_store, dev_store);
 }

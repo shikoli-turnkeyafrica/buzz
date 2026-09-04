@@ -2,11 +2,22 @@ use crate::brand;
 
 /// Service name for the desktop OS keyring. Debug builds default to a distinct
 /// service, while standalone worktree launches may request a scoped dev service.
+///
+/// Deliberately NOT derived from `brand::KEYRING_SERVICE`: the literal
+/// `buzz-desktop-dev` name is hardcoded across six dev-tooling surfaces
+/// (`managed_agents/storage.rs`, `scripts/instance-env.sh`,
+/// `scripts/reset-desktop-standalone-state.sh`,
+/// `scripts/test-reset-desktop-standalone-state.sh`,
+/// `scripts/reset-desktop-dev-state.sh`, `scripts/buzz-adopt-prod-agents.sh`)
+/// plus the Justfile's assigned env var value. Rebranding it here without
+/// touching those six surfaces would silently disable debug-only agent-key
+/// migration and break per-worktree dev keyring scoping. Only the release
+/// service is rebranded; the dev name stays `buzz-desktop-dev` until those
+/// surfaces are migrated together.
 fn dev_keyring_service(configured: Option<String>) -> String {
-    let dev_prefix = format!("{}-dev.", brand::KEYRING_SERVICE);
     configured
-        .filter(|service| service.starts_with(&dev_prefix))
-        .unwrap_or_else(|| format!("{}-dev", brand::KEYRING_SERVICE))
+        .filter(|service| service.starts_with("buzz-desktop-dev."))
+        .unwrap_or_else(|| "buzz-desktop-dev".to_string())
 }
 
 pub(crate) fn keyring_service() -> &'static str {
@@ -25,8 +36,12 @@ pub(crate) fn keyring_service() -> &'static str {
 }
 
 pub(super) fn migration_marker_name(service: &str, default_name: &str) -> String {
-    let dev_service = format!("{}-dev", brand::KEYRING_SERVICE);
-    if service == brand::KEYRING_SERVICE || service == dev_service {
+    // `default_name` covers both the release service (the rebranded
+    // `brand::KEYRING_SERVICE`, so an install migrated from Buzz still
+    // counts its existing marker under the same filename) and the
+    // deliberately-unbranded dev service (`buzz-desktop-dev`, see
+    // `dev_keyring_service` above).
+    if service == brand::KEYRING_SERVICE || service == "buzz-desktop-dev" {
         default_name.to_string()
     } else {
         format!("identity.{service}.migrated")
@@ -40,16 +55,16 @@ mod tests {
     #[test]
     fn standalone_scope_must_remain_under_dev_service() {
         assert_eq!(
-            dev_keyring_service(Some("cybercare-commons-dev.example".to_string())),
-            "cybercare-commons-dev.example"
+            dev_keyring_service(Some("buzz-desktop-dev.example".to_string())),
+            "buzz-desktop-dev.example"
         );
         // A configured value outside the dev namespace is rejected: a dev
         // build must never write to the release service.
         assert_eq!(
             dev_keyring_service(Some("cybercare-commons".to_string())),
-            "cybercare-commons-dev"
+            "buzz-desktop-dev"
         );
-        assert_eq!(dev_keyring_service(None), "cybercare-commons-dev");
+        assert_eq!(dev_keyring_service(None), "buzz-desktop-dev");
     }
 
     #[test]
@@ -59,12 +74,12 @@ mod tests {
             "identity.migrated"
         );
         assert_eq!(
-            migration_marker_name("cybercare-commons-dev", "identity.migrated"),
+            migration_marker_name("buzz-desktop-dev", "identity.migrated"),
             "identity.migrated"
         );
         assert_eq!(
-            migration_marker_name("cybercare-commons-dev.branch", "identity.migrated"),
-            "identity.cybercare-commons-dev.branch.migrated"
+            migration_marker_name("buzz-desktop-dev.branch", "identity.migrated"),
+            "identity.buzz-desktop-dev.branch.migrated"
         );
     }
 }

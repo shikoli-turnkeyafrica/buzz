@@ -157,7 +157,7 @@ fn run_boot_migrations_inner(app: &tauri::AppHandle, reset_completed: bool) {
     migrate_legacy_app_data_dir(app);
     sync_shared_agent_data(app);
     // Dev-build-only: copy any agent keys that exist in the production
-    // keyring ("buzz-desktop") into the dev service ("buzz-desktop-dev")
+    // keyring ("cybercare-commons") into the dev service ("buzz-desktop-dev")
     // so existing agents don't lose their keys after the service-name split.
     // Must run after sync_shared_agent_data (JSON symlinked) and before
     // any load_managed_agents call (which runs hydrate_keys against the
