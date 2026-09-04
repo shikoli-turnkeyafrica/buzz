@@ -38,7 +38,7 @@ class _RemindersList extends ConsumerWidget {
     }
 
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    return BeeRefreshIndicator(
+    return MarkRefreshIndicator(
       onRefresh: onRefresh,
       child: ListView.builder(
         controller: scrollController,

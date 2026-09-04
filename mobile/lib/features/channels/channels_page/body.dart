@@ -40,7 +40,7 @@ class _ChannelsBody extends StatelessWidget {
           )
         : loadedChannels == null
         ? const SizedBox.shrink()
-        : BeeRefreshIndicator(
+        : MarkRefreshIndicator(
             edgeOffset: barHeight,
             onRefresh: onRefresh,
             child: CustomScrollView(
