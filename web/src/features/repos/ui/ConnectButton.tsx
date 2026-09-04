@@ -1,10 +1,11 @@
 import { ExternalLink } from "lucide-react";
 
+import { DEEP_LINK_SCHEME } from "@/shared/lib/deep-link";
 import { relayWsUrl } from "@/shared/lib/relay-url";
 import { Button } from "@/shared/ui/button";
 
 export function ConnectButton({ className }: { className?: string }) {
-  const deepLink = `buzz://connect?relay=${encodeURIComponent(relayWsUrl())}`;
+  const deepLink = `${DEEP_LINK_SCHEME}://connect?relay=${encodeURIComponent(relayWsUrl())}`;
 
   return (
     <Button
