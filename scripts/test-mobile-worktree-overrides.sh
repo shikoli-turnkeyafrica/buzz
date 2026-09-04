@@ -218,9 +218,9 @@ case "$1 $2" in
 esac
 if [[ "$1" == "devices" ]]; then exit 0; fi
 if [[ "$3 $4 $5" == "shell pm list" ]]; then
-  printf 'package:xyz.block.buzz.mobile\n'
-  printf 'package:xyz.block.buzz.mobile.feature_work_1\n'
-  printf 'package:xyz.block.buzz.mobile.w_2fast\n'
+  printf 'package:africa.cybota.cybercare.commons\n'
+  printf 'package:africa.cybota.cybercare.commons.feature_work_1\n'
+  printf 'package:africa.cybota.cybercare.commons.w_2fast\n'
   printf 'package:com.android.settings\n'
   exit 0
 fi
@@ -231,14 +231,14 @@ chmod +x "$stub_bin/adb"
 # No xcrun stub: the iOS pass is skipped when xcrun is absent, which also
 # keeps this test honest on Linux CI.
 clean_out="$(PATH="$stub_bin:/usr/bin:/bin" bash "$clean_script" --dry-run)"
-printf '%s\n' "$clean_out" | grep -q 'xyz\.block\.buzz\.mobile\.feature_work_1' \
+printf '%s\n' "$clean_out" | grep -q 'africa\.cybota\.cybercare\.commons\.feature_work_1' \
   && pass "cleanup targets worktree-suffixed Android installs" \
   || fail "cleanup must list suffixed installs, got: $clean_out"
-printf '%s\n' "$clean_out" | grep -q 'xyz\.block\.buzz\.mobile\.w_2fast' \
+printf '%s\n' "$clean_out" | grep -q 'africa\.cybota\.cybercare\.commons\.w_2fast' \
   && pass "cleanup targets letter-prefixed suffixed installs" \
   || fail "cleanup must list w_-prefixed installs, got: $clean_out"
 printf '%s\n' "$clean_out" | grep -q 'mobile\.feature_work_1' || true
-if printf '%s\n' "$clean_out" | grep -Eq '(would uninstall|uninstalling).*xyz\.block\.buzz\.mobile$'; then
+if printf '%s\n' "$clean_out" | grep -Eq '(would uninstall|uninstalling).*africa\.cybota\.cybercare\.commons$'; then
   fail "cleanup must never target the production Android app id"
 else
   pass "cleanup preserves the production Android app id"
