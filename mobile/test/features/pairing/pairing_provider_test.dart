@@ -14,8 +14,9 @@ import 'package:buzz/shared/crypto/nip44.dart';
 import 'package:buzz/shared/relay/relay.dart';
 import 'package:buzz/shared/security/sensitive_action_authorizer.dart';
 
-/// Tests for [PairingNotifier]'s legacy `buzz://` payload parsing and
-/// SSRF-prevention validation.
+/// Tests for [PairingNotifier]'s legacy prefixed-payload parsing (the
+/// payload may be prefixed with `cybercare://` or, for pre-rebrand
+/// pairings, `buzz://`) and SSRF-prevention validation.
 ///
 /// The pairing flow used to validate by calling `GET /api/users/me/profile`
 /// over HTTP. That has been replaced with a NIP-42 WebSocket handshake via
@@ -25,8 +26,8 @@ import 'package:buzz/shared/security/sensitive_action_authorizer.dart';
 ///
 /// What we still cover here:
 ///   - Initial state.
-///   - Parsing every documented payload format (raw base64, `buzz://`
-///     prefix, whitespace).
+///   - Parsing every documented payload format (raw base64, `cybercare://`
+///     or, for pre-rebrand pairings, `buzz://` prefix, whitespace).
 ///   - Failure modes that return BEFORE any network call: invalid base64,
 ///     wrong shape (non-object, missing fields, missing nsec), and SSRF
 ///     guards (private IPs, non-http schemes).
