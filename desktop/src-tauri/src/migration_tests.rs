@@ -973,6 +973,77 @@ fn migrate_legacy_nest_overwrites_generated_default_agents_md() {
 }
 
 #[test]
+fn legacy_app_data_dir_maps_cybercare_to_buzz() {
+    let parent = Path::new("/home/u/.local/share");
+    let current = parent.join("africa.cybota.cybercare.commons");
+    assert_eq!(
+        super::legacy_app_data_dir(&current),
+        Some(parent.join("xyz.block.buzz.app"))
+    );
+}
+
+#[test]
+fn legacy_app_data_dir_ignores_unrelated_directories() {
+    let current = Path::new("/home/u/.local/share/com.example.other");
+    assert_eq!(super::legacy_app_data_dir(current), None);
+}
+
+#[test]
+fn buzz_data_is_copied_when_the_new_dir_is_empty() {
+    let dir = tempfile::tempdir().unwrap();
+    let buzz = dir.path().join("xyz.block.buzz.app");
+    let commons = dir.path().join("africa.cybota.cybercare.commons");
+    std::fs::create_dir_all(buzz.join("agents")).unwrap();
+    std::fs::write(buzz.join("identity.key"), "device-key").unwrap();
+    std::fs::write(buzz.join("agents/managed-agents.json"), "{}").unwrap();
+
+    super::migrate_buzz_app_data_at(&buzz, &commons);
+
+    assert_eq!(
+        std::fs::read_to_string(commons.join("identity.key")).unwrap(),
+        "device-key"
+    );
+    assert_eq!(
+        std::fs::read_to_string(commons.join("agents/managed-agents.json")).unwrap(),
+        "{}"
+    );
+    // Copy, never move: the Buzz install must stay runnable as a fallback.
+    assert!(buzz.join("identity.key").exists());
+    assert!(commons.join(super::BUZZ_MIGRATION_MARKER).exists());
+}
+
+#[test]
+fn second_run_does_not_overwrite_commons_data() {
+    let dir = tempfile::tempdir().unwrap();
+    let buzz = dir.path().join("xyz.block.buzz.app");
+    let commons = dir.path().join("africa.cybota.cybercare.commons");
+    std::fs::create_dir_all(&buzz).unwrap();
+    std::fs::write(buzz.join("identity.key"), "old").unwrap();
+
+    super::migrate_buzz_app_data_at(&buzz, &commons);
+    // The user later changes something in Commons; a subsequent Buzz launch
+    // must not stomp it on the next Commons boot.
+    std::fs::write(commons.join("identity.key"), "new").unwrap();
+    super::migrate_buzz_app_data_at(&buzz, &commons);
+
+    assert_eq!(
+        std::fs::read_to_string(commons.join("identity.key")).unwrap(),
+        "new"
+    );
+}
+
+#[test]
+fn absent_buzz_install_is_a_no_op() {
+    let dir = tempfile::tempdir().unwrap();
+    let buzz = dir.path().join("xyz.block.buzz.app");
+    let commons = dir.path().join("africa.cybota.cybercare.commons");
+
+    super::migrate_buzz_app_data_at(&buzz, &commons);
+
+    assert!(!commons.join(super::BUZZ_MIGRATION_MARKER).exists());
+}
+
+#[test]
 fn migrate_legacy_nest_preserves_user_edited_agents_md() {
     let dir = tempfile::tempdir().unwrap();
     let legacy = dir.path().join(".sprout");

@@ -25,6 +25,11 @@ const CANONICAL_DEV_IDENTIFIER: &str = "xyz.block.buzz.app.dev";
 const LEGACY_CANONICAL_DEV_IDENTIFIER: &str = "xyz.block.sprout.app.dev";
 const LEGACY_RELEASE_IDENTIFIER: &str = "xyz.block.sprout.app";
 
+/// Written inside the Commons app-data directory once Buzz's data has been
+/// copied in. Presence means the one-time import already happened, so a later
+/// Buzz launch's changes are never re-imported over Commons state.
+pub(crate) const BUZZ_MIGRATION_MARKER: &str = ".migrated-from-buzz";
+
 /// JSON files symlinked from worktree data directories to the canonical
 /// dev data directory. Only data files — never `agent-pids/` or `logs/`.
 /// `identity.key` is deliberately excluded because worktree instances
@@ -56,12 +61,22 @@ fn canonical_dev_data_dir(current: &Path) -> Option<PathBuf> {
     current.parent().map(|p| p.join(CANONICAL_DEV_IDENTIFIER))
 }
 
+/// Map the current app-data directory to the directory this build migrates
+/// FROM. Two renames are chained: Commons ← Buzz, and (for a Buzz-identified
+/// build) Buzz ← Sprout. Returns `None` for any directory outside those
+/// families, so an unrelated app's data is never a migration source.
 pub(crate) fn legacy_app_data_dir(current: &Path) -> Option<PathBuf> {
     let name = current.file_name()?.to_str()?;
-    let legacy_name = if name.starts_with(CANONICAL_DEV_IDENTIFIER) {
+    let legacy_name = if name.starts_with(crate::brand::APP_IDENTIFIER) {
+        name.replacen(
+            crate::brand::APP_IDENTIFIER,
+            crate::brand::BUZZ_IDENTIFIER,
+            1,
+        )
+    } else if name.starts_with(CANONICAL_DEV_IDENTIFIER) {
         name.replacen(CANONICAL_DEV_IDENTIFIER, LEGACY_CANONICAL_DEV_IDENTIFIER, 1)
-    } else if name.starts_with("xyz.block.buzz.app") {
-        name.replacen("xyz.block.buzz.app", LEGACY_RELEASE_IDENTIFIER, 1)
+    } else if name.starts_with(crate::brand::BUZZ_IDENTIFIER) {
+        name.replacen(crate::brand::BUZZ_IDENTIFIER, LEGACY_RELEASE_IDENTIFIER, 1)
     } else {
         return None;
     };
@@ -154,6 +169,15 @@ fn run_boot_migrations_inner(app: &tauri::AppHandle, reset_completed: bool) {
         maybe_migrate_dev_repos_dir(is_dev, reset_completed, &home, &dev_nest);
     }
 
+    // Commons ← Buzz must run before the Buzz ← Sprout hop below, so a
+    // three-generation install (Sprout → Buzz → Commons) lands in one boot.
+    if let Ok(commons_dir) = app.path().app_data_dir() {
+        if let Some(buzz_dir) = legacy_app_data_dir(&commons_dir) {
+            migrate_buzz_app_data_at(&buzz_dir, &commons_dir);
+        }
+    }
+    adopt_buzz_keyring_blob();
+
     migrate_legacy_app_data_dir(app);
     sync_shared_agent_data(app);
     // Dev-build-only: copy any agent keys that exist in the production
@@ -219,6 +243,85 @@ pub fn migrate_legacy_app_data_dir(app: &tauri::AppHandle) {
             "buzz-desktop: app-data-migration: failed to copy {} to {}: {error}",
             legacy_dir.display(),
             current_dir.display()
+        ),
+    }
+}
+
+/// Copy an existing Buzz install's app data into the Commons directory.
+///
+/// Marker-gated and idempotent. Copy — never move or delete — so the Buzz
+/// install remains runnable; the CEO's fallback if this build misbehaves is
+/// simply to open Buzz again. A copy failure leaves no marker, so the next
+/// launch retries; boot continues either way, matching how every other
+/// migration in this module handles failure.
+pub(crate) fn migrate_buzz_app_data_at(buzz_dir: &Path, commons_dir: &Path) {
+    if !buzz_dir.exists() {
+        return;
+    }
+    if commons_dir.join(BUZZ_MIGRATION_MARKER).exists() {
+        return;
+    }
+    match copy_dir_all(buzz_dir, commons_dir) {
+        Ok(()) => {
+            if let Err(error) = std::fs::write(commons_dir.join(BUZZ_MIGRATION_MARKER), "") {
+                eprintln!(
+                    "{}: buzz-migration: copied data but could not write marker: {error}",
+                    crate::brand::LOG_PREFIX
+                );
+                return;
+            }
+            eprintln!(
+                "{}: buzz-migration: copied {} to {}",
+                crate::brand::LOG_PREFIX,
+                buzz_dir.display(),
+                commons_dir.display()
+            );
+        }
+        Err(error) => eprintln!(
+            "{}: buzz-migration: failed to copy {} to {}: {error}",
+            crate::brand::LOG_PREFIX,
+            buzz_dir.display(),
+            commons_dir.display()
+        ),
+    }
+}
+
+/// Adopt an existing Buzz keyring blob into the Commons keyring service.
+///
+/// Runs only when the Commons service holds nothing: a Commons blob is always
+/// authoritative over a Buzz one. Reads through a directly constructed
+/// SecretStore rather than `SecretStore::shared`, which memoizes the FIRST
+/// service name it is called with in a process-wide OnceLock and would hand
+/// back the Commons store for a Buzz request.
+pub(crate) fn adopt_buzz_keyring_blob() {
+    let commons = crate::secret_store::SecretStore::shared(crate::app_state::keyring_service());
+    match commons.load_all_readonly() {
+        Ok(Some(entries)) if !entries.is_empty() => return,
+        Ok(_) => {}
+        Err(error) => {
+            eprintln!(
+                "{}: keyring-migration: cannot read Commons keyring ({error}); skipping",
+                crate::brand::LOG_PREFIX
+            );
+            return;
+        }
+    }
+    let buzz = crate::secret_store::SecretStore::keyring(crate::brand::BUZZ_KEYRING_SERVICE);
+    let Ok(Some(entries)) = buzz.load_all_readonly() else {
+        return;
+    };
+    if entries.is_empty() {
+        return;
+    }
+    match commons.store_all(&entries) {
+        Ok(()) => eprintln!(
+            "{}: keyring-migration: adopted {} entries from the Buzz keyring",
+            crate::brand::LOG_PREFIX,
+            entries.len()
+        ),
+        Err(error) => eprintln!(
+            "{}: keyring-migration: failed to adopt Buzz keyring entries: {error}",
+            crate::brand::LOG_PREFIX
         ),
     }
 }
