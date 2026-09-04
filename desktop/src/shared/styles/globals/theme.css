@@ -129,8 +129,8 @@
     --accent-foreground: 210 16% 93%; /* #EAEDF0 — fix round 1: kept light per Ruling A, now explicit rather than inherited. vs accent(#1A2856) 12.08:1 (AA pass) */
     --destructive: 0 82% 70%; /* #F17474 — fix round 2: hex label corrected to match this HSL (was #F26E6E). #C1292E/#C2292E fails contrast on navy. vs background(#171A26, ground) 6.15:1 (AA pass); vs card(#1A2856) 5.05:1 — a NARROW PASS. Do not darken --card without rechecking this pair; a card even slightly darker than #1A2856 would drop it below AA. */
     --destructive-foreground: 227 24% 12%; /* fix round 1: brought onto the Cybota palette (was inherited Catppuccin dark). vs destructive 6.15:1 (AA pass, button text) */
-    --border: 0 0% 45%; /* #737373 — fix round 2: hex label corrected to match this HSL (was #747474). Non-text UI element (WCAG 1.4.11, not the 4.5:1 text bar). vs background 3.63:1 (clears 3:1); vs card 2.98:1 — FAILS the 3:1 non-text minimum by a hair. Not fixed this round (color values frozen for fix round 2); flagged for the next pass — a border drawn on a card surface in dark mode is marginally under spec. */
-    --input: 0 0% 45%; /* #737373 — same as --border, same open finding on the vs-card pairing */
+    --border: 0 0% 46%; /* #757575 — fix round 3: lightened by the smallest whole-percent step from 45% (2.98:1 vs card, a real fail) to 46%. Non-text UI element (WCAG 1.4.11, 3:1 minimum, not the 4.5:1 text bar). vs card 3.09:1 (now clears 3:1); vs background 3.76:1 (also improved; raising --border against --card can only help against the already-darker --background). */
+    --input: 0 0% 46%; /* #757575 — same as --border */
     --ring: 225 60% 92%; /* #DEE4F7 — fix round 2: hex label corrected (see light --accent above; same triple). fix round 1: matches --primary. vs background 13.65:1 (well above the 3:1 non-text minimum) */
     --chart-1: 333 20.78% 38.04%;
     --chart-2: 193 19.61% 38.04%;
