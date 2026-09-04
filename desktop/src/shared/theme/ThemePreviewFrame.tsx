@@ -4,19 +4,21 @@ import { cn } from "@/shared/lib/cn";
 export type ThemePreviewVars = Record<string, string>;
 
 /**
- * Buzz sidebar-gradient stop tokens, keyed by theme name. The actual custom
- * colors live once in `shared/styles/globals/theme.css`; the picker consumes
- * those same semantic variables instead of duplicating raw values here.
+ * Cybercare sidebar-gradient stop tokens, keyed by theme name. The actual
+ * custom colors live once in `shared/styles/globals/theme.css`; the picker
+ * consumes those same semantic variables instead of duplicating raw values
+ * here. The constant name and the underlying `--buzz-*` custom properties
+ * keep their `buzz` names on purpose — see the comment in theme.css.
  */
 export const BUZZ_GRADIENT_STOPS: Record<
   string,
   { top: string; bottom: string }
 > = {
-  buzz: {
+  cybercare: {
     top: "var(--buzz-gradient-light-top)",
     bottom: "var(--buzz-gradient-light-bottom)",
   },
-  "buzz-dark": {
+  "cybercare-dark": {
     top: "var(--buzz-gradient-dark-top)",
     bottom: "var(--buzz-gradient-dark-bottom)",
   },

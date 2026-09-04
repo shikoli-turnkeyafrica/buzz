@@ -1,19 +1,25 @@
 @layer base {
   :root {
-    /* Catppuccin Latte (mauve accent) */
+    /* Cybercare light — Cybota Cloud Host MFE palette applied to the
+       content-area tokens (background/foreground/card/secondary/accent/
+       primary/destructive + their foregrounds). --border, --input, --ring,
+       --popover(-foreground), --muted, --card-foreground, and
+       --secondary-foreground are not part of this rebrand's token list and
+       keep their inherited Catppuccin Latte values, which happen to stay in
+       the same blue/grey family. */
     --radius: 0.625rem;
-    --background: 220 23.08% 94.9%;
-    --foreground: 234 16.02% 35.49%;
-    --card: 220 23.08% 94.9%;
+    --background: 0 0% 98%; /* #FAFAFA */
+    --foreground: 226 54% 22%; /* #1A2857 */
+    --card: 210 16% 93%; /* #E9ECEF */
     --card-foreground: 234 16.02% 35.49%;
     --popover: 220 23.08% 94.9%;
     --popover-foreground: 234 16.02% 35.49%;
-    --primary: 266 85.05% 58.04%;
-    --primary-foreground: 220 23.08% 94.9%;
-    --secondary: 223 15.91% 82.75%;
+    --primary: 226 54% 22%; /* #1A2857 */
+    --primary-foreground: 0 0% 98%; /* #FAFAFA */
+    --secondary: 210 16% 93%; /* #E9ECEF */
     --secondary-foreground: 234 16.02% 35.49%;
     --muted: 223 15.91% 82.75%;
-    --muted-foreground: 233 12.8% 41.37%;
+    --muted-foreground: 0 0% 49%; /* #7C7C7C */
     --huddle-drawer-surface: 0 0% 0%;
     --huddle-control-surface: 0 0% 20%;
     --huddle-control-hover-surface: 0 0% 24%;
@@ -24,9 +30,9 @@
     --huddle-popover-border: 0 0% 24%;
     --huddle-tooltip-surface: 0 0% 20%;
     --huddle-tooltip-foreground: 0 0% 98%;
-    --accent: 223 15.91% 82.75%;
+    --accent: 225 60% 92%; /* #E1E6F5 */
     --accent-foreground: 234 16.02% 35.49%;
-    --destructive: 347 86.67% 44.12%;
+    --destructive: 358 65% 46%; /* #C1292E */
     --destructive-foreground: 220 23.08% 94.9%;
     --border: 225 13.56% 76.86%;
     --input: 225 13.56% 76.86%;
@@ -47,11 +53,15 @@
     --sidebar-accent-foreground: 234 16.02% 35.49%;
     --sidebar-border: 225 13.56% 76.86%;
     --sidebar-ring: 225 13.56% 76.86%;
-    /* Exact Buzz palette tokens; components consume these semantically. */
-    --buzz-gradient-light-top: #e6e6b6;
-    --buzz-gradient-light-bottom: #c4d0da;
-    --buzz-gradient-dark-top: #4a4616;
-    --buzz-gradient-dark-bottom: #0a1423;
+    /* Cybercare paints a flat navy sidebar canvas (the Cybota Cloud shell),
+       so both gradient stops carry the same value. The attribute and class
+       hooks below keep their `buzz` names on purpose: they are internal DOM
+       plumbing, never user-visible, and renaming them would multiply the
+       upstream-rebase surface for no visible gain. */
+    --buzz-gradient-light-top: #1a2857;
+    --buzz-gradient-light-bottom: #1a2857;
+    --buzz-gradient-dark-top: #161925;
+    --buzz-gradient-dark-bottom: #161925;
     --buzz-content-dark: 0 0% 10.1960784314%;
     /* Hosted-community onboarding intentionally keeps this light palette in
        both app themes; semantic tokens keep component code color-agnostic. */
@@ -66,20 +76,26 @@
   }
 
   .dark {
-    /* Catppuccin Macchiato (mauve accent) */
+    /* Cybercare dark — Cybota Cloud Host MFE palette applied to the
+       content-area tokens (background/foreground/card/secondary/accent/
+       primary/destructive + their foregrounds). --border, --input, --ring,
+       --popover(-foreground), --muted, --card-foreground, and
+       --secondary-foreground are not part of this rebrand's token list and
+       keep their inherited Catppuccin Macchiato values, which happen to
+       stay in the same blue/grey family. */
     --radius: 0.625rem;
-    --background: 232 23.4% 18.43%;
-    --foreground: 227 68.25% 87.65%;
-    --card: 232 23.4% 18.43%;
+    --background: 227 24% 12%; /* #161925 */
+    --foreground: 210 16% 93%; /* #E9ECEF */
+    --card: 226 54% 22%; /* #1A2857 */
     --card-foreground: 227 68.25% 87.65%;
     --popover: 232 23.4% 18.43%;
     --popover-foreground: 227 68.25% 87.65%;
-    --primary: 267 82.69% 79.61%;
-    --primary-foreground: 232 23.4% 18.43%;
-    --secondary: 230 18.8% 26.08%;
+    --primary: 225 60% 92%; /* #E1E6F5 */
+    --primary-foreground: 227 24% 12%;
+    --secondary: 226 54% 22%; /* #1A2857 */
     --secondary-foreground: 227 68.25% 87.65%;
     --muted: 230 18.8% 26.08%;
-    --muted-foreground: 228 39.22% 80%;
+    --muted-foreground: 222 18% 66%; /* #9AA3B8 */
     --huddle-drawer-surface: 230 18.8% 26.08%;
     --huddle-control-surface: 231 15.61% 33.92%;
     --huddle-control-hover-surface: 231 15.61% 38%;
@@ -90,9 +106,9 @@
     --huddle-popover-border: 231 15.61% 38%;
     --huddle-tooltip-surface: 231 15.61% 33.92%;
     --huddle-tooltip-foreground: 227 68.25% 87.65%;
-    --accent: 230 18.8% 26.08%;
+    --accent: 225 60% 92%; /* #E1E6F5 */
     --accent-foreground: 227 68.25% 87.65%;
-    --destructive: 351 73.91% 72.94%;
+    --destructive: 0 82% 70%; /* #F26E6E — #C1292E fails contrast on navy */
     --destructive-foreground: 232 23.4% 18.43%;
     --border: 231 15.61% 33.92%;
     --input: 231 15.61% 33.92%;
@@ -181,8 +197,8 @@
 }
 
 /*
- * Keep Buzz's established production selected tint available independently
- * from the optional prominent treatment.
+ * Keep Cybercare's established production selected tint available
+ * independently from the optional prominent treatment.
  */
 :root {
   --sidebar-row-subtle-active-surface: rgb(0 0 0 / 7%);
@@ -192,7 +208,7 @@
   --sidebar-row-subtle-active-surface: rgb(255 255 255 / 16%);
 }
 
-/* The prominent treatment is exclusive to Buzz's painted gradient. */
+/* The prominent treatment is exclusive to Cybercare's painted gradient. */
 :root[data-buzz-sidebar] {
   --sidebar-row-active-surface: rgb(255 255 255 / 82%);
 }
@@ -202,12 +218,16 @@
 }
 
 /*
- * Buzz theme - sidebar gradient.
+ * Cybercare theme - sidebar gradient.
  *
- * Buzz reuses the GitHub Light palette for every base color; its one
- * distinguishing feature is this gradient painted across the sidebar/nav
- * canvas, replacing GitHub Light's flat grey. ThemeProvider toggles the
- * `data-buzz-sidebar` attribute on <html> when the Buzz theme is active.
+ * Cybercare reuses the GitHub Light palette for every base color; its one
+ * distinguishing feature is this flat navy gradient painted across the
+ * sidebar/nav canvas (the Cybota Cloud shell color), replacing GitHub
+ * Light's flat grey. ThemeProvider toggles the `data-buzz-sidebar`
+ * attribute on <html> when the Cybercare theme is active. That attribute
+ * (and the `buzz-*` class/property hooks throughout this file) intentionally
+ * keeps its `buzz` name: internal DOM plumbing, never user-visible, and
+ * renaming it would multiply the upstream-rebase surface for no gain.
  *
  * These rules are intentionally UNLAYERED: the `bg-sidebar` background-color
  * lives in Tailwind's `utilities` layer, and unlayered declarations win over
@@ -225,29 +245,30 @@
  * floating chip should retain its own fill rather than becoming transparent
  * over the full-app gradient.
  *
- * Shared row state colors are applied below so Buzz and flat themes use the
- * same hover/selection hierarchy.
+ * Shared row state colors are applied below so Cybercare and flat themes use
+ * the same hover/selection hierarchy.
  */
 :root[data-buzz-sidebar] {
   --buzz-gradient-top: var(--buzz-gradient-light-top);
   --buzz-gradient-bottom: var(--buzz-gradient-light-bottom);
-  --buzz-muted-foreground: rgb(0 0 0 / 40%);
-  --buzz-search-surface: rgb(0 0 0 / 4%);
-  --buzz-chrome-foreground: rgb(0 0 0 / 50%);
+  --buzz-muted-foreground: rgb(255 255 255 / 55%);
+  --buzz-search-surface: rgb(255 255 255 / 8%);
+  --buzz-chrome-foreground: rgb(255 255 255 / 75%);
   --buzz-channel-fg: inherit;
   --buzz-dm-fg: inherit;
   --buzz-nav-fg: inherit;
-  --buzz-hover-surface: rgb(0 0 0 / 4%);
+  --buzz-hover-surface: rgb(255 255 255 / 8%);
   --buzz-sidebar-scrollbar-thumb: var(--buzz-hover-surface);
-  --buzz-active-fill: 0 0% 0%;
+  --buzz-active-fill: 0 0% 100%;
   --buzz-active-foreground: var(--foreground);
 }
 
 /*
- * Dark variant (Buzz Dark). Reuses the GitHub Dark base palette; only the
- * Buzz color tokens change, so every downstream rule (gradient fill, hover,
- * search box, muted labels, active pill) adapts automatically. The `.dark`
- * class is set on the document root whenever a dark theme is active.
+ * Dark variant (Cybercare Dark). Reuses the GitHub Dark base palette; only
+ * the Cybercare color tokens change, so every downstream rule (gradient
+ * fill, hover, search box, muted labels, active pill) adapts automatically.
+ * The `.dark` class is set on the document root whenever a dark theme is
+ * active.
  */
 :root[data-buzz-sidebar].dark {
   --buzz-gradient-top: var(--buzz-gradient-dark-top);
@@ -261,8 +282,8 @@
 }
 
 /*
- * Use the Buzz primary color for the floating selection-formatting tray.
- * Other themes retain the standard popover treatment.
+ * Use the Cybercare primary color for the floating selection-formatting
+ * tray. Other themes retain the standard popover treatment.
  */
 :root[data-buzz-sidebar] [data-buzz-selection-formatting-tray] {
   border-color: hsl(var(--primary-foreground) / 0.18);
@@ -282,7 +303,7 @@
   color: hsl(var(--primary-foreground));
 }
 
-/* Keep the subtle content-card lift in Buzz Light only. */
+/* Keep the subtle content-card lift in Cybercare Light only. */
 :root[data-buzz-sidebar]:not(.dark)
   [data-buzz-content-surface]:not([data-buzz-content-unframed]) {
   box-shadow:
@@ -296,9 +317,10 @@
 }
 
 /*
- * Buzz Dark uses a warmer neutral for the inset main/settings content canvas.
- * Override `--background` locally as well as the surface fill so descendant
- * headers and panes using `bg-background` remain visually continuous.
+ * Cybercare Dark uses a warmer neutral for the inset main/settings content
+ * canvas. Override `--background` locally as well as the surface fill so
+ * descendant headers and panes using `bg-background` remain visually
+ * continuous.
  */
 :root[data-buzz-sidebar].dark [data-buzz-content-surface] {
   --background: var(--buzz-content-dark);
@@ -311,9 +333,9 @@
   isolation: isolate;
 }
 
-/* The Buzz theme uses a translucent color wash. Back it with an opaque copy
- * of the same gradient by default so its color remains stable over every app
- * surface, including a lifted huddle. */
+/* The Cybercare theme uses a translucent color wash. Back it with an opaque
+ * copy of the same gradient by default so its color remains stable over
+ * every app surface, including a lifted huddle. */
 :root[data-buzz-sidebar] .buzz-theme-gradient-underlay {
   background-image: linear-gradient(
     to bottom,
@@ -325,7 +347,7 @@
 }
 
 /*
- * Keep both Buzz gradients painted and switch only which layer is visible.
+ * Keep both Cybercare gradients painted and switch only which layer is visible.
  * WKWebView can retain the old raster when `background-image` is replaced on
  * a translucent surface. The center content already follows `.dark`, so using
  * that same state for layer visibility keeps both surfaces in lockstep.
@@ -410,7 +432,7 @@
  * Active nav item. The accent system (`applyAccentColor` in ThemeProvider)
  * sets `--sidebar-active` to the theme foreground as an INLINE style on
  * :root, which renders the selected page as a solid black pill under GitHub
- * Light. For the Buzz theme we want a subtle theme-specific tint instead.
+ * Light. For the Cybercare theme we want a subtle theme-specific tint instead.
  * Override the two active tokens on the sidebar element itself; element-local
  * custom properties win over the inherited inline values from :root. Text
  * uses the theme foreground, and the derived
@@ -420,7 +442,7 @@
  * `text-sidebar-active-foreground` tokens are also consumed by non-sidebar
  * controls (avatar edit buttons in ProfileSettingsCard / AgentCreationPreview,
  * the selected persona row in PersonaCatalogDialog). A root-level override
- * turned those white (white-on-white under Buzz Dark); scoping keeps them on
+ * turned those white (white-on-white under Cybercare Dark); scoping keeps them on
  * the normal accent-driven active colors.
  */
 :root[data-buzz-sidebar] [data-testid="app-sidebar"],
@@ -441,7 +463,7 @@
 
 /*
  * By default, selected navigation uses a darker version of the hover tint,
- * matching Buzz's established production treatment. The optional prominent
+ * matching Cybercare's established production treatment. The optional prominent
  * preference repaints that same row with the higher-contrast tab surface.
  */
 :root[data-buzz-sidebar] [data-testid="app-sidebar"] [data-active="true"],
@@ -462,7 +484,7 @@
 }
 
 /*
- * Hover on non-active Buzz nav items uses the established 4% theme-specific
+ * Hover on non-active Cybercare nav items uses the established 4% theme-specific
  * tint. Active items are excluded so they retain the selected surface. Covers
  * both top-level menu buttons and channel sub-buttons in app and Settings nav.
  */
@@ -572,7 +594,7 @@
  * section header): match the same translucent white fill (see
  * `--buzz-hover-surface`) on hover/focus instead of the grey
  * `bg-sidebar-border/35` fill. Unlayered + `[data-buzz-sidebar]` prefix beats
- * the Tailwind utility so it only applies under the Buzz theme.
+ * the Tailwind utility so it only applies under the Cybercare theme.
  */
 :root[data-buzz-sidebar]
   [data-testid="app-sidebar"]
@@ -584,7 +606,7 @@
 }
 
 /*
- * Per-row-type text colors (Buzz theme).
+ * Per-row-type text colors (Cybercare theme).
  *
  * By default the whole sidebar inherits a single `--sidebar-foreground`, so
  * channels, direct messages, and the Inbox/Agents nav rows all share one text
@@ -592,7 +614,7 @@
  * keeping the default value unchanged.
  *
  * Each var defaults to `inherit`, so with nothing set the sidebar looks
- * exactly as before. Scoped to the Buzz sidebar container so other themes are
+ * exactly as before. Scoped to the Cybercare sidebar container so other themes are
  * untouched.
  */
 /* Channels: rows live inside the `stream-list` / `starred-list` menus. */
@@ -639,7 +661,7 @@
   color: var(--buzz-nav-fg);
 }
 
-/* Follow Buzz's selected appearance, independent of the OS color scheme. */
+/* Follow Cybercare's selected appearance, independent of the OS color scheme. */
 .dark .sidebar-muted-content {
   opacity: 0.45;
 }
@@ -661,21 +683,21 @@
   --buzz-translucency-wash-alpha: 2.4%;
 }
 
-/* The regular Buzz theme keeps an opaque copy of the gradient beneath its
- * color layers. Remove that backing while glass is enabled so the translucent
- * wash can reveal the native macOS vibrancy view. */
+/* The regular Cybercare theme keeps an opaque copy of the gradient beneath
+ * its color layers. Remove that backing while glass is enabled so the
+ * translucent wash can reveal the native macOS vibrancy view. */
 :root[data-glass-background] .buzz-theme-gradient-underlay {
   background: transparent;
 }
 
-/* Non-Buzz themes use their existing sidebar color as the glass tint. */
+/* Non-Cybercare themes use their existing sidebar color as the glass tint. */
 :root[data-glass-background]:not([data-buzz-sidebar])
   .buzz-theme-gradient-layer {
   background-color: var(--glass-sidebar-surface);
 }
 
 :root[data-glass-background] .buzz-theme-gradient-layer-light {
-  /* Buzz color wash above a neutral frost wash. */
+  /* Cybercare color wash above a neutral frost wash. */
   background-image:
     linear-gradient(
       to bottom,
@@ -907,7 +929,7 @@
   background: hsl(var(--buzz-huddle-drawer-surface));
 }
 
-/* Keep the Buzz gradient in the lifted app surface. The shell beneath it is
+/* Keep the Cybercare gradient in the lifted app surface. The shell beneath it is
  * strictly the huddle drawer, so its dark surface is revealed at the rounded
  * lower corners instead of the theme gradient bleeding through there. */
 :root[data-buzz-sidebar] .buzz-huddle-shell[data-huddle-open="true"] {
