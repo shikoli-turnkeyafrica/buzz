@@ -309,6 +309,28 @@ pub(crate) fn run_boot_reset_with_keychain(ctx: ResetContext<'_>) -> ResetOutcom
         // onboarding, but on next boot the reset will retry (idempotent).
     }
 
+    // ── Step 8: record that the Buzz import already happened for this
+    // install, so a post-reset boot does not re-run it ──────────────────────
+    // Step 5 deleted app_data_dir entirely (RULING E), which is where
+    // BUZZ_MIGRATION_MARKER normally lives — so the marker is gone along
+    // with everything else the wipe removed. app_data_dir is NOT recreated
+    // by any earlier step; it is created here for this purpose. Without this,
+    // the very next boot's `should_run_commons_buzz_import` finds no marker,
+    // sees `reset_completed` is false again (a fresh boot, not the reset
+    // boot itself), and re-copies the entire Buzz install into the
+    // freshly-wiped directory; `adopt_buzz_keyring_blob` likewise finds the
+    // Commons keyring service empty (this wipe emptied it) and re-adopts the
+    // whole Buzz keyring blob, `identity` included — silently undoing the
+    // sign-out the user asked for.
+    if let Err(e) = std::fs::create_dir_all(app_data_dir) {
+        eprintln!("buzz-desktop reset: failed to recreate app data dir for migration marker: {e}");
+    } else if let Err(e) = std::fs::write(
+        app_data_dir.join(crate::migration::BUZZ_MIGRATION_MARKER),
+        "",
+    ) {
+        eprintln!("buzz-desktop reset: failed to write Buzz migration marker: {e}");
+    }
+
     ResetOutcome {
         completed: true,
         failed: false,
@@ -416,6 +438,31 @@ mod tests {
         }
     }
 
+    /// Asserts `app_data` (recreated by Step 8, RULING E) contains exactly
+    /// one entry — the Buzz-migration marker — and nothing else. Proves the
+    /// wipe genuinely destroyed the old content rather than merely leaving
+    /// the directory in place: recreation plus the marker is the ONLY thing
+    /// that should survive.
+    fn assert_recreated_with_only_migration_marker(app_data: &Path) {
+        assert!(
+            app_data
+                .join(crate::migration::BUZZ_MIGRATION_MARKER)
+                .exists(),
+            "recreated app-data must carry the Buzz-migration marker"
+        );
+        let remaining: Vec<_> = std::fs::read_dir(app_data)
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        assert_eq!(
+            remaining,
+            vec![std::ffi::OsString::from(
+                crate::migration::BUZZ_MIGRATION_MARKER
+            )],
+            "recreated app-data must hold ONLY the marker — no old content survived"
+        );
+    }
+
     // ── Test 1: no sentinel ───────────────────────────────────────────────────
 
     #[test]
@@ -462,7 +509,15 @@ mod tests {
 
         assert!(outcome.completed, "should complete");
         assert!(!outcome.failed, "should not fail");
-        assert!(!app_data.exists(), "app-data must be gone");
+        // RULING E (fix round 3): app-data is recreated holding ONLY the
+        // Buzz-migration marker, so a post-reset boot does not re-import the
+        // identity/history this wipe just deleted. Its CONTENT is gone —
+        // it is no longer literally absent from disk.
+        assert!(
+            app_data.exists(),
+            "app-data is recreated to carry the post-reset migration marker"
+        );
+        assert_recreated_with_only_migration_marker(&app_data);
         assert!(!legacy_dir.exists(), "legacy app-data must be gone");
         assert!(!sentinel_path(&app_data).exists(), "sentinel must be gone");
         assert_eq!(kc.delete_calls.get(), 1, "keychain deleted once");
@@ -861,7 +916,14 @@ mod tests {
         };
         let second = run_boot_reset_with_keychain(ctx2);
         assert!(second.completed, "second attempt must complete");
-        assert!(!app_data.exists(), "app-data must be gone");
+        // RULING E (fix round 3): recreated with only the marker, not
+        // literally absent — see the identical note on
+        // test_sentinel_present_full_wipe_succeeds.
+        assert!(
+            app_data.exists(),
+            "app-data is recreated to carry the post-reset migration marker"
+        );
+        assert_recreated_with_only_migration_marker(&app_data);
         assert!(!legacy.exists(), "legacy must be gone");
         // No trash directories should remain.
         let trash_app = app_support.join("xyz.block.buzz.app.reset-trash");

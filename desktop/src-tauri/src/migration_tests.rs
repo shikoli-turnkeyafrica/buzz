@@ -1167,6 +1167,86 @@ fn should_run_commons_buzz_import_is_false_for_a_dev_data_dir() {
     assert!(!super::should_run_commons_buzz_import(dev_worktree, false));
 }
 
+/// Finding N1 regression test (fix round 3): with `BUZZ_MIGRATION_MARKER`
+/// already present in the Commons directory — exactly the state RULING E's
+/// `reset.rs` fix leaves behind after a completed reset — a subsequent call
+/// to `migrate_buzz_app_data_at` must copy nothing at all, even though the
+/// Commons directory is otherwise empty (freshly wiped) and the Buzz
+/// install still holds real data. Without `migrate_buzz_app_data_at`'s own
+/// marker check this would copy everything, silently restoring the
+/// identity and history a reset just deleted.
+#[test]
+fn migrate_buzz_app_data_at_skips_entirely_when_marker_already_present() {
+    let dir = tempfile::tempdir().unwrap();
+    let buzz = dir.path().join("xyz.block.buzz.app");
+    let commons = dir.path().join("africa.cybota.cybercare.commons");
+    std::fs::create_dir_all(&buzz).unwrap();
+    std::fs::write(buzz.join("identity.key"), "old-device-key").unwrap();
+    std::fs::write(buzz.join("retention.db"), "old-history").unwrap();
+
+    // What reset.rs's RULING E fix does: recreate the (otherwise empty)
+    // Commons dir and write the marker directly, before any boot-time
+    // import runs.
+    std::fs::create_dir_all(&commons).unwrap();
+    std::fs::write(commons.join(super::BUZZ_MIGRATION_MARKER), "").unwrap();
+
+    super::migrate_buzz_app_data_at(&buzz, &commons);
+
+    assert!(
+        !commons.join("identity.key").exists(),
+        "marker must stop the wiped identity from being silently restored"
+    );
+    assert!(
+        !commons.join("retention.db").exists(),
+        "marker must stop wiped history from being silently restored"
+    );
+}
+
+/// Finding N1 regression test (fix round 3), pure-predicate half: proves
+/// `should_adopt_buzz_keyring` returns `false` once the marker is present.
+/// This is the coordinator's required test for the extracted predicate —
+/// deliberately independent of anything about the Commons KEYRING (which
+/// this predicate does not and cannot inspect; see the testability note in
+/// the round-3 report). That is the point: the predicate's job is to make
+/// the marker sufficient on its own to refuse adoption, because reset
+/// empties the Commons keyring too, so "the keyring is empty" can never be
+/// trusted as evidence on its own once the marker exists.
+#[test]
+fn should_adopt_buzz_keyring_is_false_once_marker_present() {
+    let dir = tempfile::tempdir().unwrap();
+    let commons = dir.path().join("africa.cybota.cybercare.commons");
+    std::fs::create_dir_all(&commons).unwrap();
+
+    // No marker yet: a release-service build should be allowed to adopt.
+    assert!(super::should_adopt_buzz_keyring(
+        crate::brand::KEYRING_SERVICE,
+        &commons
+    ));
+
+    // RULING E: once the marker exists (written directly here, mirroring
+    // what reset.rs now does after a wipe), adoption must be refused —
+    // regardless of what the Commons keyring itself currently holds.
+    std::fs::write(commons.join(super::BUZZ_MIGRATION_MARKER), "").unwrap();
+    assert!(!super::should_adopt_buzz_keyring(
+        crate::brand::KEYRING_SERVICE,
+        &commons
+    ));
+}
+
+/// RULING D regression test for the extracted predicate: a non-release
+/// keyring service must never be told to adopt, marker or no marker.
+#[test]
+fn should_adopt_buzz_keyring_is_false_for_non_release_service() {
+    let dir = tempfile::tempdir().unwrap();
+    let commons = dir.path().join("africa.cybota.cybercare.commons");
+    std::fs::create_dir_all(&commons).unwrap();
+
+    assert!(!super::should_adopt_buzz_keyring(
+        "buzz-desktop-dev",
+        &commons
+    ));
+}
+
 #[test]
 fn migrate_legacy_nest_preserves_user_edited_agents_md() {
     let dir = tempfile::tempdir().unwrap();

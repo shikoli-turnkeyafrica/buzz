@@ -214,8 +214,18 @@ fn run_boot_migrations_inner(app: &tauri::AppHandle, reset_completed: bool) {
             if let Some(buzz_dir) = legacy_app_data_dir(&commons_dir) {
                 migrate_buzz_app_data_at(&buzz_dir, &commons_dir);
             }
-            adopt_buzz_keyring_blob();
+            adopt_buzz_keyring_blob(&commons_dir);
         }
+    } else {
+        // adopt_buzz_keyring_blob now needs commons_dir for its marker
+        // check (RULING E), so it lives inside this same resolution — a
+        // migrating release user on a boot where path resolution fails must
+        // not silently lose both the app-data copy and keyring adoption
+        // with no diagnostic.
+        eprintln!(
+            "{}: boot-migration: cannot resolve Commons app data dir; skipping the Buzz app-data copy and keyring adoption",
+            crate::brand::LOG_PREFIX
+        );
     }
 
     migrate_legacy_app_data_dir(app);
@@ -383,27 +393,49 @@ pub(crate) fn migrate_buzz_app_data_at(buzz_dir: &Path, commons_dir: &Path) {
     }
 }
 
-/// Adopt an existing Buzz keyring blob into the Commons keyring service.
+/// Returns `true` when `adopt_buzz_keyring_blob` should proceed to read the
+/// Buzz keyring and consider adopting it. Pure predicate over `service` (the
+/// running build's keyring service name) and `commons_dir` (the Commons
+/// app-data directory) — no keyring backend involved, so directly
+/// unit-testable without a live OS keyring.
 ///
-/// Runs only when the Commons service holds nothing: a Commons blob is always
-/// authoritative over a Buzz one. Reads through a directly constructed
-/// SecretStore rather than `SecretStore::shared`, which memoizes the FIRST
-/// service name it is called with in a process-wide OnceLock and would hand
-/// back the Commons store for a Buzz request.
-///
-/// RULING D: restricted to the release keyring service. In a debug build
-/// `keyring_service()` returns `buzz-desktop-dev` (or a worktree-scoped
-/// variant), which on a fresh worktree is empty. Without this check that
-/// emptiness would satisfy the "Commons holds nothing" gate above and adopt
-/// the ENTIRE production `buzz-desktop` blob — the real `identity` nsec plus
-/// every `agent:<pubkey>` — into the dev service, so a developer resetting
-/// dev state and running a debug build without `BUZZ_PRIVATE_KEY` would boot
+/// RULING D: `service` must be exactly the release keyring service. In a
+/// debug build `keyring_service()` returns `buzz-desktop-dev` (or a
+/// worktree-scoped variant), which on a fresh worktree is empty. Without
+/// this check, that emptiness alone would satisfy `adopt_buzz_keyring_blob`'s
+/// separate "Commons service holds nothing" check and adopt the ENTIRE
+/// production `buzz-desktop` blob — the real `identity` nsec plus every
+/// `agent:<pubkey>` — into the dev service, so a developer resetting dev
+/// state and running a debug build without `BUZZ_PRIVATE_KEY` would boot
 /// holding the CEO's real device key and could act as the owner in every
 /// governed room. The dev path already has its own, narrower migration for
 /// this (`managed_agents::migrate_agent_keys_to_dev_service`), which
 /// deliberately copies only `agent:` keys, never `identity`.
-pub(crate) fn adopt_buzz_keyring_blob() {
-    if crate::app_state::keyring_service() != crate::brand::KEYRING_SERVICE {
+///
+/// RULING E: `commons_dir` must NOT already hold [`BUZZ_MIGRATION_MARKER`].
+/// The marker is the durable record that the Buzz import already happened
+/// for this install; an EMPTY Commons keyring is NOT by itself evidence the
+/// import is still owed. Boot-time reset (`reset.rs`) wipes the Commons
+/// keyring service down to nothing as part of the wipe, and — per this same
+/// ruling — writes the marker into the recreated Commons directory precisely
+/// so this check catches the case. Without it, every post-reset boot would
+/// see "Commons holds nothing" as true and re-adopt the whole Buzz blob,
+/// `identity` included, silently undoing the sign-out the user asked for.
+pub(crate) fn should_adopt_buzz_keyring(service: &str, commons_dir: &Path) -> bool {
+    service == crate::brand::KEYRING_SERVICE && !buzz_migration_completed(commons_dir)
+}
+
+/// Adopt an existing Buzz keyring blob into the Commons keyring service.
+///
+/// Runs only when [`should_adopt_buzz_keyring`] says so (release service,
+/// no prior Buzz import recorded for `commons_dir`) AND the Commons service
+/// itself currently holds nothing: a Commons blob is always authoritative
+/// over a Buzz one. Reads through a directly constructed SecretStore rather
+/// than `SecretStore::shared`, which memoizes the FIRST service name it is
+/// called with in a process-wide OnceLock and would hand back the Commons
+/// store for a Buzz request.
+pub(crate) fn adopt_buzz_keyring_blob(commons_dir: &Path) {
+    if !should_adopt_buzz_keyring(crate::app_state::keyring_service(), commons_dir) {
         return;
     }
     let commons = crate::secret_store::SecretStore::shared(crate::app_state::keyring_service());
