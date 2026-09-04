@@ -37,7 +37,10 @@ class CommunityThemePreference {
       throw const FormatException('Invalid community theme preference');
     }
     return CommunityThemePreference(
-      theme: json['theme'] as String,
+      // Resolved rather than the raw wire value, so a pre-rebrand 'buzz'
+      // read from an older peer is normalized to 'cybercare' before this
+      // build re-emits it.
+      theme: findTheme(json['theme'] as String)!.name,
       accent: json['accent'] as String,
       followSystem: json['followSystem'] as bool,
     );

@@ -21,6 +21,19 @@ void main() {
     );
   });
 
+  test('normalizes a pre-rebrand legacy theme name from the wire', () {
+    // A peer running an older build can still emit 'buzz'. Store the
+    // resolved name so this build doesn't re-emit the legacy value.
+    final preference = CommunityThemePreference.fromJson({
+      'version': 1,
+      'theme': 'buzz',
+      'accent': '#3b82f6',
+      'followSystem': true,
+    });
+
+    expect(preference.theme, 'cybercare');
+  });
+
   test('rejects unknown themes, accents, and future versions', () {
     for (final payload in [
       {

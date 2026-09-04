@@ -182,13 +182,16 @@ void main() {
 
   group('schemeForAppearanceMode', () {
     test('system mode replaces an unpaired selection with a paired theme', () {
+      // The fallback must prefer the first-party Cybercare pair, not
+      // whichever borrowed theme sorts first by display name (Catppuccin
+      // Latte, alphabetically ahead of "Cybercare").
       expect(
         schemeForAppearanceMode('snazzy-light', ThemeMode.system),
-        themeGroups().paired.first.name,
+        cybercareThemeName,
       );
       expect(
         schemeForAppearanceMode('nord', ThemeMode.system),
-        themeGroups().paired.first.name,
+        cybercareThemeName,
       );
     });
 

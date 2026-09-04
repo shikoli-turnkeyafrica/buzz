@@ -71,10 +71,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(
-        instance.getString('buzz_color_scheme'),
-        themeGroups().paired.first.name,
-      );
+      // Must land on the first-party Cybercare pair, not whichever borrowed
+      // theme sorts first by display name.
+      expect(instance.getString('buzz_color_scheme'), cybercareThemeName);
     });
 
     testWidgets('light mode lists light themes by their full name', (

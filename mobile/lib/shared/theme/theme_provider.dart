@@ -121,6 +121,14 @@ String? schemeForAppearanceMode(String? schemeName, ThemeMode mode) {
   final selected = findTheme(schemeName ?? defaultSchemeName);
   if (selected != null && isPairedTheme(selected.name)) return schemeName;
 
+  // Match desktop's paired-first picker ordering: an unpaired or unknown
+  // selection falls back through the first-party default pair, not
+  // whichever borrowed theme sorts first by display name.
+  final defaultTheme = findTheme(defaultSchemeName);
+  if (defaultTheme != null && isPairedTheme(defaultTheme.name)) {
+    return defaultTheme.name;
+  }
+
   return themeGroups().paired.firstOrNull?.name ?? schemeName;
 }
 
