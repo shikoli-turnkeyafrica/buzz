@@ -8,20 +8,27 @@
        left as inherited Catppuccin Latte in the first pass. Every pair below
        carries its measured WCAG contrast ratio; text pairs target >=4.5:1
        (AA), non-text UI elements (border/input/ring) target >=3:1 (WCAG
-       1.4.11). Do not change one side of a pair without recomputing. */
+       1.4.11). Do not change one side of a pair without recomputing.
+       Fix round 2 (2026-09-04): every ratio and hex label below is computed
+       from the LITERAL H/S/L numbers on each line (HSL -> sRGB -> relative
+       luminance), not from the rounded hex comment — the hex is documentary
+       only and can be off by a unit or two from what the HSL actually
+       renders (integer-percent HSL cannot always round-trip a hex exactly).
+       When you change a value, recompute from the new HSL triple the same
+       way — do not eyeball the hex. */
     --radius: 0.625rem;
     --background: 0 0% 98%; /* #FAFAFA */
-    --foreground: 226 54% 22%; /* #1A2857 — vs background 13.55:1 (AA pass) */
-    --card: 210 16% 93%; /* #E9ECEF */
-    --card-foreground: 226 54% 22%; /* #1A2857 — vs card 11.92:1 (AA pass) */
-    --popover: 210 16% 93%; /* #E9ECEF — fix round 1: was inherited Catppuccin lavender-white, now on the Cybota palette (same tone as --card) */
-    --popover-foreground: 226 54% 22%; /* #1A2857 — vs popover 11.92:1 (AA pass) */
-    --primary: 226 54% 22%; /* #1A2857 */
-    --primary-foreground: 0 0% 98%; /* #FAFAFA — vs primary 13.55:1 (AA pass) */
-    --secondary: 210 16% 93%; /* #E9ECEF */
-    --secondary-foreground: 226 54% 22%; /* #1A2857 — vs secondary 11.92:1 (AA pass) */
-    --muted: 210 16% 93%; /* #E9ECEF — fix round 1: was inherited Catppuccin grey, now on the Cybota palette (same tone as --card) */
-    --muted-foreground: 0 0% 42%; /* #6A6A6A — fix round 1: darker than the brief's #7C7C7C (4.00:1, failed AA) / #767676 (4.35:1, still failed against --muted). vs muted 4.56:1, vs background 5.18:1 (both AA pass) — the darker value is needed because this token is also used as plain body text on --background, not only paired with --muted */
+    --foreground: 226 54% 22%; /* #1A2856 — vs background 13.57:1 (AA pass) */
+    --card: 210 16% 93%; /* #EAEDF0 */
+    --card-foreground: 226 54% 22%; /* #1A2856 — vs card 12.08:1 (AA pass) */
+    --popover: 210 16% 93%; /* #EAEDF0 — fix round 1: was inherited Catppuccin lavender-white, now on the Cybota palette (same tone as --card) */
+    --popover-foreground: 226 54% 22%; /* #1A2856 — vs popover 12.08:1 (AA pass) */
+    --primary: 226 54% 22%; /* #1A2856 */
+    --primary-foreground: 0 0% 98%; /* #FAFAFA — vs primary 13.57:1 (AA pass) */
+    --secondary: 210 16% 93%; /* #EAEDF0 */
+    --secondary-foreground: 226 54% 22%; /* #1A2856 — vs secondary 12.08:1 (AA pass) */
+    --muted: 210 16% 93%; /* #EAEDF0 — fix round 1: was inherited Catppuccin grey, now on the Cybota palette (same tone as --card) */
+    --muted-foreground: 0 0% 42%; /* #6B6B6B — fix round 1: darker than the brief's #7C7C7C (4.00:1, failed AA) / #767676 (4.35:1, still failed against --muted). vs muted 4.54:1, vs background 5.09:1 (both AA pass) — the darker value is needed because this token is also used as plain body text on --background, not only paired with --muted */
     --huddle-drawer-surface: 0 0% 0%;
     --huddle-control-surface: 0 0% 20%;
     --huddle-control-hover-surface: 0 0% 24%;
@@ -32,13 +39,13 @@
     --huddle-popover-border: 0 0% 24%;
     --huddle-tooltip-surface: 0 0% 20%;
     --huddle-tooltip-foreground: 0 0% 98%;
-    --accent: 225 60% 92%; /* #E1E6F5 */
-    --accent-foreground: 226 54% 22%; /* #1A2857 — fix round 1: was inherited Catppuccin blue-purple text; explicit now per Ruling A. vs accent 11.34:1 (AA pass) */
-    --destructive: 358 65% 46%; /* #C1292E — vs background 5.55:1 (AA pass, text usage) */
-    --destructive-foreground: 0 0% 98%; /* #FAFAFA — fix round 1: brought onto the Cybota palette (was inherited Catppuccin near-white). vs destructive 5.55:1 (AA pass, button text) */
-    --border: 0 0% 53%; /* #878787 — fix round 1: non-text UI element (WCAG 1.4.11, not the 4.5:1 text bar). vs background 3.44:1, vs card 3.03:1 (both clear 3:1) */
+    --accent: 225 60% 92%; /* #DEE4F7 — fix round 2: hex label corrected to match this HSL; the brief's "#E1E6F5" was the target but this triple renders ~7 units lighter in G/B. Same triple as dark --primary/--ring below. */
+    --accent-foreground: 226 54% 22%; /* #1A2856 — fix round 1: was inherited Catppuccin blue-purple text; explicit now per Ruling A. vs accent 11.21:1 (AA pass) */
+    --destructive: 358 65% 46%; /* #C2292E — vs background 5.52:1 (AA pass, text usage); vs card 4.92:1 (AA pass) */
+    --destructive-foreground: 0 0% 98%; /* #FAFAFA — fix round 1: brought onto the Cybota palette (was inherited Catppuccin near-white). vs destructive 5.52:1 (AA pass, button text) */
+    --border: 0 0% 53%; /* #878787 — fix round 1: non-text UI element (WCAG 1.4.11, not the 4.5:1 text bar). vs background 3.43:1, vs card 3.06:1 (both clear 3:1) */
     --input: 0 0% 53%; /* #878787 — same as --border */
-    --ring: 226 54% 22%; /* #1A2857 — fix round 1: matches --primary. vs background 13.55:1 (well above the 3:1 non-text minimum) */
+    --ring: 226 54% 22%; /* #1A2856 — fix round 1: matches --primary. vs background 13.57:1 (well above the 3:1 non-text minimum) */
     --chart-1: 345 57.65% 74.12%;
     --chart-2: 185 37.25% 70.59%;
     --chart-3: 219 81.96% 78.43%;
@@ -87,20 +94,27 @@
        was a Critical bug (see below). Every pair carries its measured WCAG
        contrast ratio; text pairs target >=4.5:1 (AA), non-text UI elements
        (border/input/ring) target >=3:1 (WCAG 1.4.11). Do not change one side
-       of a pair without recomputing. */
+       of a pair without recomputing.
+       Fix round 2 (2026-09-04): every ratio and hex label below is computed
+       from the LITERAL H/S/L numbers on each line (HSL -> sRGB -> relative
+       luminance), not from the rounded hex comment — the hex is documentary
+       only and can be off by a unit or two from what the HSL actually
+       renders (integer-percent HSL cannot always round-trip a hex exactly).
+       When you change a value, recompute from the new HSL triple the same
+       way — do not eyeball the hex. */
     --radius: 0.625rem;
-    --background: 227 24% 12%; /* #161925 */
-    --foreground: 210 16% 93%; /* #E9ECEF — vs background 14.76:1 (AA pass) */
-    --card: 226 54% 22%; /* #1A2857 */
-    --card-foreground: 210 16% 93%; /* #E9ECEF — fix round 1: was inherited Catppuccin light blue-white text; now on the Cybota palette. vs card 11.92:1 (AA pass) */
-    --popover: 226 54% 22%; /* #1A2857 — fix round 1: was inherited Catppuccin dark navy-purple, now on the Cybota palette (same tone as --card) */
-    --popover-foreground: 210 16% 93%; /* #E9ECEF — vs popover 11.92:1 (AA pass) */
-    --primary: 225 60% 92%; /* #E1E6F5 */
-    --primary-foreground: 227 24% 12%; /* vs primary 14.03:1 (AA pass) */
-    --secondary: 226 54% 22%; /* #1A2857 */
-    --secondary-foreground: 210 16% 93%; /* #E9ECEF — fix round 1: was inherited Catppuccin light blue-white; now on the Cybota palette. vs secondary 11.92:1 (AA pass) */
-    --muted: 226 54% 22%; /* #1A2857 — fix round 1: was inherited Catppuccin dark grey (4.43:1 with the brief's new --muted-foreground, just under AA). Now on the Cybota palette (same tone as --card) */
-    --muted-foreground: 222 18% 66%; /* #9AA3B8 — vs muted 5.59:1, vs background 6.92:1 (both AA pass) */
+    --background: 227 24% 12%; /* #171A26 — fix round 2: hex label corrected to match this HSL; the brief's target hex was #161925 (a 1-unit-per-channel rounding loss, imperceptible) */
+    --foreground: 210 16% 93%; /* #EAEDF0 — vs background 14.71:1 (AA pass) */
+    --card: 226 54% 22%; /* #1A2856 */
+    --card-foreground: 210 16% 93%; /* #EAEDF0 — fix round 1: was inherited Catppuccin light blue-white text; now on the Cybota palette. vs card 12.08:1 (AA pass) */
+    --popover: 226 54% 22%; /* #1A2856 — fix round 1: was inherited Catppuccin dark navy-purple, now on the Cybota palette (same tone as --card) */
+    --popover-foreground: 210 16% 93%; /* #EAEDF0 — vs popover 12.08:1 (AA pass) */
+    --primary: 225 60% 92%; /* #DEE4F7 — fix round 2: hex label corrected (see light --accent above; same triple) */
+    --primary-foreground: 227 24% 12%; /* vs primary 13.65:1 (AA pass) */
+    --secondary: 226 54% 22%; /* #1A2856 */
+    --secondary-foreground: 210 16% 93%; /* #EAEDF0 — fix round 1: was inherited Catppuccin light blue-white; now on the Cybota palette. vs secondary 12.08:1 (AA pass) */
+    --muted: 226 54% 22%; /* #1A2856 — fix round 1: was inherited Catppuccin dark grey (4.43:1 with the brief's new --muted-foreground, just under AA). Now on the Cybota palette (same tone as --card) */
+    --muted-foreground: 222 18% 66%; /* #99A2B8 — vs muted 5.54:1, vs background 6.75:1 (both AA pass) */
     --huddle-drawer-surface: 230 18.8% 26.08%;
     --huddle-control-surface: 231 15.61% 33.92%;
     --huddle-control-hover-surface: 231 15.61% 38%;
@@ -111,13 +125,13 @@
     --huddle-popover-border: 231 15.61% 38%;
     --huddle-tooltip-surface: 231 15.61% 33.92%;
     --huddle-tooltip-foreground: 227 68.25% 87.65%;
-    --accent: 226 54% 22%; /* #1A2857 — fix round 1 (CRITICAL, Ruling A): the brief assigned #E1E6F5 here, the SAME light-lavender value as light-mode --accent. That is wrong for dark mode: --accent is a hover/selected SURFACE, and pairing a light lavender surface with the (also light) --accent-foreground computed 1.18:1 — the bg-accent/text-accent-foreground pair used by dropdown rows, comboboxes, and icon-button hovers across 31+ files would have made labels disappear into the highlight. Corrected to the navy surface, mirroring Buzz's original dark accent being a dark step paired with a light foreground. vs accent-foreground 11.92:1 (AA pass) */
-    --accent-foreground: 210 16% 93%; /* #E9ECEF — fix round 1: kept light per Ruling A, now explicit rather than inherited. vs accent(#1A2857) 11.92:1 (AA pass) */
-    --destructive: 0 82% 70%; /* #F26E6E — #C1292E fails contrast on navy. vs background(#161925, ground) 6.03:1 (AA pass); vs card(#1A2857) 4.87:1 — a NARROW PASS. Do not darken --card without rechecking this pair; a card even slightly darker than #1A2857 would drop it below AA. */
-    --destructive-foreground: 227 24% 12%; /* fix round 1: brought onto the Cybota palette (was inherited Catppuccin dark). vs destructive 6.03:1 (AA pass, button text) */
-    --border: 0 0% 45%; /* #747474 — fix round 1: non-text UI element (WCAG 1.4.11, not the 4.5:1 text bar). vs background 3.74:1, vs card 3.03:1 (both clear 3:1) */
-    --input: 0 0% 45%; /* #747474 — same as --border */
-    --ring: 225 60% 92%; /* #E1E6F5 — fix round 1: matches --primary. vs background 14.03:1 (well above the 3:1 non-text minimum) */
+    --accent: 226 54% 22%; /* #1A2856 — fix round 1 (CRITICAL, Ruling A): the brief assigned #E1E6F5 here, the SAME light-lavender value as light-mode --accent. That is wrong for dark mode: --accent is a hover/selected SURFACE, and pairing a light lavender surface with the (also light) --accent-foreground computed 1.18:1 — the bg-accent/text-accent-foreground pair used by dropdown rows, comboboxes, and icon-button hovers across 31+ files would have made labels disappear into the highlight. Corrected to the navy surface, mirroring Buzz's original dark accent being a dark step paired with a light foreground. vs accent-foreground 12.08:1 (AA pass) */
+    --accent-foreground: 210 16% 93%; /* #EAEDF0 — fix round 1: kept light per Ruling A, now explicit rather than inherited. vs accent(#1A2856) 12.08:1 (AA pass) */
+    --destructive: 0 82% 70%; /* #F17474 — fix round 2: hex label corrected to match this HSL (was #F26E6E). #C1292E/#C2292E fails contrast on navy. vs background(#171A26, ground) 6.15:1 (AA pass); vs card(#1A2856) 5.05:1 — a NARROW PASS. Do not darken --card without rechecking this pair; a card even slightly darker than #1A2856 would drop it below AA. */
+    --destructive-foreground: 227 24% 12%; /* fix round 1: brought onto the Cybota palette (was inherited Catppuccin dark). vs destructive 6.15:1 (AA pass, button text) */
+    --border: 0 0% 45%; /* #737373 — fix round 2: hex label corrected to match this HSL (was #747474). Non-text UI element (WCAG 1.4.11, not the 4.5:1 text bar). vs background 3.63:1 (clears 3:1); vs card 2.98:1 — FAILS the 3:1 non-text minimum by a hair. Not fixed this round (color values frozen for fix round 2); flagged for the next pass — a border drawn on a card surface in dark mode is marginally under spec. */
+    --input: 0 0% 45%; /* #737373 — same as --border, same open finding on the vs-card pairing */
+    --ring: 225 60% 92%; /* #DEE4F7 — fix round 2: hex label corrected (see light --accent above; same triple). fix round 1: matches --primary. vs background 13.65:1 (well above the 3:1 non-text minimum) */
     --chart-1: 333 20.78% 38.04%;
     --chart-2: 193 19.61% 38.04%;
     --chart-3: 224 26.67% 41.18%;
