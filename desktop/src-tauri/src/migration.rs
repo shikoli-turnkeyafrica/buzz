@@ -169,8 +169,16 @@ fn run_boot_migrations_inner(app: &tauri::AppHandle, reset_completed: bool) {
         maybe_migrate_dev_repos_dir(is_dev, reset_completed, &home, &dev_nest);
     }
 
-    // Commons ← Buzz must run before the Buzz ← Sprout hop below, so a
-    // three-generation install (Sprout → Buzz → Commons) lands in one boot.
+    // The Commons ← Buzz copy runs first and writes BUZZ_MIGRATION_MARKER.
+    // `legacy_app_data_dir` resolves exactly one hop, so on a Commons-
+    // identified directory it returns the Buzz path — the Sprout branch is
+    // unreachable here by construction, not "chained" after this. Once the
+    // marker exists, `migrate_legacy_app_data_dir` below skips its own copy
+    // (see `buzz_migration_completed`), so this is genuinely the only Buzz
+    // import per install. A Sprout-era install that never ran Buzz is NOT
+    // migrated directly to Commons: it must run Buzz once first so Buzz's
+    // own migration carries the Sprout data into the Buzz directory, which
+    // this hop then picks up.
     if let Ok(commons_dir) = app.path().app_data_dir() {
         if let Some(buzz_dir) = legacy_app_data_dir(&commons_dir) {
             migrate_buzz_app_data_at(&buzz_dir, &commons_dir);
@@ -215,10 +223,27 @@ fn run_boot_migrations_inner(app: &tauri::AppHandle, reset_completed: bool) {
     materialize_agent_runtimes(app);
 }
 
+/// Returns `true` when `current_dir` already holds [`BUZZ_MIGRATION_MARKER`],
+/// i.e. `migrate_buzz_app_data_at` has already imported an existing Buzz
+/// install into this directory. Extracted as a pure helper (no `AppHandle`)
+/// so it is directly unit-testable.
+pub(crate) fn buzz_migration_completed(current_dir: &Path) -> bool {
+    current_dir.join(BUZZ_MIGRATION_MARKER).exists()
+}
+
 /// Copy one-time app state from the legacy app identifier directory to
 /// the current Buzz identifier directory. The Tauri identifier controls the app
 /// data path, so without this copy a product rename would look like a fresh
 /// install and users would lose their persisted identity and agent settings.
+///
+/// On a Commons-identified build, the Commons ← Buzz hop is owned by
+/// `migrate_buzz_app_data_at` (called earlier in `run_boot_migrations_inner`,
+/// marker-gated so it runs exactly once). This function must not repeat that
+/// hop — without the marker check below it would re-derive the same
+/// `buzz_dir` from `legacy_app_data_dir` and re-run `copy_dir_all` on every
+/// boot, forever, silently resurrecting any file the user deleted from
+/// Commons because `copy_dir_all` only skips files that already exist. This
+/// function's own purpose is the older Buzz ← Sprout hop.
 pub fn migrate_legacy_app_data_dir(app: &tauri::AppHandle) {
     let current_dir = match app.path().app_data_dir() {
         Ok(dir) => dir,
@@ -227,6 +252,9 @@ pub fn migrate_legacy_app_data_dir(app: &tauri::AppHandle) {
             return;
         }
     };
+    if buzz_migration_completed(&current_dir) {
+        return;
+    }
     let Some(legacy_dir) = legacy_app_data_dir(&current_dir) else {
         return;
     };

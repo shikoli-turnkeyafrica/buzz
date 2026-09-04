@@ -1043,6 +1043,57 @@ fn absent_buzz_install_is_a_no_op() {
     assert!(!commons.join(super::BUZZ_MIGRATION_MARKER).exists());
 }
 
+/// `migrate_legacy_app_data_dir` takes a `tauri::AppHandle`, which cannot be
+/// constructed in a unit test, so it cannot be called directly here. Instead
+/// this exercises the pure `buzz_migration_completed` guard it consults
+/// before considering a copy: false before the one-time Buzz import ever
+/// ran, true immediately after — the exact transition that must make
+/// `migrate_legacy_app_data_dir` return early on every boot after the first.
+#[test]
+fn buzz_migration_completed_is_false_before_marker_and_true_after() {
+    let dir = tempfile::tempdir().unwrap();
+    let buzz = dir.path().join("xyz.block.buzz.app");
+    let commons = dir.path().join("africa.cybota.cybercare.commons");
+    std::fs::create_dir_all(&buzz).unwrap();
+    std::fs::write(buzz.join("identity.key"), "device-key").unwrap();
+
+    assert!(!super::buzz_migration_completed(&commons));
+
+    super::migrate_buzz_app_data_at(&buzz, &commons);
+
+    assert!(super::buzz_migration_completed(&commons));
+}
+
+/// Regression test for the coordinator's ruled-on failure scenario: without
+/// the marker guard, `migrate_legacy_app_data_dir` re-derives the same
+/// `buzz_dir` from `legacy_app_data_dir` on every boot and re-runs
+/// `copy_dir_all`, which only skips files already present at the
+/// destination — so a file the user deleted from Commons but which still
+/// exists in the still-runnable Buzz install would be silently resurrected,
+/// forever. This asserts the guard `migrate_legacy_app_data_dir` now checks
+/// first correctly reports "already migrated" in exactly that situation, so
+/// the caller never reaches `copy_dir_all` and the deletion sticks.
+#[test]
+fn buzz_migration_completed_gates_against_resurrecting_a_deleted_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let buzz = dir.path().join("xyz.block.buzz.app");
+    let commons = dir.path().join("africa.cybota.cybercare.commons");
+    std::fs::create_dir_all(&buzz).unwrap();
+    std::fs::write(buzz.join("identity.key"), "device-key").unwrap();
+    std::fs::write(buzz.join("stray.txt"), "will be deleted by the user").unwrap();
+
+    super::migrate_buzz_app_data_at(&buzz, &commons);
+    assert!(commons.join("stray.txt").exists());
+
+    // The user later deletes a file from Commons that Buzz still has.
+    std::fs::remove_file(commons.join("stray.txt")).unwrap();
+
+    // The guard must report completion, which is what stops
+    // migrate_legacy_app_data_dir from ever reaching copy_dir_all again.
+    assert!(super::buzz_migration_completed(&commons));
+    assert!(!commons.join("stray.txt").exists());
+}
+
 #[test]
 fn migrate_legacy_nest_preserves_user_edited_agents_md() {
     let dir = tempfile::tempdir().unwrap();
