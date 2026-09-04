@@ -11,7 +11,7 @@ import 'package:buzz/shared/community/community.dart';
 import 'package:buzz/shared/security/sensitive_action_authorizer.dart';
 import 'package:buzz/shared/theme/theme.dart';
 import 'package:buzz/shared/widgets/buzz_loading_indicator.dart';
-import 'package:buzz/shared/widgets/tappable_flapping_bee.dart';
+import 'package:buzz/shared/widgets/tappable_cybota_mark.dart';
 
 import '../../helpers/widget_helpers.dart';
 
@@ -24,7 +24,7 @@ void main() {
         WidgetHelpers.testable(child: const PairingPage()),
       );
 
-      expect(find.byType(TappableFlappingBee), findsOneWidget);
+      expect(find.byType(TappableCybotaMark), findsOneWidget);
       expect(find.text('Welcome to Buzz'), findsOneWidget);
       expect(find.text('Scan a QR code'), findsOneWidget);
       expect(find.text('Use pairing code'), findsOneWidget);
