@@ -753,6 +753,17 @@
  *   --sidebar-row-subtle-active-surface white 16% mirrors the dark value;
  *   the light default (black 7%) is imperceptible on navy.
  *   --buzz-active-foreground white on that surface (#3F4A72)      8.60:1
+ *
+ * The `color` re-declaration is load-bearing, not belt-and-braces (fix
+ * round 4, v0.5.18-test.7 shipped with ONLY the selected row legible).
+ * `Sidebar` puts `text-sidebar-foreground` on its OUTER wrapper
+ * (shared/ui/sidebar.tsx) and spreads `data-testid` onto an inner div, so
+ * `color` is computed on an ANCESTOR of the element this rule matches:
+ * retinting the variable here cannot reach it, and rows simply inherit the
+ * ancestor's dark computed colour. Only rows that re-declare colour of
+ * their own — `data-[active=true]:text-sidebar-active-foreground` — picked
+ * up the new value, which is exactly the selected-row-only symptom.
+ * Re-declaring `color` re-resolves it here, and descendants inherit white.
  */
 :root[data-buzz-sidebar]:not(.dark) [data-testid="app-sidebar"],
 :root[data-buzz-sidebar]:not(.dark) [data-testid="settings-sidebar"],
@@ -765,6 +776,7 @@
   --sidebar-accent: 226 45% 40%;
   --sidebar-row-subtle-active-surface: rgb(255 255 255 / 16%);
   --buzz-active-foreground: 0 0% 100%;
+  color: hsl(var(--sidebar-foreground));
 }
 
 /*
@@ -772,12 +784,16 @@
  * `bg-background ... text-sidebar-foreground` + `data-buzz-content-surface`)
  * sit on the light content surface, so their text follows the content
  * foreground (#1A2856 on #FAFAFA, 13.57:1) rather than the canvas white.
+ * Colour is re-declared for the same reason as the canvas rule above: the
+ * card inherits the canvas white otherwise, since nothing between here and
+ * the text re-resolves it.
  */
 :root[data-buzz-sidebar]:not(.dark)
   [data-testid="app-sidebar"]
   [data-buzz-content-surface] {
   --sidebar-foreground: var(--foreground);
   --sidebar-accent-foreground: var(--foreground);
+  color: hsl(var(--sidebar-foreground));
 }
 
 /* Follow Cybercare's selected appearance, independent of the OS color scheme. */
