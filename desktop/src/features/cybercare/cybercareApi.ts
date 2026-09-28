@@ -100,3 +100,75 @@ export function linkKeyToCybercare(
     orgId,
   });
 }
+
+/** A module, an assessment, a review status: an id and a label. */
+export type CybercareNamed = { id: string; name: string };
+
+export type CybercareEvidenceReview = {
+  id: string;
+  status: CybercareNamed | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+};
+
+export type CybercareEvidenceItem = {
+  /** Evidence definition id: what the review endpoints call `evidenceId`. */
+  id: string;
+  name: string;
+  reference: string | null;
+  description: string | null;
+  submitted: boolean;
+  /** Platform's `reviewed` flag, which means "has files". */
+  hasFiles: boolean;
+  review: CybercareEvidenceReview | null;
+};
+
+export function listCybercareModules(
+  communityId: string,
+  config: CybercareConfig,
+) {
+  return invoke<CybercareNamed[]>("cybercare_modules", {
+    communityId,
+    config: rustConfig(config),
+  });
+}
+
+export function listCybercareAssessments(
+  communityId: string,
+  config: CybercareConfig,
+  orgId: string,
+  moduleId: string,
+) {
+  return invoke<CybercareNamed[]>("cybercare_assessments", {
+    communityId,
+    config: rustConfig(config),
+    orgId,
+    moduleId,
+  });
+}
+
+export function listCybercareReviewStatuses(
+  communityId: string,
+  config: CybercareConfig,
+) {
+  return invoke<CybercareNamed[]>("cybercare_review_statuses", {
+    communityId,
+    config: rustConfig(config),
+  });
+}
+
+export function listCybercareEvidence(
+  communityId: string,
+  config: CybercareConfig,
+  orgId: string,
+  moduleId: string,
+  pageNumber = 0,
+) {
+  return invoke<CybercareEvidenceItem[]>("cybercare_evidence", {
+    communityId,
+    config: rustConfig(config),
+    orgId,
+    moduleId,
+    pageNumber,
+  });
+}

@@ -210,6 +210,8 @@ type E2eConfig = {
       organisationIds: string[];
       expiresAt: number;
     } | null;
+    /** Evidence items returned for the record panel. Omitted = two samples. */
+    cybercareEvidence?: unknown[];
     /** Cybercare key link for the signed-in identity. Omitted = not linked. */
     cybercareIdentity?: {
       enrolled: boolean;
@@ -11579,6 +11581,55 @@ export function maybeInstallE2eTauriMocks() {
             binding: null,
             isThisKey: false,
           }
+        );
+      case "cybercare_modules":
+        return [
+          { id: "11111111-0000-4000-8000-000000000001", name: "Riskcare" },
+          { id: "11111111-0000-4000-8000-000000000002", name: "Vulncare" },
+        ];
+      case "cybercare_assessments":
+        return [
+          {
+            id: "22222222-0000-4000-8000-000000000001",
+            name: "Q3 2026 Riskcare",
+          },
+        ];
+      case "cybercare_review_statuses":
+        return [
+          { id: "33333333-0000-4000-8000-000000000001", name: "Verified" },
+          { id: "33333333-0000-4000-8000-000000000002", name: "Insufficient" },
+          { id: "33333333-0000-4000-8000-000000000003", name: "Rejected" },
+        ];
+      case "cybercare_evidence":
+        return (
+          activeConfig?.mock?.cybercareEvidence ?? [
+            {
+              id: "44444444-0000-4000-8000-000000000001",
+              name: "Vault change ticket CHG-4471",
+              reference: "AC-2",
+              description: "Privileged access rollout, tier 1",
+              submitted: true,
+              hasFiles: true,
+              review: null,
+            },
+            {
+              id: "44444444-0000-4000-8000-000000000002",
+              name: "PAM policy v3",
+              reference: "AC-3",
+              description: null,
+              submitted: true,
+              hasFiles: true,
+              review: {
+                id: "55555555-0000-4000-8000-000000000001",
+                status: {
+                  id: "33333333-0000-4000-8000-000000000001",
+                  name: "Verified",
+                },
+                reviewedBy: "Risk Officer",
+                reviewedAt: "2026-09-20T09:00:00",
+              },
+            },
+          ]
         );
       case "cybercare_enrol": {
         const linked = {
