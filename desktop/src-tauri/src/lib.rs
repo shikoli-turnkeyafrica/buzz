@@ -2,7 +2,7 @@
 mod app_menu;
 mod app_state;
 mod archive;
-mod brand;
+pub mod brand;
 mod builderlab;
 mod commands;
 mod cybercare;

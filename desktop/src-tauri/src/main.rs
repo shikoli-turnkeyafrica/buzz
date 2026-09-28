@@ -12,7 +12,7 @@ fn main() {
     // `std::env::set_var` sound.
     #[cfg(target_os = "linux")]
     if let Err(diagnostic) = buzz_lib::webkit_rendering::apply() {
-        eprintln!("{}: {diagnostic}", crate::brand::LOG_PREFIX);
+        eprintln!("{}: {diagnostic}", buzz_lib::brand::LOG_PREFIX);
         std::process::exit(1);
     }
 
