@@ -1,3 +1,5 @@
+import type { CybercareConfig } from "@/features/cybercare/cybercareApi";
+
 export type Community = {
   id: string;
   name: string;
@@ -17,6 +19,11 @@ export type Community = {
    * `REPOS` directory inside the nest.
    */
   reposDir?: string;
+  /**
+   * Where this community's Cybercare Platform and Keycloak realm live. Unset
+   * = the community has no Cybercare records and the record panel stays hidden.
+   */
+  cybercare?: CybercareConfig;
   /**
    * @deprecated Never read. Kept on the type so old localStorage entries
    * deserialise without errors. New entries never set this field, and

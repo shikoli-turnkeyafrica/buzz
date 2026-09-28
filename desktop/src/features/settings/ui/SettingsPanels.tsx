@@ -24,6 +24,7 @@ import {
   UserRound,
   Volume2,
   type LucideIcon,
+  ShieldCheck,
 } from "lucide-react";
 import type {
   DesktopNotificationPermissionState,
@@ -71,6 +72,7 @@ import { MobilePairingCard } from "./MobilePairingCard";
 import { ModerationQueueCard } from "./ModerationQueueCard";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { AgentsSettingsPanel } from "./AgentsSettingsPanel";
+import { CybercareSettingsCard } from "@/features/cybercare/ui/CybercareSettingsCard";
 import { HostedCommunitiesSettingsCard } from "./HostedCommunitiesSettingsCard";
 import {
   SettingsOptionGroup,
@@ -94,6 +96,7 @@ export type SettingsSection =
   | "appearance"
   | "shortcuts"
   | "hosted-communities"
+  | "cybercare"
   | "community-members"
   | "moderation"
   | "custom-emoji"
@@ -114,6 +117,7 @@ const SETTINGS_SECTION_VALUES: readonly SettingsSection[] = [
   "appearance",
   "shortcuts",
   "hosted-communities",
+  "cybercare",
   "community-members",
   "moderation",
   "custom-emoji",
@@ -204,6 +208,11 @@ export const settingsSections: SettingsSectionDescriptor[] = [
     value: "hosted-communities",
     label: "Hosted communities",
     icon: MessagesSquare,
+  },
+  {
+    value: "cybercare",
+    label: "Cybercare",
+    icon: ShieldCheck,
   },
   {
     value: "community-members",
@@ -846,6 +855,8 @@ export function renderSettingsSection(
       return <KeyboardShortcutsCard />;
     case "hosted-communities":
       return <HostedCommunitiesSettingsCard />;
+    case "cybercare":
+      return <CybercareSettingsCard />;
     case "community-members":
       return (
         <CommunityMembersSettingsCard currentPubkey={props.currentPubkey} />
