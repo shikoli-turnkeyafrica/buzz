@@ -312,8 +312,21 @@ pub(crate) fn session_key(community_id: &str) -> Result<String, String> {
     Ok(format!("cybercare.session.{community_id}"))
 }
 
+/// Cybercare sessions live in their own keyring entry, never in the identity
+/// blob: a sign-in, refresh or sign-out must not be able to disturb the key
+/// the app signs with.
+pub(crate) fn session_service(identity_service: &str) -> String {
+    format!("{identity_service}.cybercare-sessions")
+}
+
 fn store() -> &'static crate::secret_store::SecretStore {
-    crate::secret_store::SecretStore::shared(crate::app_state::keyring_service())
+    static STORE: std::sync::OnceLock<crate::secret_store::SecretStore> =
+        std::sync::OnceLock::new();
+    STORE.get_or_init(|| {
+        crate::secret_store::SecretStore::keyring(session_service(
+            crate::app_state::keyring_service(),
+        ))
+    })
 }
 
 pub(crate) fn load_session(community_id: &str) -> Result<Option<StoredSession>, String> {
@@ -703,6 +716,14 @@ mod tests {
         let json = serde_json::to_string(&CybercareSessionInfo::from(&session)).unwrap();
         assert!(!json.contains("secret"));
         assert!(!json.contains(&session.access_token));
+    }
+
+    #[test]
+    fn sessions_use_a_keyring_service_separate_from_the_identity() {
+        let identity = crate::app_state::keyring_service();
+        let sessions = session_service(identity);
+        assert_ne!(sessions, identity);
+        assert!(sessions.starts_with(identity));
     }
 
     #[test]
