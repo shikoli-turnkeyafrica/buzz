@@ -5,6 +5,7 @@ mod archive;
 mod brand;
 mod builderlab;
 mod commands;
+mod cybercare;
 mod deep_link;
 mod egress_guard;
 mod event_sync;
@@ -233,6 +234,7 @@ pub fn run() {
         .manage(PendingEntityDeepLinks::default())
         .manage(BuilderlabSession::default())
         .manage(BuilderlabLogin::default())
+        .manage(cybercare::auth::CybercareSignIn::default())
         .manage(commands::pairing::PairingHandle::new())
         .manage(terminal_runtime::TerminalSessions::default())
         .manage(archive::sync::ArchiveSyncState::default())
@@ -556,6 +558,10 @@ pub fn run() {
             take_pending_entity_deep_link,
             acknowledge_pending_entity_deep_link,
             start_builderlab_login,
+            cybercare::auth::cybercare_sign_in,
+            cybercare::auth::cybercare_cancel_sign_in,
+            cybercare::auth::cybercare_session,
+            cybercare::auth::cybercare_sign_out,
             cancel_builderlab_login,
             get_builderlab_auth,
             clear_builderlab_auth,

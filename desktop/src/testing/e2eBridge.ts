@@ -201,6 +201,15 @@ type E2eConfig = {
     projectRepoSnapshotError?: string;
     /** Delay remote repository snapshots so project loading UI is observable. */
     projectRepoSnapshotDelayMs?: number;
+    /** Cybercare session returned by Keycloak sign-in. Null/omitted = signed out. */
+    cybercareSession?: {
+      subject: string;
+      username: string | null;
+      name: string | null;
+      email: string | null;
+      organisationIds: string[];
+      expiresAt: number;
+    } | null;
     /** Builderlab account returned by hosted-community onboarding. Null/omitted = signed out. */
     builderlabAuth?: {
       email?: string;
@@ -11536,6 +11545,26 @@ export function maybeInstallE2eTauriMocks() {
           registry: await handleMockCommand("list_voice_registry", null),
         };
       }
+      case "cybercare_session":
+        return activeConfig?.mock?.cybercareSession ?? null;
+      case "cybercare_sign_in": {
+        const nextSession = activeConfig?.mock?.cybercareSession ?? {
+          subject: "00000000-0000-4000-8000-00000000c150",
+          username: "wanjiru@cybota-bank.example",
+          name: "Wanjiru Kamau",
+          email: "wanjiru@cybota-bank.example",
+          organisationIds: ["cb000000-0000-0000-0000-000000000001"],
+          expiresAt: 4_102_444_800,
+        };
+        if (activeConfig?.mock)
+          activeConfig.mock.cybercareSession = nextSession;
+        return nextSession;
+      }
+      case "cybercare_cancel_sign_in":
+        return null;
+      case "cybercare_sign_out":
+        if (activeConfig?.mock) activeConfig.mock.cybercareSession = null;
+        return null;
       case "get_builderlab_auth":
         return activeConfig?.mock?.builderlabAuth ?? null;
       case "start_builderlab_login": {
