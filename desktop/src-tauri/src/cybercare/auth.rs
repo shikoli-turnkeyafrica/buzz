@@ -47,6 +47,10 @@ h1{margin:0 0 8px;font-size:22px}p{margin:0;color:#4c4f69;line-height:1.5}
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct CybercareConfig {
+    /// Cybercare API gateway. Needed for Platform and identity calls; sign-in
+    /// alone does not use it.
+    #[serde(default)]
+    pub base_url: Option<String>,
     /// Keycloak base, including the `/auth` prefix on Keycloak <= 16.
     pub keycloak_url: String,
     pub realm: String,
@@ -81,6 +85,21 @@ impl CybercareConfig {
             base.as_str().trim_end_matches('/'),
             self.realm
         ))
+    }
+
+    /// Gateway base with no trailing slash, validated as http(s).
+    pub(crate) fn gateway(&self) -> Result<String, String> {
+        let raw = self
+            .base_url
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| "Cybercare address is not set for this community".to_owned())?;
+        let parsed = Url::parse(raw.trim().trim_end_matches('/'))
+            .map_err(|error| format!("invalid Cybercare address: {error}"))?;
+        if !matches!(parsed.scheme(), "http" | "https") {
+            return Err("Cybercare address must be http or https".to_owned());
+        }
+        Ok(parsed.as_str().trim_end_matches('/').to_owned())
     }
 
     pub(crate) fn authorize_endpoint(&self) -> Result<String, String> {
@@ -557,6 +576,7 @@ mod tests {
 
     fn config() -> CybercareConfig {
         CybercareConfig {
+            base_url: Some("http://127.0.0.1:8100/".into()),
             keycloak_url: "http://127.0.0.1:8026/auth/".into(),
             realm: "cybota".into(),
             client_id: None,

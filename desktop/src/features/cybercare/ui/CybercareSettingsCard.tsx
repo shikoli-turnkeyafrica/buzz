@@ -23,6 +23,7 @@ import {
   draftFromConfig,
   signInErrorMessage,
 } from "../cybercareConfig";
+import { CybercareKeyLinkRow } from "./CybercareKeyLinkRow";
 
 type Phase = "idle" | "signing-in" | "signing-out";
 
@@ -196,6 +197,13 @@ export function CybercareSettingsCard() {
               Sign out
             </Button>
           </SettingsOptionRow>
+          {saved ? (
+            <CybercareKeyLinkRow
+              communityId={communityId}
+              config={saved}
+              session={session}
+            />
+          ) : null}
         </SettingsOptionGroup>
       ) : null}
 

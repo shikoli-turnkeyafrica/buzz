@@ -210,6 +210,16 @@ type E2eConfig = {
       organisationIds: string[];
       expiresAt: number;
     } | null;
+    /** Cybercare key link for the signed-in identity. Omitted = not linked. */
+    cybercareIdentity?: {
+      enrolled: boolean;
+      binding: {
+        commonsPubkey: string;
+        enrolledAt: string;
+        enrolledVia: string;
+      } | null;
+      isThisKey: boolean;
+    };
     /** Builderlab account returned by hosted-community onboarding. Null/omitted = signed out. */
     builderlabAuth?: {
       email?: string;
@@ -11562,6 +11572,28 @@ export function maybeInstallE2eTauriMocks() {
       }
       case "cybercare_cancel_sign_in":
         return null;
+      case "cybercare_identity":
+        return (
+          activeConfig?.mock?.cybercareIdentity ?? {
+            enrolled: false,
+            binding: null,
+            isThisKey: false,
+          }
+        );
+      case "cybercare_enrol": {
+        const linked = {
+          enrolled: true,
+          binding: {
+            commonsPubkey:
+              "e2e0000000000000000000000000000000000000000000000000000000000001",
+            enrolledAt: "2026-09-29T09:00:00+00:00",
+            enrolledVia: "nip07-browser",
+          },
+          isThisKey: true,
+        };
+        if (activeConfig?.mock) activeConfig.mock.cybercareIdentity = linked;
+        return linked;
+      }
       case "cybercare_sign_out":
         if (activeConfig?.mock) activeConfig.mock.cybercareSession = null;
         return null;

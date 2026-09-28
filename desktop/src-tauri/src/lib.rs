@@ -562,6 +562,8 @@ pub fn run() {
             cybercare::auth::cybercare_cancel_sign_in,
             cybercare::auth::cybercare_session,
             cybercare::auth::cybercare_sign_out,
+            cybercare::identity::cybercare_identity,
+            cybercare::identity::cybercare_enrol,
             cancel_builderlab_login,
             get_builderlab_auth,
             clear_builderlab_auth,

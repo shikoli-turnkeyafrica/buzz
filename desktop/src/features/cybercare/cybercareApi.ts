@@ -25,8 +25,9 @@ export type CybercareSession = {
   expiresAt: number;
 };
 
-function keycloakConfig(config: CybercareConfig) {
+function rustConfig(config: CybercareConfig) {
   return {
+    baseUrl: config.baseUrl,
     keycloakUrl: config.keycloakUrl,
     realm: config.realm,
     clientId: config.clientId ?? null,
@@ -40,7 +41,7 @@ export function signInToCybercare(
 ) {
   return invoke<CybercareSession>("cybercare_sign_in", {
     communityId,
-    config: keycloakConfig(config),
+    config: rustConfig(config),
   });
 }
 
@@ -58,6 +59,44 @@ export function signOutOfCybercare(
 ) {
   return invoke<void>("cybercare_sign_out", {
     communityId,
-    config: keycloakConfig(config),
+    config: rustConfig(config),
+  });
+}
+
+export type CybercareBinding = {
+  commonsPubkey: string;
+  enrolledAt: string;
+  enrolledVia: string;
+};
+
+export type CybercareIdentityStatus = {
+  enrolled: boolean;
+  binding: CybercareBinding | null;
+  /** False with `enrolled` = another device or key is linked, not this app. */
+  isThisKey: boolean;
+};
+
+export function getCybercareIdentity(
+  communityId: string,
+  config: CybercareConfig,
+  orgId: string,
+) {
+  return invoke<CybercareIdentityStatus>("cybercare_identity", {
+    communityId,
+    config: rustConfig(config),
+    orgId,
+  });
+}
+
+/** Proves this app's key to Cybercare and records the link. */
+export function linkKeyToCybercare(
+  communityId: string,
+  config: CybercareConfig,
+  orgId: string,
+) {
+  return invoke<CybercareIdentityStatus>("cybercare_enrol", {
+    communityId,
+    config: rustConfig(config),
+    orgId,
   });
 }
