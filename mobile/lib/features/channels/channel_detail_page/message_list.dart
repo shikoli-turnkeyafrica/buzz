@@ -793,7 +793,15 @@ class _MessageList extends HookConsumerWidget {
                           dayTimestamp: message.createdAt,
                           stickyDayTimestamp: stickyDayTimestamp,
                         ),
-                      if (message.isSystem)
+                      if (message.governance != null)
+                        _GovernanceRow(
+                          message: message,
+                          channelId: channelId,
+                          currentPubkey: currentPubkey,
+                          isMember: isMember,
+                          isArchived: isArchived,
+                        )
+                      else if (message.isSystem)
                         _SystemMessageRow(
                           message: message,
                           groupedMessages: entryGroup.length > 1

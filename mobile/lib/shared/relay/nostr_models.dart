@@ -46,6 +46,21 @@ abstract final class EventKind {
   static const huddleParticipantLeft = 48102;
   static const huddleEnded = 48103;
 
+  /// Cybota governed-room acts. Match `KIND_CYBOTA_*` on desktop.
+  static const governanceDigest = 46200;
+  static const governanceStaged = 46201;
+  static const governanceAdvice = 46202;
+  static const governanceRatification = 46203;
+  static const governanceDissent = 46204;
+
+  static const governanceKinds = [
+    governanceDigest,
+    governanceStaged,
+    governanceAdvice,
+    governanceRatification,
+    governanceDissent,
+  ];
+
   /// Event kinds that represent user-visible channel messages.
   static const channelMessageEventKinds = [
     streamMessage, // 9
@@ -69,6 +84,7 @@ abstract final class EventKind {
     huddleParticipantJoined, // 48101 — huddle lifecycle metadata
     huddleParticipantLeft, // 48102 — huddle lifecycle metadata
     huddleEnded, // 48103 — visible huddle ended row
+    ...governanceKinds, // 46200–46204 — governed-room acts
   ];
 
   /// Auxiliary timeline kinds that overlay or hide existing rows.
@@ -92,6 +108,7 @@ abstract final class EventKind {
     jobCancel,
     jobError,
     huddleStarted,
+    ...governanceKinds,
   ];
 }
 

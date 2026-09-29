@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../shared/relay/relay.dart';
 import '../../shared/custom_emoji/custom_emoji.dart';
 import 'channel_window.dart';
+import 'governance_event.dart';
 
 enum SystemEventType {
   memberJoined,
@@ -165,6 +166,10 @@ class TimelineMessage {
   final bool edited;
   final SystemEvent? systemEvent;
 
+  /// Set for signed governance acts (kinds 46200–46204); such rows are also
+  /// [isSystem] so they take no edit/delete actions and break author runs.
+  final GovernanceEvent? governance;
+
   /// Pubkeys mentioned in this message (from p-tags).
   final List<String> mentionPubkeys;
 
@@ -186,6 +191,7 @@ class TimelineMessage {
     this.isSystem = false,
     this.edited = false,
     this.systemEvent,
+    this.governance,
     this.mentionPubkeys = const [],
     this.reactions = const [],
     this.parentId,
@@ -463,6 +469,23 @@ List<TimelineMessage> formatTimeline(
           ),
         );
       }
+      continue;
+    }
+
+    final governance = GovernanceEvent.fromEvent(event);
+    if (governance != null) {
+      result.add(
+        TimelineMessage(
+          id: event.id,
+          pubkey: event.pubkey,
+          createdAt: event.createdAt,
+          content: event.content,
+          tags: event.tags,
+          isSystem: true,
+          governance: governance,
+          reactions: reactionsFor(event.id),
+        ),
+      );
       continue;
     }
 

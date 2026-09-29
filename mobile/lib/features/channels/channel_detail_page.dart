@@ -44,6 +44,7 @@ import 'date_formatters.dart';
 import 'day_divider.dart';
 import 'dm_channel_labels.dart';
 import 'ephemeral_channel_display.dart';
+import 'governance_event.dart';
 import 'ime_metrics_settle_observer.dart';
 import 'jump_to_latest_button.dart';
 import 'jump_to_latest_switcher.dart';
@@ -65,6 +66,7 @@ import 'timeline_message.dart';
 
 part 'channel_detail_page/message_list.dart';
 part 'channel_detail_page/system_rows.dart';
+part 'channel_detail_page/governance_row.dart';
 part 'channel_detail_page/message_bubble.dart';
 part 'channel_detail_page/banners.dart';
 part 'channel_detail_page/app_bar.dart';
