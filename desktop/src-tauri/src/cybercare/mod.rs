@@ -5,3 +5,4 @@
 pub(crate) mod auth;
 pub(crate) mod identity;
 pub(crate) mod platform;
+pub(crate) mod session_store;

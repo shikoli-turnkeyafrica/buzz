@@ -319,19 +319,13 @@ pub(crate) fn session_service(identity_service: &str) -> String {
     format!("{identity_service}.cybercare-sessions")
 }
 
-fn store() -> &'static crate::secret_store::SecretStore {
-    static STORE: std::sync::OnceLock<crate::secret_store::SecretStore> =
-        std::sync::OnceLock::new();
-    STORE.get_or_init(|| {
-        crate::secret_store::SecretStore::keyring(session_service(
-            crate::app_state::keyring_service(),
-        ))
-    })
+fn service() -> String {
+    session_service(crate::app_state::keyring_service())
 }
 
 pub(crate) fn load_session(community_id: &str) -> Result<Option<StoredSession>, String> {
     let key = session_key(community_id)?;
-    match store().load(&key)? {
+    match super::session_store::load(&service(), &key)? {
         None => Ok(None),
         Some(raw) => serde_json::from_str(&raw)
             .map(Some)
@@ -341,11 +335,11 @@ pub(crate) fn load_session(community_id: &str) -> Result<Option<StoredSession>, 
 
 fn save_session(community_id: &str, session: &StoredSession) -> Result<(), String> {
     let raw = serde_json::to_string(session).map_err(|error| error.to_string())?;
-    store().store(&session_key(community_id)?, &raw)
+    super::session_store::store(&service(), &session_key(community_id)?, &raw)
 }
 
 fn delete_session(community_id: &str) -> Result<(), String> {
-    store().delete(&session_key(community_id)?)
+    super::session_store::delete(&service(), &session_key(community_id)?)
 }
 
 async fn post_token_form(
