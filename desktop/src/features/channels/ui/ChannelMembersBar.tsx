@@ -1,4 +1,4 @@
-import { EllipsisVertical, Settings2, Users } from "lucide-react";
+import { EllipsisVertical, Settings2, ShieldCheck, Users } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -39,6 +39,8 @@ type ChannelMembersBarProps = {
   onAddBotOpenChange?: (open: boolean) => void;
   onManageChannel: () => void;
   onToggleMembers: () => void;
+  onToggleRecords?: () => void;
+  recordsOpen?: boolean;
   variant?: "inline" | "compact";
 };
 
@@ -49,6 +51,8 @@ export function ChannelMembersBar({
   onAddBotOpenChange,
   onManageChannel,
   onToggleMembers,
+  onToggleRecords,
+  recordsOpen = false,
   variant = "inline",
 }: ChannelMembersBarProps) {
   const [uncontrolledAddBotOpen, setUncontrolledAddBotOpen] =
@@ -206,6 +210,15 @@ export function ChannelMembersBar({
             </span>
           </DropdownMenuItem>
           {huddleIndicator}
+          {onToggleRecords ? (
+            <DropdownMenuItem
+              data-testid="cybercare-records-trigger"
+              onSelect={onToggleRecords}
+            >
+              <ShieldCheck />
+              <span>Records</span>
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem
             data-testid="channel-management-trigger"
             onSelect={onManageChannel}
@@ -237,6 +250,26 @@ export function ChannelMembersBar({
         </Tooltip>
 
         {huddleIndicator}
+
+        {onToggleRecords ? (
+          <Tooltip disableHoverableContent>
+            <TooltipTrigger asChild>
+              <Button
+                aria-label="Cybercare records"
+                aria-pressed={recordsOpen}
+                className="h-8 px-2.5"
+                data-testid="cybercare-records-trigger"
+                onClick={onToggleRecords}
+                type="button"
+                variant={recordsOpen ? "secondary" : "outline"}
+              >
+                <ShieldCheck />
+                <span className="text-sm font-medium">Records</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Cybercare evidence for this room</TooltipContent>
+          </Tooltip>
+        ) : null}
 
         <Tooltip disableHoverableContent>
           <TooltipTrigger asChild>

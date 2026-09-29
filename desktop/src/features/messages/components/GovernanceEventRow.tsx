@@ -34,6 +34,10 @@ type GovernanceEventPayload = {
   action?: "APPROVE" | "REJECT";
   position?: string;
   refs?: string[];
+  /** Free-text reason the author signed with the ruling. */
+  note?: string;
+  /** What the ruling is about, when it concerns an off-relay record. */
+  subject?: { name?: string; reference?: string };
   verified: boolean;
 };
 
@@ -85,6 +89,20 @@ function parseGovernancePayload(
       action: content.action,
       position: content.position,
       refs: content.refs || [],
+      note: typeof content.note === "string" ? content.note : undefined,
+      subject:
+        content.subject && typeof content.subject === "object"
+          ? {
+              name:
+                typeof content.subject.name === "string"
+                  ? content.subject.name
+                  : undefined,
+              reference:
+                typeof content.subject.reference === "string"
+                  ? content.subject.reference
+                  : undefined,
+            }
+          : undefined,
       verified: true, // Timeline messages are already verified
     };
   } catch {
@@ -298,6 +316,29 @@ export const GovernanceEventRow = React.memo(function GovernanceEventRow({
           <p className="-mt-0.5 text-sm leading-snug text-foreground">
             {description.action}
           </p>
+          {payload.subject?.name ? (
+            <p className="text-sm leading-snug text-foreground">
+              {payload.subject.name}
+              {payload.subject.reference ? (
+                <span className="text-muted-foreground">
+                  {" "}
+                  ·{" "}
+                  <span className="font-mono">{payload.subject.reference}</span>
+                </span>
+              ) : null}
+              {payload.position ? (
+                <span className="text-muted-foreground">
+                  {" "}
+                  · {payload.position}
+                </span>
+              ) : null}
+            </p>
+          ) : null}
+          {payload.note ? (
+            <p className="text-sm italic leading-snug text-muted-foreground">
+              “{payload.note}”
+            </p>
+          ) : null}
           {!payload.verified && (
             <p className="text-xs text-muted-foreground italic">unverified</p>
           )}

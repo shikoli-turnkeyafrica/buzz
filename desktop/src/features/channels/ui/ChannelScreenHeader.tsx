@@ -47,6 +47,9 @@ type ChannelScreenHeaderProps = {
   onJoinChannel?: () => Promise<void>;
   onManageChannel: () => void;
   onToggleMembers: () => void;
+  /** Present only when the community is connected to Cybercare. */
+  onToggleRecords?: () => void;
+  recordsOpen?: boolean;
 };
 
 export function ChannelScreenHeader({
@@ -67,6 +70,8 @@ export function ChannelScreenHeader({
   onJoinChannel,
   onManageChannel,
   onToggleMembers,
+  onToggleRecords,
+  recordsOpen,
 }: ChannelScreenHeaderProps) {
   const isGroupDm =
     activeChannel?.channelType === "dm" &&
@@ -115,6 +120,8 @@ export function ChannelScreenHeader({
         onAddBotOpenChange={onAddBotOpenChange}
         onManageChannel={onManageChannel}
         onToggleMembers={onToggleMembers}
+        onToggleRecords={onToggleRecords}
+        recordsOpen={recordsOpen}
         variant={actionsVariant}
       />
     )

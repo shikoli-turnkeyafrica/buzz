@@ -27,6 +27,7 @@ import { useComposerHeightPadding } from "@/features/messages/ui/useComposerHeig
 import { UserProfilePanel } from "@/features/profile/ui/UserProfilePanel";
 import { AgentSessionThreadPanel } from "@/features/channels/ui/AgentSessionThreadPanel";
 import { ChannelManagementAuxiliaryPanel } from "@/features/channels/ui/ChannelManagementAuxiliaryPanel";
+import { CybercareRecordPanel } from "@/features/cybercare/ui/CybercareRecordPanel";
 import { RightAuxiliaryPane } from "@/features/channels/ui/RightAuxiliaryPane";
 import { ThreadViewModeToggle } from "@/features/channels/ui/ThreadViewModeToggle";
 import { FocusThreadDrawer } from "@/features/channels/ui/FocusThreadDrawer";
@@ -73,6 +74,10 @@ export const ChannelPane = React.memo(function ChannelPane({
   onAutoSendComplete = null,
   botTypingEntries,
   channelManagementOpen = false,
+  recordsOpen = false,
+  onCloseRecords,
+  communityId = null,
+  cybercareConfig,
   currentPubkey,
   editTarget = null,
   fetchOlder,
@@ -481,6 +486,7 @@ export const ChannelPane = React.memo(function ChannelPane({
   const hasSplitAuxiliaryPane =
     useSplitAuxiliaryPane &&
     (channelManagementOpen ||
+      (recordsOpen && Boolean(activeChannel)) ||
       Boolean(threadHeadMessage) ||
       shouldShowThreadSkeleton ||
       Boolean(activeChannel && selectedAgent) ||
@@ -932,6 +938,22 @@ export const ChannelPane = React.memo(function ChannelPane({
             );
             return wrapAux(panel, "user-profile-panel");
           })()
+        ) : recordsOpen && activeChannel && communityId ? (
+          wrapAux(
+            <CybercareRecordPanel
+              channel={activeChannel}
+              communityId={communityId}
+              config={cybercareConfig}
+              isSinglePanelView={
+                useSplitAuxiliaryPane ? false : isSinglePanelView
+              }
+              layout={useSplitAuxiliaryPane ? "split" : "standalone"}
+              onClose={() => onCloseRecords?.()}
+              transparentChrome={useSplitAuxiliaryPane}
+              widthPx={threadPanelWidthPx}
+            />,
+            "cybercare-record-panel",
+          )
         ) : null}
       </AnimatePresence>
     </div>

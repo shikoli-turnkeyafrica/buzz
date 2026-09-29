@@ -7,7 +7,8 @@
 //!   (a Spring page with `content`, or a bare array when `pageSize=-1`).
 //!
 //! Every call carries the signed-in person's bearer, so the Platform applies
-//! their own permissions. Nothing here writes.
+//! their own permissions. The only write is `cybercare_verify_evidence`: the
+//! evidence review a person records before the app signs their ruling.
 
 use std::time::Duration;
 
@@ -213,6 +214,121 @@ async fn get(
     }
 }
 
+/// The Platform's answer to a verify: the review row it recorded.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RecordedReview {
+    pub review_id: String,
+    pub status: Option<Named>,
+    pub reviewed_by: Option<String>,
+}
+
+/// Reads `data.affected_records` from a v1 create/update response.
+pub(crate) fn recorded_review_from(body: &str) -> Result<RecordedReview, String> {
+    let envelope: Value = serde_json::from_str(body)
+        .map_err(|error| format!("Cybercare response unreadable: {error}"))?;
+    let record = envelope
+        .get("data")
+        .and_then(|d| d.get("affected_records"))
+        .ok_or_else(|| "Cybercare did not return the recorded review".to_owned())?;
+    let reviewer = [
+        text(record, &["reviewedByFirstName"]),
+        text(record, &["reviewedByLastName"]),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>()
+    .join(" ");
+    Ok(RecordedReview {
+        review_id: text(record, &["id"])
+            .ok_or_else(|| "Cybercare returned a review without an id".to_owned())?,
+        status: record
+            .get("reviewStatusEntity")
+            .and_then(|s| named(s, &["name"])),
+        reviewed_by: (!reviewer.is_empty()).then_some(reviewer),
+    })
+}
+
+/// A v1 refusal in words: the envelope's `data` string or `message`.
+pub(crate) fn v1_refusal(status: u16, body: &str) -> String {
+    let reason = serde_json::from_str::<Value>(body).ok().and_then(|v| {
+        v.get("data")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .or_else(|| text(&v, &["message"]))
+    });
+    match (status, reason) {
+        (401, _) => "Cybercare did not accept your session. Sign out and sign in again.".into(),
+        (403, _) => {
+            "Your Cybercare role cannot review evidence (needs Assessment Management - Write)."
+                .into()
+        }
+        (_, Some(reason)) => format!("Cybercare refused: {reason}"),
+        (status, None) => format!("Cybercare answered HTTP {status}"),
+    }
+}
+
+/// Records the evidence review in Cybercare under the signed-in person.
+/// Creates the review, or updates it when one already exists. The Platform
+/// enforces PERMISSION_REVIEW_EVIDENCE and refuses when the named assessment
+/// is locked; the app signs nothing unless this succeeds.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn cybercare_verify_evidence(
+    app_state: tauri::State<'_, crate::app_state::AppState>,
+    community_id: String,
+    config: CybercareConfig,
+    org_id: String,
+    evidence_id: String,
+    review_status_id: String,
+    risk_assessment_id: Option<String>,
+    update_existing: bool,
+) -> Result<RecordedReview, String> {
+    check_uuid(&org_id, "organisation")?;
+    check_uuid(&evidence_id, "evidence")?;
+    check_uuid(&review_status_id, "review status")?;
+    if let Some(id) = &risk_assessment_id {
+        check_uuid(id, "assessment")?;
+    }
+    let endpoint = if update_existing {
+        "update_review_evidence"
+    } else {
+        "create_evidence_review"
+    };
+    let url = format!(
+        "{}{V1}/evidence_upload/evidence_review/{endpoint}?pageNumber=0&pageSize=100&sortBy=name&sortOrder=asc&isShort=true",
+        config.gateway()?
+    );
+    let token = access_token(&app_state.http_client, &config, &community_id).await?;
+    let body = serde_json::json!({
+        "evidenceId": evidence_id,
+        "orgId": org_id,
+        "reviewStatusId": review_status_id,
+        "riskAssessmentId": risk_assessment_id,
+    });
+    let request = if update_existing {
+        app_state.http_client.put(url)
+    } else {
+        app_state.http_client.post(url)
+    };
+    let response = request
+        .bearer_auth(token)
+        .json(&body)
+        .timeout(HTTP_TIMEOUT)
+        .send()
+        .await
+        .map_err(|error| format!("Cybercare unreachable: {error}"))?;
+    let status = response.status().as_u16();
+    let text = response
+        .text()
+        .await
+        .map_err(|error| format!("Cybercare response unreadable: {error}"))?;
+    if !(200..300).contains(&status) {
+        return Err(v1_refusal(status, &text));
+    }
+    recorded_review_from(&text)
+}
+
 #[tauri::command]
 pub(crate) async fn cybercare_modules(
     app_state: tauri::State<'_, crate::app_state::AppState>,
@@ -358,6 +474,29 @@ mod tests {
         let wrapped = serde_json::json!({"items":[{"id":"m2","moduleName":"Vulncare"}],"count":1});
         assert_eq!(modules_from(&bare)[0].name, "Riskcare");
         assert_eq!(modules_from(&wrapped)[0].name, "Vulncare");
+    }
+
+    #[test]
+    fn recorded_review_reads_affected_records() {
+        let body = r#"{"code":201,"data":{"affected_records":{"id":"rev-1","reviewedByFirstName":"Cybota","reviewedByLastName":"Bank Test","reviewStatusEntity":{"id":"st","name":"Verified"}},"all_records":{}}}"#;
+        let review = recorded_review_from(body).unwrap();
+        assert_eq!(review.review_id, "rev-1");
+        assert_eq!(review.status.unwrap().name, "Verified");
+        assert_eq!(review.reviewed_by.as_deref(), Some("Cybota Bank Test"));
+        assert!(recorded_review_from(r#"{"data":{}}"#).is_err());
+    }
+
+    #[test]
+    fn refusals_carry_the_platform_reason() {
+        assert_eq!(
+            v1_refusal(
+                400,
+                r#"{"code":400,"data":"Risk Assessment is locked; evidence review is closed"}"#
+            ),
+            "Cybercare refused: Risk Assessment is locked; evidence review is closed"
+        );
+        assert!(v1_refusal(403, "").contains("Assessment Management - Write"));
+        assert_eq!(v1_refusal(500, "<html>"), "Cybercare answered HTTP 500");
     }
 
     #[test]

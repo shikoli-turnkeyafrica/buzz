@@ -78,6 +78,11 @@ export type ChannelPaneProps = {
   onBackFromAgentSession?: () => void;
   onCloseAgentSession: () => void;
   onCloseChannelManagement?: () => void;
+  /** Cybercare evidence panel (lowest precedence in the right pane). */
+  recordsOpen?: boolean;
+  onCloseRecords?: () => void;
+  communityId?: string | null;
+  cybercareConfig?: import("@/features/cybercare/cybercareApi").CybercareConfig;
   onChannelManagementDeleted?: () => void;
   onCloseProfilePanel: () => void;
   onAddAgent?: (options?: { beforeSend?: () => void }) => void;

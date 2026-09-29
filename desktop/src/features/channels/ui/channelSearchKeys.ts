@@ -14,6 +14,7 @@ export const CHANNEL_SEARCH_KEYS = [
   "profile",
   "profileTab",
   "profileView",
+  "records",
   "thread",
   "threadRootId",
 ] as const;

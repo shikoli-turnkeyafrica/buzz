@@ -172,3 +172,30 @@ export function listCybercareEvidence(
     pageNumber,
   });
 }
+
+export type CybercareRecordedReview = {
+  reviewId: string;
+  status: CybercareNamed | null;
+  reviewedBy: string | null;
+};
+
+/** Records the review in Cybercare under the signed-in person. */
+export function verifyCybercareEvidence(input: {
+  communityId: string;
+  config: CybercareConfig;
+  orgId: string;
+  evidenceId: string;
+  reviewStatusId: string;
+  riskAssessmentId: string | null;
+  updateExisting: boolean;
+}) {
+  return invoke<CybercareRecordedReview>("cybercare_verify_evidence", {
+    communityId: input.communityId,
+    config: rustConfig(input.config),
+    orgId: input.orgId,
+    evidenceId: input.evidenceId,
+    reviewStatusId: input.reviewStatusId,
+    riskAssessmentId: input.riskAssessmentId,
+    updateExisting: input.updateExisting,
+  });
+}

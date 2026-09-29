@@ -11558,6 +11558,19 @@ export function maybeInstallE2eTauriMocks() {
         };
       }
       case "cybercare_session":
+        if (
+          activeConfig?.mock?.cybercareSession === undefined &&
+          window.localStorage.getItem("e2e-cybercare-signed-in") === "1"
+        ) {
+          return {
+            subject: "00000000-0000-4000-8000-00000000c150",
+            username: "test-cybota-bank@cybota.local",
+            name: "Cybota Bank Test",
+            email: "test-cybota-bank@cybota.local",
+            organisationIds: ["cb000000-0000-0000-0000-000000000001"],
+            expiresAt: 4_102_444_800,
+          };
+        }
         return activeConfig?.mock?.cybercareSession ?? null;
       case "cybercare_sign_in": {
         const nextSession = activeConfig?.mock?.cybercareSession ?? {
@@ -11575,6 +11588,21 @@ export function maybeInstallE2eTauriMocks() {
       case "cybercare_cancel_sign_in":
         return null;
       case "cybercare_identity":
+        if (
+          activeConfig?.mock?.cybercareIdentity === undefined &&
+          window.localStorage.getItem("e2e-cybercare-signed-in") === "1"
+        ) {
+          return {
+            enrolled: true,
+            binding: {
+              commonsPubkey:
+                "25468c9b000000000000000000000000000000000000000000000000c342cf1",
+              enrolledAt: "2026-09-29T00:00:00+00:00",
+              enrolledVia: "nip07-browser",
+            },
+            isThisKey: true,
+          };
+        }
         return (
           activeConfig?.mock?.cybercareIdentity ?? {
             enrolled: false,
@@ -11631,6 +11659,15 @@ export function maybeInstallE2eTauriMocks() {
             },
           ]
         );
+      case "cybercare_verify_evidence":
+        return {
+          reviewId: "7d0c1e2a-0000-4000-8000-000000000001",
+          status: {
+            id: "33333333-0000-4000-8000-000000000001",
+            name: "Verified",
+          },
+          reviewedBy: "Cybota Bank Test",
+        };
       case "cybercare_enrol": {
         const linked = {
           enrolled: true,

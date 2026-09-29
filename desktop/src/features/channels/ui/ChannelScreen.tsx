@@ -127,7 +127,9 @@ export function ChannelScreen({
     profilePanelPubkey,
     profilePanelTab,
     profilePanelView,
+    recordsOpen,
     setChannelManagementOpen,
+    setRecordsOpen,
     setOpenAgentSessionChannelId,
     setOpenAgentSessionPubkey,
     setOpenThreadHeadId,
@@ -549,6 +551,10 @@ export function ChannelScreen({
     () => setChannelManagementOpen(false),
     [setChannelManagementOpen],
   );
+  const handleCloseRecords = React.useCallback(
+    () => setRecordsOpen(false),
+    [setRecordsOpen],
+  );
   const handleChannelManagementDeleted = React.useCallback(() => {
     setChannelManagementOpen(false);
     void goHome({ replace: true });
@@ -672,7 +678,8 @@ export function ChannelScreen({
     effectiveOpenThreadHeadId ||
       openAgentSessionPubkey ||
       profilePanelPubkey ||
-      channelManagementOpen,
+      channelManagementOpen ||
+      recordsOpen,
   );
   const displayedThreadHeadMessage = threadPanelData.threadHead;
   const displayedThreadAllMessages = threadPanelData.messages;
@@ -716,8 +723,10 @@ export function ChannelScreen({
     setThreadReplyTargetId(null);
     handleCloseAgentSession();
     setProfilePanelPubkey(null);
+    setRecordsOpen(false);
     setChannelManagementOpen(true);
   }, [
+    setRecordsOpen,
     activeChannel?.channelType,
     channelManagementOpen,
     openGlobalChannelManagement,
@@ -725,6 +734,28 @@ export function ChannelScreen({
     setOpenThreadHeadId,
     handleCloseAgentSession,
     setProfilePanelPubkey,
+  ]);
+  const hasCybercareRecords = Boolean(activeCommunity?.cybercare);
+  const handleToggleRecords = React.useCallback(() => {
+    if (recordsOpen) {
+      setRecordsOpen(false);
+      return;
+    }
+    setOpenThreadHeadId(null);
+    setExpandedThreadReplyIds(new Set());
+    setThreadScrollTargetId(null);
+    setThreadReplyTargetId(null);
+    handleCloseAgentSession();
+    setProfilePanelPubkey(null);
+    setChannelManagementOpen(false);
+    setRecordsOpen(true);
+  }, [
+    recordsOpen,
+    setRecordsOpen,
+    setOpenThreadHeadId,
+    handleCloseAgentSession,
+    setProfilePanelPubkey,
+    setChannelManagementOpen,
   ]);
   const handleToggleMembers = React.useCallback(
     () => setIsMembersSidebarOpen((prev) => !prev),
@@ -747,6 +778,8 @@ export function ChannelScreen({
         onAddBotOpenChange={setIsAddBotOpen}
         onJoinChannel={joinChannelMutation.mutateAsync}
         onManageChannel={handleManageChannel}
+        onToggleRecords={hasCybercareRecords ? handleToggleRecords : undefined}
+        recordsOpen={recordsOpen}
         onToggleMembers={handleToggleMembers}
         showHeaderContent={!isSinglePanelView && !isHuddleTranscript}
         transparentChrome={activeChannel?.channelType !== "forum"}
@@ -766,6 +799,9 @@ export function ChannelScreen({
       joinChannelMutation.isPending,
       joinChannelMutation.mutateAsync,
       handleManageChannel,
+      handleToggleRecords,
+      hasCybercareRecords,
+      recordsOpen,
       handleToggleMembers,
       isSinglePanelView,
       isHuddleTranscript,
@@ -900,6 +936,10 @@ export function ChannelScreen({
                       : undefined
                   }
                   onCloseChannelManagement={handleCloseChannelManagement}
+                  recordsOpen={recordsOpen && hasCybercareRecords}
+                  onCloseRecords={handleCloseRecords}
+                  communityId={activeCommunity?.id ?? null}
+                  cybercareConfig={activeCommunity?.cybercare}
                   onCloseThread={handleCloseThread}
                   onDelete={
                     activeChannel?.archivedAt ? undefined : handleDelete

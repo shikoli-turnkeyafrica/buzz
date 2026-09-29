@@ -105,6 +105,16 @@ export function useChannelPanelHistoryState() {
     [applyPatch],
   );
 
+  // Cybercare records panel: presence flag, like channel management.
+  const setRecordsOpen = React.useCallback(
+    (open: boolean, options?: PanelSetterOptions) =>
+      applyPatch(
+        { records: open ? CHANNEL_MANAGEMENT_OPEN_VALUE : null },
+        options,
+      ),
+    [applyPatch],
+  );
+
   const clearMessageRouteTarget = React.useCallback(
     (options?: PanelSetterOptions) =>
       applyPatch({ messageId: null, threadRootId: null }, options),
@@ -132,6 +142,8 @@ export function useChannelPanelHistoryState() {
     profilePanelPubkey: values.profile,
     profilePanelTab: profilePanelTabFromSearch(values.profileTab),
     profilePanelView: profilePanelViewFromSearch(values.profileView),
+    recordsOpen: values.records != null,
+    setRecordsOpen,
     setChannelManagementOpen,
     setOpenAgentSessionChannelId,
     setOpenAgentSessionPubkey,
