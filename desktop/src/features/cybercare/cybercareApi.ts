@@ -88,16 +88,21 @@ export function getCybercareIdentity(
   });
 }
 
-/** Proves this app's key to Cybercare and records the link. */
+/**
+ * Proves this app's key to Cybercare and records the link. `replaceExisting`
+ * first revokes the key linked now, so this app's key takes its place.
+ */
 export function linkKeyToCybercare(
   communityId: string,
   config: CybercareConfig,
   orgId: string,
+  replaceExisting = false,
 ) {
   return invoke<CybercareIdentityStatus>("cybercare_enrol", {
     communityId,
     config: rustConfig(config),
     orgId,
+    replaceExisting,
   });
 }
 

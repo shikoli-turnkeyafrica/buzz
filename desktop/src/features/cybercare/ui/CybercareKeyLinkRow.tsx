@@ -45,6 +45,7 @@ export function CybercareKeyLinkRow({
   );
   const [loading, setLoading] = React.useState(false);
   const [linking, setLinking] = React.useState(false);
+  const [confirmReplace, setConfirmReplace] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -87,22 +88,32 @@ export function CybercareKeyLinkRow({
     );
   }
 
+  const linkedHere = status?.enrolled && status.isThisKey;
+  const linkedElsewhere = Boolean(status?.enrolled && !status.isThisKey);
+
   const handleLink = async () => {
+    if (linkedElsewhere && !confirmReplace) {
+      setConfirmReplace(true);
+      return;
+    }
     setLinking(true);
     setError(null);
     try {
-      const next = await linkKeyToCybercare(communityId, config, orgId);
+      const next = await linkKeyToCybercare(
+        communityId,
+        config,
+        orgId,
+        linkedElsewhere,
+      );
       setStatus(next);
       toast.success("This app's key is now linked to your Cybercare identity");
     } catch (reason) {
       setError(errorText(reason));
     } finally {
       setLinking(false);
+      setConfirmReplace(false);
     }
   };
-
-  const linkedHere = status?.enrolled && status.isThisKey;
-  const linkedElsewhere = status?.enrolled && !status.isThisKey;
 
   return (
     <SettingsOptionRow data-testid="cybercare-key-link">
@@ -135,8 +146,10 @@ export function CybercareKeyLinkRow({
               ? "Checking…"
               : linkedHere && status.binding
                 ? `Linked · ${shortKey(status.binding.commonsPubkey)} · since ${new Date(status.binding.enrolledAt).toLocaleDateString()}`
-                : linkedElsewhere && status.binding
-                  ? `Another key is linked (${shortKey(status.binding.commonsPubkey)}). Rulings from this app won't count as yours until you revoke that link.`
+                : linkedElsewhere && status?.binding
+                  ? confirmReplace
+                    ? `Replace ${shortKey(status.binding.commonsPubkey)} with this app's key? Rulings signed with the old key stop counting as yours.`
+                    : `Another key is linked (${shortKey(status.binding.commonsPubkey)}). Rulings from this app won't count as yours until this key replaces it.`
                   : "Not linked. Link it so rulings you sign here count as yours in Cybercare."}
           </div>
           {error ? (
@@ -149,7 +162,8 @@ export function CybercareKeyLinkRow({
       {linkedHere ? null : (
         <Button
           data-testid="cybercare-link-key"
-          disabled={loading || linking || Boolean(linkedElsewhere)}
+          disabled={loading || linking}
+          variant={confirmReplace ? "destructive" : undefined}
           onClick={() => void handleLink()}
           size="sm"
           type="button"
@@ -159,7 +173,11 @@ export function CybercareKeyLinkRow({
           ) : (
             <Link2 aria-hidden className="h-4 w-4" />
           )}
-          Link this key
+          {confirmReplace
+            ? "Confirm replace"
+            : linkedElsewhere
+              ? "Replace with this key"
+              : "Link this key"}
         </Button>
       )}
     </SettingsOptionRow>

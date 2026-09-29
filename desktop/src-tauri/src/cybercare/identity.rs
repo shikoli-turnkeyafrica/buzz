@@ -153,12 +153,16 @@ pub(crate) async fn cybercare_identity(
     ))
 }
 
+/// Links this app's key. With `replace_existing`, first revokes whatever key
+/// is linked now (Cybercare's rotation is revoke-then-enroll). The proof is
+/// signed before the revoke so the unlinked gap is one request long.
 #[tauri::command]
 pub(crate) async fn cybercare_enrol(
     app_state: tauri::State<'_, crate::app_state::AppState>,
     community_id: String,
     config: CybercareConfig,
     org_id: String,
+    replace_existing: Option<bool>,
 ) -> Result<IdentityStatus, String> {
     let gateway = config.gateway()?;
     let token = access_token(&app_state.http_client, &config, &community_id).await?;
@@ -185,6 +189,22 @@ pub(crate) async fn cybercare_enrol(
     let proof_json: serde_json::Value = serde_json::from_str(&proof.as_json())
         .map_err(|error| format!("proof serialisation failed: {error}"))?;
 
+    if replace_existing.unwrap_or(false) {
+        let revoked = send(
+            app_state
+                .http_client
+                .post(identity_url(&gateway, "revoke", &org_id)?)
+                .bearer_auth(&token),
+        )
+        .await;
+        // Nothing linked any more (404) is fine: the goal is an empty slot.
+        if let Err(error) = revoked {
+            if !error.contains("HTTP 404") {
+                return Err(format!("Couldn't remove the old link: {error}"));
+            }
+        }
+    }
+
     let body = send(
         app_state
             .http_client
@@ -192,7 +212,14 @@ pub(crate) async fn cybercare_enrol(
             .bearer_auth(&token)
             .json(&serde_json::json!({ "event": proof_json })),
     )
-    .await?;
+    .await
+    .map_err(|error| {
+        if replace_existing.unwrap_or(false) {
+            format!("{error} The old key was unlinked; link this key again.")
+        } else {
+            error
+        }
+    })?;
     let enrolled: EnrollResponse = serde_json::from_str(&body)
         .map_err(|error| format!("enroll response unreadable: {error}"))?;
     if !enrolled.binding.commons_pubkey.eq_ignore_ascii_case(&own) {
@@ -219,6 +246,12 @@ mod tests {
             identity_url("http://127.0.0.1:8100", "challenge", ORG).unwrap(),
             "http://127.0.0.1:8100/api/v1/cybota_cloud/sherpa/api/identity/challenge?org_id=cb000000-0000-0000-0000-000000000001"
         );
+    }
+
+    #[test]
+    fn a_missing_link_reads_as_http_404_for_replace() {
+        // cybercare_enrol treats this as "nothing to revoke" when replacing.
+        assert!(identity_error(404, r#"{"detail":"No active enrollment"}"#).contains("HTTP 404"));
     }
 
     #[test]

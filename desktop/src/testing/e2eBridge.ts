@@ -11600,7 +11600,9 @@ export function maybeInstallE2eTauriMocks() {
               enrolledAt: "2026-09-29T00:00:00+00:00",
               enrolledVia: "nip07-browser",
             },
-            isThisKey: true,
+            isThisKey:
+              window.localStorage.getItem("e2e-cybercare-linked-elsewhere") !==
+              "1",
           };
         }
         return (
