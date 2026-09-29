@@ -96,10 +96,13 @@ export function useChannelPanelHistoryState() {
     [applyPatch],
   );
 
+  // Opening channel management closes the Records panel in the same patch.
   const setChannelManagementOpen = React.useCallback(
     (open: boolean, options?: PanelSetterOptions) =>
       applyPatch(
-        { channelManagement: open ? CHANNEL_MANAGEMENT_OPEN_VALUE : null },
+        open
+          ? { channelManagement: CHANNEL_MANAGEMENT_OPEN_VALUE, records: null }
+          : { channelManagement: null },
         options,
       ),
     [applyPatch],
