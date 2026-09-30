@@ -177,7 +177,7 @@ export function CybercareSettingsCard() {
                     : " · no organisation on this account"}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Session renews automatically · current token until{" "}
+                  Stays signed in · renews automatically · next at{" "}
                   {formatExpiry(session.expiresAt)}
                 </div>
               </div>

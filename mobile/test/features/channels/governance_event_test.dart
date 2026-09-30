@@ -56,7 +56,7 @@ void main() {
       final junk = GovernanceEvent.fromEvent(
         _governance(id: 'r3', content: 'not json'),
       )!;
-      expect(junk.actionLabel, 'ratified');
+      expect(junk.actionLabel, 'signed off');
       expect(junk.subjectName, isNull);
     });
 

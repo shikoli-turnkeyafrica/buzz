@@ -216,7 +216,7 @@ export function ChannelMembersBar({
               onSelect={onToggleRecords}
             >
               <ShieldCheck />
-              <span>Records</span>
+              <span>Evidence</span>
             </DropdownMenuItem>
           ) : null}
           <DropdownMenuItem
@@ -255,7 +255,7 @@ export function ChannelMembersBar({
           <Tooltip disableHoverableContent>
             <TooltipTrigger asChild>
               <Button
-                aria-label="Cybercare records"
+                aria-label="Cybercare evidence"
                 aria-pressed={recordsOpen}
                 className="h-8 px-2.5"
                 data-testid="cybercare-records-trigger"
@@ -264,7 +264,7 @@ export function ChannelMembersBar({
                 variant={recordsOpen ? "secondary" : "outline"}
               >
                 <ShieldCheck />
-                <span className="text-sm font-medium">Records</span>
+                <span className="text-sm font-medium">Evidence</span>
               </Button>
             </TooltipTrigger>
             <TooltipContent>Cybercare evidence for this room</TooltipContent>

@@ -82,8 +82,8 @@ pub(crate) fn identity_error(status: u16, body: &str) -> String {
         });
     match status {
         401 => "Cybercare did not accept your session. Sign out and sign in again; if it persists, the gateway may not trust this sign-in server.".to_owned(),
-        403 => "Your Cybercare account is not allowed to link a key here.".to_owned(),
-        409 => detail.unwrap_or_else(|| "This identity already has a linked key.".to_owned()),
+        403 => "Your Cybercare account is not allowed to register a device here.".to_owned(),
+        409 => detail.unwrap_or_else(|| "Another device is already registered to this account.".to_owned()),
         422 => format!(
             "Cybercare rejected the proof: {}",
             detail.unwrap_or_else(|| "no reason given".to_owned())
@@ -200,7 +200,7 @@ pub(crate) async fn cybercare_enrol(
         // Nothing linked any more (404) is fine: the goal is an empty slot.
         if let Err(error) = revoked {
             if !error.contains("HTTP 404") {
-                return Err(format!("Couldn't remove the old link: {error}"));
+                return Err(format!("Couldn't unregister the other device: {error}"));
             }
         }
     }
@@ -215,7 +215,7 @@ pub(crate) async fn cybercare_enrol(
     .await
     .map_err(|error| {
         if replace_existing.unwrap_or(false) {
-            format!("{error} The old key was unlinked; link this key again.")
+            format!("{error} The other device was unregistered; register this device again.")
         } else {
             error
         }
@@ -223,7 +223,7 @@ pub(crate) async fn cybercare_enrol(
     let enrolled: EnrollResponse = serde_json::from_str(&body)
         .map_err(|error| format!("enroll response unreadable: {error}"))?;
     if !enrolled.binding.commons_pubkey.eq_ignore_ascii_case(&own) {
-        return Err("Cybercare recorded a different key than the one this app signed with".into());
+        return Err("Cybercare registered a different device than this one".into());
     }
     Ok(status_from(
         MeResponseView {

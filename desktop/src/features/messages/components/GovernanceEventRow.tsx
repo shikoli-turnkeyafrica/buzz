@@ -173,7 +173,7 @@ function describeGovernanceEvent(
             {payload.action === "APPROVE" ? "APPROVED" : "REJECTED"}
           </span>
         ) : (
-          "ratified"
+          "signed off"
         ),
         variant: "ratification",
       };

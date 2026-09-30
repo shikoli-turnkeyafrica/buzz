@@ -106,7 +106,7 @@ export function CybercareKeyLinkRow({
         linkedElsewhere,
       );
       setStatus(next);
-      toast.success("This app's key is now linked to your Cybercare identity");
+      toast.success("This device is now registered to your Cybercare account");
     } catch (reason) {
       setError(errorText(reason));
     } finally {
@@ -123,7 +123,7 @@ export function CybercareKeyLinkRow({
           className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
         />
         <div className="min-w-0 space-y-1">
-          <div className="font-medium">Signing key</div>
+          <div className="font-medium">This device</div>
           {orgs.length > 1 ? (
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
               Organisation
@@ -145,12 +145,12 @@ export function CybercareKeyLinkRow({
             {loading
               ? "Checking…"
               : linkedHere && status.binding
-                ? `Linked · ${shortKey(status.binding.commonsPubkey)} · since ${new Date(status.binding.enrolledAt).toLocaleDateString()}`
+                ? `Registered since ${new Date(status.binding.enrolledAt).toLocaleDateString()} · signature ${shortKey(status.binding.commonsPubkey)}`
                 : linkedElsewhere && status?.binding
                   ? confirmReplace
-                    ? `Replace ${shortKey(status.binding.commonsPubkey)} with this app's key? Rulings signed with the old key stop counting as yours.`
-                    : `Another key is linked (${shortKey(status.binding.commonsPubkey)}). Rulings from this app won't count as yours until this key replaces it.`
-                  : "Not linked. Link it so rulings you sign here count as yours in Cybercare."}
+                    ? `Register this device instead of the other one (${shortKey(status.binding.commonsPubkey)})? New decisions from the other device will stop counting as yours.`
+                    : `Another device is registered (${shortKey(status.binding.commonsPubkey)}). Decisions you sign here won't count as yours until you register this device instead.`
+                  : "Not registered. Register this device so decisions you sign here count as yours in Cybercare."}
           </div>
           {error ? (
             <div className="text-xs text-destructive" role="alert">
@@ -174,10 +174,10 @@ export function CybercareKeyLinkRow({
             <Link2 aria-hidden className="h-4 w-4" />
           )}
           {confirmReplace
-            ? "Confirm replace"
+            ? "Confirm"
             : linkedElsewhere
-              ? "Replace with this key"
-              : "Link this key"}
+              ? "Register this device instead"
+              : "Register this device"}
         </Button>
       )}
     </SettingsOptionRow>

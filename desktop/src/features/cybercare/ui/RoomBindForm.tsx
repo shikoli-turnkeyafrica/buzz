@@ -120,11 +120,11 @@ export function RoomBindForm({
     >
       <div className="space-y-1">
         <h3 className="text-sm font-semibold">
-          Which assessment is this room about?
+          Which assessment is this channel about?
         </h3>
         <p className="text-xs text-muted-foreground">
-          The Evidence panel shows your organisation's evidence and checks this
-          assessment's lock before anything is signed. Saved on this device.
+          The Evidence panel shows your organisation's evidence for it. Only
+          assessments still open for review are listed. Saved on this device.
         </p>
       </div>
 
@@ -203,7 +203,7 @@ export function RoomBindForm({
         {!modules && !error ? (
           <LoaderCircle aria-hidden className="h-4 w-4 animate-spin" />
         ) : null}
-        Use for this room
+        Use for this channel
       </Button>
     </form>
   );

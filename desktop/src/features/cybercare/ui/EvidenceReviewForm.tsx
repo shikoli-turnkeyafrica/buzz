@@ -11,7 +11,7 @@ import {
   type CybercareNamed,
   verifyCybercareEvidence,
 } from "../cybercareApi";
-import { buildEvidenceRatification } from "../ratification";
+import { buildEvidenceRatification, rulingAction } from "../ratification";
 import type { RoomBinding } from "../roomBinding";
 
 type Step =
@@ -129,14 +129,14 @@ export function EvidenceReviewForm({
       setProgress({
         platform: {
           state: "done",
-          detail: `review ${reviewId.slice(0, 8)}… · ${recorded.status?.name ?? status.name} · by ${recorded.reviewedBy ?? "you"}`,
+          detail: `${recorded.status?.name ?? status.name} · by ${recorded.reviewedBy ?? "you"}`,
         },
         signed: { state: "pending" },
       });
     } catch (reason) {
       setProgress({
         platform: { state: "failed", detail: errorText(reason) },
-        signed: { state: "failed", detail: "nothing signed" },
+        signed: { state: "failed", detail: "nothing was signed" },
       });
       return;
     }
@@ -154,14 +154,14 @@ export function EvidenceReviewForm({
       const event = await signRelayEvent(unsigned);
       await relayClient.publishEvent(
         event,
-        "Timed out posting the ruling to the room.",
-        "Couldn't post the ruling to the room.",
+        "Timed out posting the decision to this channel.",
+        "Couldn't post the decision to this channel.",
       );
       setProgress((current) => ({
         ...current,
         signed: {
           state: "done",
-          detail: `46203 ${event.id.slice(0, 8)}… posted to this room`,
+          detail: `posted to this channel · ${event.id.slice(0, 8)}…`,
         },
       }));
     } catch (reason) {
@@ -169,7 +169,7 @@ export function EvidenceReviewForm({
         ...current,
         signed: {
           state: "failed",
-          detail: `${errorText(reason)} Cybercare has the review; the room has no signed ruling for it.`,
+          detail: `${errorText(reason)} Cybercare saved the review, but this channel has no signed decision for it.`,
         },
       }));
     }
@@ -193,8 +193,8 @@ export function EvidenceReviewForm({
             {evidence.review.reviewedBy
               ? ` by ${evidence.review.reviewedBy}`
               : ""}
-            . A new review replaces it in Cybercare; the room keeps both
-            rulings.
+            . A new review replaces it in Cybercare; this channel keeps both
+            decisions.
           </p>
         ) : null}
       </div>
@@ -221,7 +221,7 @@ export function EvidenceReviewForm({
           <label className="block space-y-1 text-xs font-medium text-muted-foreground">
             Note for the record{" "}
             <span className="font-normal">
-              (optional, goes into the signed ruling)
+              (optional, included in your signed decision)
             </span>
             <textarea
               className="min-h-14 w-full rounded-lg border border-input/60 bg-background px-2 py-1.5 text-sm text-foreground"
@@ -237,9 +237,9 @@ export function EvidenceReviewForm({
                 aria-hidden
                 className="mt-0.5 h-3.5 w-3.5 shrink-0"
               />
-              This app's key isn't linked to your Cybercare identity, so the
-              ruling won't count as yours in Cybercare. Link it in Settings,
-              then Cybercare.
+              This device isn't registered to your Cybercare account, so the
+              decision won't count as yours in Cybercare. Register it in
+              Settings, then Cybercare.
             </p>
           ) : null}
           <div className="flex items-center gap-2">
@@ -250,7 +250,9 @@ export function EvidenceReviewForm({
               onClick={() => void handleVerify()}
               type="button"
             >
-              Verify and sign
+              {status && rulingAction(status.name) === "REJECT"
+                ? "Reject and sign"
+                : "Approve and sign"}
             </Button>
             {!status ? (
               <span className="text-xs text-muted-foreground">
@@ -259,9 +261,9 @@ export function EvidenceReviewForm({
             ) : null}
           </div>
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Cybercare records the review under your account first. Then this app
-            signs the ruling with your key and posts it here. If Cybercare
-            refuses (no permission, assessment locked), nothing is signed.
+            Cybercare saves your review first. Then your decision is signed on
+            this device and posted to this channel. If Cybercare refuses (for
+            example, you don't have review permission), nothing is signed.
           </p>
         </>
       ) : (
@@ -270,19 +272,23 @@ export function EvidenceReviewForm({
           className="divide-y divide-border/60 overflow-hidden rounded-lg border border-border/70"
           data-testid="cybercare-verify-progress"
         >
-          <StepLine idle="waiting" label="Cybercare" step={progress.platform} />
+          <StepLine
+            idle="waiting"
+            label="Saved in Cybercare"
+            step={progress.platform}
+          />
           <StepLine
             idle="waiting for Cybercare"
-            label="Signed ruling"
+            label="Decision signed"
             step={progress.signed}
           />
           <StepLine
             idle={
               finished
-                ? "the next seal of this room will include it"
-                : "after the ruling is posted"
+                ? "included when this channel's history is next locked"
+                : "after the decision is posted"
             }
-            label="Checkpoint"
+            label="Tamper-proof record"
             step={{ state: "idle" }}
           />
         </div>

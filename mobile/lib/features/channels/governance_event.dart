@@ -72,7 +72,7 @@ class GovernanceEvent {
     EventKind.governanceRatification => switch (verdict) {
       GovernanceVerdict.approve => 'APPROVED',
       GovernanceVerdict.reject => 'REJECTED',
-      null => 'ratified',
+      null => 'signed off',
     },
     EventKind.governanceDissent => 'dissented',
     _ => 'signed a governance act',
