@@ -129,6 +129,23 @@ pub(crate) fn named_list(records: &[Value], name_keys: &[&str]) -> Vec<Named> {
     records.iter().filter_map(|r| named(r, name_keys)).collect()
 }
 
+/// Assessments a review can still be recorded against. A locked assessment
+/// (a closed period) refuses every review, and a disabled one is switched
+/// off, so offering either would only lead to a refusal. The Platform still
+/// enforces the lock; this keeps it out of the picker.
+pub(crate) fn open_assessments(records: &[Value]) -> Vec<Named> {
+    let flag = |record: &Value, keys: &[&str]| {
+        keys.iter()
+            .any(|key| record.get(*key).and_then(Value::as_bool) == Some(true))
+    };
+    let open: Vec<Value> = records
+        .iter()
+        .filter(|r| !flag(r, &["locked", "isLocked"]) && !flag(r, &["disabled", "isDisabled"]))
+        .cloned()
+        .collect();
+    named_list(&open, &["name", "riskAssessmentName", "assessmentName"])
+}
+
 pub(crate) fn evidence_from(data: &Value) -> Vec<EvidenceItem> {
     let items = data
         .as_array()
@@ -356,13 +373,10 @@ pub(crate) async fn cybercare_assessments(
     check_uuid(&org_id, "organisation")?;
     check_uuid(&module_id, "module")?;
     let path = format!(
-        "{V1}/risk_assessment/risk_assessment_definition/fetch_all_risk_assessments?pageNumber=0&pageSize=100&sortBy=createdAt&sortOrder=desc&isShort=true&orgId={org_id}&moduleId={module_id}"
+        "{V1}/risk_assessment/risk_assessment_definition/fetch_all_risk_assessments?pageNumber=0&pageSize=100&sortBy=createdAt&sortOrder=desc&isShort=false&orgId={org_id}&moduleId={module_id}"
     );
     let body = get(&app_state, &config, &community_id, &path).await?;
-    Ok(named_list(
-        &v1_records(&body)?,
-        &["name", "riskAssessmentName", "assessmentName"],
-    ))
+    Ok(open_assessments(&v1_records(&body)?))
 }
 
 #[tauri::command]
@@ -414,6 +428,22 @@ mod tests {
         );
         assert!(v2_data("<html>").is_err());
         assert!(v2_data(r#"{"data":[]}"#).is_err());
+    }
+
+    #[test]
+    fn locked_and_disabled_assessments_are_not_offered() {
+        let body = r#"{"code":200,"data":{"all_records":{"content":[
+            {"id":"q2","name":"Vulncare Q2-2026","locked":false,"disabled":false},
+            {"id":"q1","name":"Vulncare Q1-2026","locked":true,"disabled":false},
+            {"id":"old","name":"Vulncare 2025-H2","isLocked":true},
+            {"id":"off","name":"Vulncare draft","locked":false,"disabled":true},
+            {"id":"nf","name":"No flags"}
+        ]}}}"#;
+        let ids: Vec<String> = open_assessments(&v1_records(body).unwrap())
+            .into_iter()
+            .map(|n| n.id)
+            .collect();
+        assert_eq!(ids, ["q2", "nf"]);
     }
 
     #[test]

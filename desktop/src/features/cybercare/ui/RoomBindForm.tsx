@@ -49,8 +49,9 @@ export function RoomBindForm({
   const [error, setError] = React.useState<string | null>(null);
 
   // The module catalogue holds every organisation's copy of each module under
-  // the same name. Keep only the modules this organisation has assessments
-  // in; asking once per module also pre-loads each module's assessments.
+  // the same name. Keep only the modules where this organisation has an
+  // open (unlocked) assessment; asking once per module also pre-loads each
+  // module's assessments.
   React.useEffect(() => {
     setModules(null);
     setModuleId("");
@@ -156,7 +157,7 @@ export function RoomBindForm({
             {!modules
               ? "Loading your organisation's modules…"
               : modules.length === 0
-                ? "No assessments for this organisation"
+                ? "No open assessments for your organisation"
                 : "Choose a module"}
           </option>
           {modules?.map((m) => (
