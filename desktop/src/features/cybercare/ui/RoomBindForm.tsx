@@ -43,38 +43,49 @@ export function RoomBindForm({
     null,
   );
   const [assessmentId, setAssessmentId] = React.useState("");
+  const [assessmentsByModule, setAssessmentsByModule] = React.useState<
+    Map<string, CybercareNamed[]>
+  >(new Map());
   const [error, setError] = React.useState<string | null>(null);
 
+  // The module catalogue holds every organisation's copy of each module under
+  // the same name. Keep only the modules this organisation has assessments
+  // in; asking once per module also pre-loads each module's assessments.
   React.useEffect(() => {
+    setModules(null);
+    setModuleId("");
+    if (!orgId) return;
     let cancelled = false;
     listCybercareModules(communityId, config)
-      .then((list) => {
+      .then(async (all) => {
+        const results = await Promise.allSettled(
+          all.map((m) =>
+            listCybercareAssessments(communityId, config, orgId, m.id),
+          ),
+        );
         if (cancelled) return;
-        setModules(list);
-        if (list.length === 1) setModuleId(list[0].id);
+        const byModule = new Map<string, CybercareNamed[]>();
+        results.forEach((result, index) => {
+          if (result.status === "fulfilled" && result.value.length > 0) {
+            byModule.set(all[index].id, result.value);
+          }
+        });
+        const mine = all.filter((m) => byModule.has(m.id));
+        setAssessmentsByModule(byModule);
+        setModules(mine);
+        if (mine.length === 1) setModuleId(mine[0].id);
       })
       .catch((reason) => !cancelled && setError(errorText(reason)));
     return () => {
       cancelled = true;
     };
-  }, [communityId, config]);
+  }, [communityId, config, orgId]);
 
   React.useEffect(() => {
-    setAssessments(null);
-    setAssessmentId("");
-    if (!orgId || !moduleId) return;
-    let cancelled = false;
-    listCybercareAssessments(communityId, config, orgId, moduleId)
-      .then((list) => {
-        if (cancelled) return;
-        setAssessments(list);
-        if (list.length === 1) setAssessmentId(list[0].id);
-      })
-      .catch((reason) => !cancelled && setError(errorText(reason)));
-    return () => {
-      cancelled = true;
-    };
-  }, [communityId, config, orgId, moduleId]);
+    const list = moduleId ? (assessmentsByModule.get(moduleId) ?? []) : null;
+    setAssessments(list);
+    setAssessmentId(list?.length === 1 ? list[0].id : "");
+  }, [moduleId, assessmentsByModule]);
 
   if (orgs.length === 0) {
     return (
@@ -141,7 +152,13 @@ export function RoomBindForm({
           onChange={(event) => setModuleId(event.target.value)}
           value={moduleId}
         >
-          <option value="">{modules ? "Choose a module" : "Loading…"}</option>
+          <option value="">
+            {!modules
+              ? "Loading your organisation's modules…"
+              : modules.length === 0
+                ? "No assessments for this organisation"
+                : "Choose a module"}
+          </option>
           {modules?.map((m) => (
             <option key={m.id} value={m.id}>
               {m.name}

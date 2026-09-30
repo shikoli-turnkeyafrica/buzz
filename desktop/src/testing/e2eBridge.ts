@@ -11616,8 +11616,15 @@ export function maybeInstallE2eTauriMocks() {
         return [
           { id: "11111111-0000-4000-8000-000000000001", name: "Riskcare" },
           { id: "11111111-0000-4000-8000-000000000002", name: "Vulncare" },
+          // Another organisation's copy: same name, no assessments for ours.
+          { id: "11111111-0000-4000-8000-0000000000ff", name: "Riskcare" },
         ];
       case "cybercare_assessments":
+        if (
+          (payload as { moduleId?: string } | null)?.moduleId ===
+          "11111111-0000-4000-8000-0000000000ff"
+        )
+          return [];
         return [
           {
             id: "22222222-0000-4000-8000-000000000001",
