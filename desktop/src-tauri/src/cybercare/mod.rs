@@ -3,6 +3,7 @@
 //! panel lands in later Mercury tasks.
 
 pub(crate) mod auth;
+pub(crate) mod decisions;
 pub(crate) mod identity;
 pub(crate) mod platform;
 pub(crate) mod session_store;

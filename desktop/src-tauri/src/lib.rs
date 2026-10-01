@@ -569,6 +569,7 @@ pub fn run() {
             cybercare::platform::cybercare_review_statuses,
             cybercare::platform::cybercare_evidence,
             cybercare::platform::cybercare_verify_evidence,
+            cybercare::decisions::cybercare_record_decision,
             cancel_builderlab_login,
             get_builderlab_auth,
             clear_builderlab_auth,

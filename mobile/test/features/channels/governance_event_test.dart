@@ -66,7 +66,7 @@ void main() {
             _governance(id: 'k$kind', kind: kind, content: content),
           )!.actionLabel;
       expect(label(EventKind.governanceDigest), 'published governance digest');
-      expect(label(EventKind.governanceStaged), 'staged proposal for review');
+      expect(label(EventKind.governanceStaged), 'filed a proposal');
       expect(label(EventKind.governanceAdvice), 'provided advice');
       expect(
         label(EventKind.governanceAdvice, '{"position":"hold"}'),
@@ -92,6 +92,18 @@ void main() {
     expect(result, hasLength(1));
     expect(result.single.isSystem, isTrue);
     expect(result.single.governance?.verdict, GovernanceVerdict.approve);
+  });
+
+  test('a proposal shows its title', () {
+    final event = GovernanceEvent.fromEvent(
+      _governance(
+        id: 'pr',
+        kind: EventKind.governanceStaged,
+        content: jsonEncode({'title': 'Remediation plan · VPN Gateway'}),
+      ),
+    )!;
+    expect(event.actionLabel, 'filed a proposal');
+    expect(event.title, 'Remediation plan · VPN Gateway');
   });
 
   test('governed kinds are fetched and subscribed', () {

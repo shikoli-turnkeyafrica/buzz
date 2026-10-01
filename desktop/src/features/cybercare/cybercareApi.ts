@@ -204,3 +204,30 @@ export function verifyCybercareEvidence(input: {
     updateExisting: input.updateExisting,
   });
 }
+
+/** Cybercare's answer for one action after a signed decision. */
+export type CybercareActionOutcome = {
+  actionId: string;
+  ok: boolean;
+  message: string | null;
+};
+
+/**
+ * Records a signed decision against the remediation actions a proposal waits
+ * on: approve opens them, reject cancels them. The event id is the approval.
+ */
+export function recordCybercareDecision(input: {
+  communityId: string;
+  config: CybercareConfig;
+  actionIds: string[];
+  decisionEventId: string;
+  approve: boolean;
+}) {
+  return invoke<CybercareActionOutcome[]>("cybercare_record_decision", {
+    communityId: input.communityId,
+    config: rustConfig(input.config),
+    actionIds: input.actionIds,
+    decisionEventId: input.decisionEventId,
+    approve: input.approve,
+  });
+}

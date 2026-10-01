@@ -16,6 +16,9 @@ class GovernanceEvent {
   final GovernanceVerdict? verdict;
   final String? position;
 
+  /// A proposal's title (46201).
+  final String? title;
+
   /// Free-text reason the author signed with the ruling.
   final String? note;
 
@@ -28,6 +31,7 @@ class GovernanceEvent {
     required this.kind,
     this.verdict,
     this.position,
+    this.title,
     this.note,
     this.subjectName,
     this.subjectReference,
@@ -56,6 +60,7 @@ class GovernanceEvent {
         _ => null,
       },
       position: _string(json['position']),
+      title: _string(json['title']),
       note: _string(json['note']),
       subjectName: subject is Map ? _string(subject['name']) : null,
       subjectReference: subject is Map ? _string(subject['reference']) : null,
@@ -66,7 +71,7 @@ class GovernanceEvent {
   /// "staged proposal for review".
   String get actionLabel => switch (kind) {
     EventKind.governanceDigest => 'published governance digest',
-    EventKind.governanceStaged => 'staged proposal for review',
+    EventKind.governanceStaged => 'filed a proposal',
     EventKind.governanceAdvice =>
       position != null ? 'advised: $position' : 'provided advice',
     EventKind.governanceRatification => switch (verdict) {

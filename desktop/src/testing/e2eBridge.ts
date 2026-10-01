@@ -11668,6 +11668,11 @@ export function maybeInstallE2eTauriMocks() {
             },
           ]
         );
+      case "cybercare_record_decision": {
+        const ids =
+          (payload as { actionIds?: string[] } | null)?.actionIds ?? [];
+        return ids.map((actionId) => ({ actionId, ok: true, message: null }));
+      }
       case "cybercare_verify_evidence":
         return {
           reviewId: "7d0c1e2a-0000-4000-8000-000000000001",

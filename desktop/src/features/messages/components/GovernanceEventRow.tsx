@@ -18,6 +18,11 @@ import {
   KIND_CYBOTA_RATIFICATION,
   KIND_CYBOTA_DISSENT,
 } from "@/shared/constants/kinds";
+import {
+  parseProposal,
+  type ProposalDecision,
+} from "@/features/cybercare/proposal";
+import { ProposalCard } from "@/features/cybercare/ui/ProposalCard";
 import { MESSAGE_MARKDOWN_CLASS } from "@/shared/ui/mentionChip";
 import { UserAvatar } from "@/shared/ui/UserAvatar";
 import { MessageAgentOwner } from "../ui/MessageAgentOwner";
@@ -143,7 +148,7 @@ function describeGovernanceEvent(
     case KIND_CYBOTA_STAGED:
       return {
         title: actorName,
-        action: "staged proposal for review",
+        action: "filed a proposal",
         variant: "default",
       };
 
@@ -213,8 +218,11 @@ export const GovernanceEventRow = React.memo(function GovernanceEventRow({
   profiles,
   ownerProfiles,
   onToggleReaction,
+  proposalDecision,
 }: {
   message: TimelineMessage;
+  /** For a 46201: the first decision that answers it, if any. */
+  proposalDecision?: ProposalDecision;
   currentPubkey?: string;
   agentPubkeys?: ReadonlySet<string>;
   profiles?: UserProfileLookup;
@@ -239,6 +247,7 @@ export const GovernanceEventRow = React.memo(function GovernanceEventRow({
 
   const description = describeGovernanceEvent(payload, currentPubkey, profiles);
   if (!description) return null;
+  const proposal = parseProposal(message);
 
   const actorProfile = payload.actor
     ? profiles?.[normalizePubkey(payload.actor)]
@@ -316,7 +325,29 @@ export const GovernanceEventRow = React.memo(function GovernanceEventRow({
           <p className="-mt-0.5 text-sm leading-snug text-foreground">
             {description.action}
           </p>
-          {payload.subject?.name ? (
+          {proposal ? (
+            <ProposalCard
+              channelId={message.tags?.find((t) => t[0] === "h")?.[1] ?? null}
+              deciderLabel={
+                proposalDecision?.pubkey
+                  ? resolveUserLabel({
+                      pubkey: proposalDecision.pubkey,
+                      currentPubkey,
+                      profiles,
+                    })
+                  : null
+              }
+              decision={proposalDecision}
+              isAuthor={
+                Boolean(currentPubkey) &&
+                normalizePubkey(message.pubkey ?? "") ===
+                  normalizePubkey(currentPubkey ?? "")
+              }
+              proposal={proposal}
+              proposalId={message.id}
+            />
+          ) : null}
+          {!proposal && payload.subject?.name ? (
             <p className="text-sm leading-snug text-foreground">
               {payload.subject.name}
               {payload.subject.reference ? (

@@ -196,7 +196,7 @@ pub(crate) fn evidence_from(data: &Value) -> Vec<EvidenceItem> {
         .collect()
 }
 
-fn check_uuid(value: &str, what: &str) -> Result<(), String> {
+pub(crate) fn check_uuid(value: &str, what: &str) -> Result<(), String> {
     uuid::Uuid::parse_str(value)
         .map(|_| ())
         .map_err(|_| format!("{what} is not a valid id"))

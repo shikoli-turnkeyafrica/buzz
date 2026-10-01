@@ -28,6 +28,7 @@ import { channelChrome } from "@/shared/layout/chromeLayout";
 import { DayDivider } from "./DayDivider";
 import { MessageRowItem, SystemRow } from "./TimelineMessageRow";
 import { GovernanceEventRow } from "@/features/messages/components/GovernanceEventRow";
+import { decisionsByProposal } from "@/features/cybercare/proposal";
 import { TimelineRowShell } from "./TimelineRowShell";
 import { UnreadDivider } from "./UnreadDivider";
 import { useTimelineRetention } from "./useTimelineRetention";
@@ -202,6 +203,11 @@ export const TimelineMessageList = React.memo(function TimelineMessageList({
     () => buildTimelineItems(entries, firstUnreadMessageId),
     [entries, firstUnreadMessageId],
   );
+  // Which proposals in view already have a decision (a 46203 pointing at them).
+  const proposalDecisions = React.useMemo(
+    () => decisionsByProposal(entries.map((entry) => entry.message)),
+    [entries],
+  );
   const dayGroups = React.useMemo(
     () => buildTimelineDayGroups(itemsResult.items),
     [itemsResult.items],
@@ -216,6 +222,7 @@ export const TimelineMessageList = React.memo(function TimelineMessageList({
             <div className="flex flex-col gap-1 pb-2.5">
               <GovernanceEventRow
                 message={item.entry.message}
+                proposalDecision={proposalDecisions.get(item.entry.message.id)}
                 currentPubkey={currentPubkey}
                 profiles={profiles}
                 ownerProfiles={ownerProfiles}
@@ -315,6 +322,7 @@ export const TimelineMessageList = React.memo(function TimelineMessageList({
       onToggleReaction,
       profiles,
       ownerProfiles,
+      proposalDecisions,
       searchActiveMessageId,
       searchMatchingMessageIds,
       searchQuery,

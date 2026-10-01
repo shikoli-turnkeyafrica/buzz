@@ -76,6 +76,14 @@ class _GovernanceRow extends HookConsumerWidget {
             ? null
             : TextStyle(color: verdictColor, fontWeight: FontWeight.w700),
       ),
+      if (governance.title != null)
+        TextSpan(
+          text: '\n${governance.title}',
+          style: TextStyle(
+            color: context.colors.onSurface,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       if (governance.subjectName != null) ...[
         TextSpan(
           text: '\n${governance.subjectName}',
