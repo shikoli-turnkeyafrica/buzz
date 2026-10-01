@@ -11684,6 +11684,69 @@ export function maybeInstallE2eTauriMocks() {
             },
           ]
         );
+      case "cybercare_graph_evidence":
+        return [
+          {
+            evidenceId: "eeee0000-0000-4000-8000-000000000014",
+            evidenceCode: "EVID-2025-014",
+            title: "CBK on-site cyber inspection report — H2 2025",
+            evidenceType: "audit_report",
+            verificationStatus: "metadata_only",
+            source: "audit_artefact",
+            validFrom: "2025-12-01",
+            validUntil: null,
+            hasArtefact: false,
+            controls: [{ controlCode: "RORG-01", name: "Risk Management" }],
+            review: null,
+          },
+          {
+            evidenceId: "eeee0000-0000-4000-8000-000000000003",
+            evidenceCode: "EVID-2025-003",
+            title: "PAM session recording export — Q4 2025",
+            evidenceType: "log_export",
+            verificationStatus: "metadata_only",
+            source: "log_export",
+            validFrom: "2025-10-01",
+            validUntil: null,
+            hasArtefact: false,
+            controls: [
+              {
+                controlCode: "CDPA-01",
+                name: "Privilege Access Management Policy",
+              },
+            ],
+            review: null,
+          },
+          {
+            evidenceId: "eeee0000-0000-4000-8000-000000000001",
+            evidenceCode: "EVID-2025-001",
+            title: "ISO/IEC 27001:2022 certificate",
+            evidenceType: "certificate",
+            verificationStatus: "verified",
+            source: "audit_artefact",
+            validFrom: "2025-03-01",
+            validUntil: "2028-02-28",
+            hasArtefact: true,
+            controls: [{ controlCode: "RORG-01", name: "Risk Management" }],
+            review: {
+              reviewId: "rrrr0000-0000-4000-8000-000000000001",
+              decision: "approved",
+              approver: "Risk Officer",
+              decidedAt: "2026-09-20T09:00:00Z",
+              rationale: null,
+              commonsEventId: null,
+            },
+          },
+        ];
+      case "cybercare_review_graph_evidence":
+        return {
+          reviewId: "rrrr0000-0000-4000-8000-0000000000aa",
+          decision: (payload as { approve?: boolean } | null)?.approve
+            ? "approved"
+            : "rejected",
+          approver: "Cybota Bank Test",
+          alreadyDecided: false,
+        };
       case "cybercare_action_states": {
         const ids =
           (payload as { actionIds?: string[] } | null)?.actionIds ?? [];

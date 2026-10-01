@@ -120,9 +120,33 @@ test("My tasks lists an open proposal from a channel with an assessment", async 
   await expect(page.getByTestId("my-tasks-list")).toContainText(
     "Remediation plan · VPN Gateway (edge-fw-02)",
   );
-  // The mock channel also has one evidence item awaiting review: 1 + 1.
+  // The organisation also has two graph evidence items awaiting review: 1 + 2.
   await expect(page.getByTestId("my-tasks-list")).toContainText(
-    "1 evidence item awaiting review",
+    "2 evidence items awaiting review",
   );
-  await expect(page.getByTestId("sidebar-my-tasks-count")).toHaveText("2");
+  await expect(page.getByTestId("sidebar-my-tasks-count")).toHaveText("3");
+});
+
+test("an approver reviews the organisation's evidence of record", async ({
+  page,
+}) => {
+  await setup(page);
+  await page.getByTestId("cybercare-records-trigger").click();
+  const list = page.getByTestId("cybercare-evidence-list");
+  await expect(list).toContainText(
+    "CBK on-site cyber inspection report — H2 2025",
+  );
+  await expect(page.getByTestId("graph-evidence-file")).toContainText(
+    "Metadata only",
+  );
+  await page.getByTestId("graph-evidence-approve").click();
+  await page
+    .getByTestId("graph-evidence-review")
+    .getByRole("textbox")
+    .fill("Inspection findings closed.");
+  await page.getByTestId("graph-evidence-sign").click();
+  const progress = page.getByTestId("graph-evidence-progress");
+  await expect(progress).toContainText("Approved · by Cybota Bank Test");
+  await expect(progress).toContainText("posted to this channel");
+  await waitForAnimations(page);
 });

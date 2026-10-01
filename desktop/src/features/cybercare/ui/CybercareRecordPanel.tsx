@@ -20,21 +20,18 @@ import {
 import type { AuxiliaryPanelLayout } from "@/shared/layout/AuxiliaryPanel";
 import {
   type CybercareConfig,
-  type CybercareEvidenceItem,
-  type CybercareNamed,
+  type CybercareGraphEvidence,
   type CybercareSession,
   getCybercareIdentity,
   getCybercareSession,
-  listCybercareEvidence,
-  listCybercareReviewStatuses,
+  listCybercareGraphEvidence,
 } from "../cybercareApi";
-import { rulingAction } from "../ratification";
 import {
   type RoomBinding,
   readRoomBinding,
   writeRoomBinding,
 } from "../roomBinding";
-import { EvidenceReviewForm } from "./EvidenceReviewForm";
+import { GraphEvidenceReviewForm } from "./GraphEvidenceReviewForm";
 import { RoomBindForm } from "./RoomBindForm";
 
 function errorText(reason: unknown) {
@@ -43,11 +40,11 @@ function errorText(reason: unknown) {
   return "Couldn't reach Cybercare. Try again.";
 }
 
-function StateChip({ item }: { item: CybercareEvidenceItem }) {
-  const name = item.review?.status?.name;
+function StateChip({ item }: { item: CybercareGraphEvidence }) {
+  const decision = item.review?.decision;
   const tone = !item.review
     ? "bg-amber-100 text-amber-900 dark:bg-amber-500/15 dark:text-amber-300"
-    : rulingAction(name ?? "") === "REJECT"
+    : decision === "rejected"
       ? "bg-red-100 text-red-900 dark:bg-red-500/15 dark:text-red-300"
       : "bg-green-100 text-green-900 dark:bg-green-500/15 dark:text-green-300";
   return (
@@ -57,7 +54,11 @@ function StateChip({ item }: { item: CybercareEvidenceItem }) {
         tone,
       )}
     >
-      {item.review ? (name ?? "Reviewed") : "Awaiting review"}
+      {!item.review
+        ? "Awaiting review"
+        : decision === "rejected"
+          ? "Rejected"
+          : "Approved"}
     </span>
   );
 }
@@ -67,8 +68,9 @@ function Notice({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Cybercare evidence beside the conversation. The records stay in
- * Cybercare; the room gets the signed ruling.
+ * The organisation's evidence of record (Cybercare's graph) beside the
+ * conversation. Reviews are recorded in Cybercare citing the signed
+ * decision, which is then posted to the channel.
  */
 export function CybercareRecordPanel({
   channel,
@@ -97,9 +99,8 @@ export function CybercareRecordPanel({
   );
   const [rebinding, setRebinding] = React.useState(false);
   const [evidence, setEvidence] = React.useState<
-    CybercareEvidenceItem[] | null
+    CybercareGraphEvidence[] | null
   >(null);
-  const [statuses, setStatuses] = React.useState<CybercareNamed[]>([]);
   const [keyLinked, setKeyLinked] = React.useState<boolean | null>(null);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [filter, setFilter] = React.useState("");
@@ -126,23 +127,16 @@ export function CybercareRecordPanel({
     if (!config || !session || !binding) return;
     let cancelled = false;
     setError(null);
-    Promise.all([
-      listCybercareEvidence(
-        communityId,
-        config,
-        binding.orgId,
-        binding.moduleId,
-      ),
-      listCybercareReviewStatuses(communityId, config),
-    ])
-      .then(([items, list]) => {
+    listCybercareGraphEvidence(communityId, config, binding.orgId)
+      .then((items) => {
         if (cancelled) return;
         setEvidence(items);
-        setStatuses(list);
         setSelectedId((current) =>
-          current && items.some((i) => i.id === current)
+          current && items.some((i) => i.evidenceId === current)
             ? current
-            : (items.find((i) => !i.review)?.id ?? items[0]?.id ?? null),
+            : (items.find((i) => !i.review)?.evidenceId ??
+              items[0]?.evidenceId ??
+              null),
         );
       })
       .catch((reason) => !cancelled && setError(errorText(reason)));
@@ -214,11 +208,15 @@ export function CybercareRecordPanel({
     const shown = (evidence ?? []).filter(
       (item) =>
         !needle ||
-        item.name.toLowerCase().includes(needle) ||
-        (item.reference ?? "").toLowerCase().includes(needle),
+        item.title.toLowerCase().includes(needle) ||
+        item.evidenceCode.toLowerCase().includes(needle) ||
+        item.controls.some((c) =>
+          `${c.controlCode} ${c.name}`.toLowerCase().includes(needle),
+        ),
     );
     const awaiting = (evidence ?? []).filter((item) => !item.review).length;
-    const selected = evidence?.find((item) => item.id === selectedId) ?? null;
+    const selected =
+      evidence?.find((item) => item.evidenceId === selectedId) ?? null;
     body = (
       <div className="flex min-h-full flex-col">
         <div className="flex items-center gap-1 border-b border-border/60 bg-muted/40 px-4 py-2 text-xs">
@@ -287,21 +285,21 @@ export function CybercareRecordPanel({
           {evidence !== null && shown.length === 0 ? (
             <li className="text-sm text-muted-foreground">
               {evidence.length === 0
-                ? "No evidence uploaded for this module yet."
+                ? "Cybercare has no evidence for this organisation yet."
                 : "Nothing matches that filter."}
             </li>
           ) : null}
           {shown.map((item) => (
-            <li key={item.id}>
+            <li key={item.evidenceId}>
               <button
-                aria-pressed={item.id === selectedId}
+                aria-pressed={item.evidenceId === selectedId}
                 className={cn(
                   "flex w-full items-start gap-2 rounded-lg border px-3 py-2 text-left",
-                  item.id === selectedId
+                  item.evidenceId === selectedId
                     ? "border-primary/60 bg-primary/5"
                     : "border-border/70 bg-background hover:bg-muted/40",
                 )}
-                onClick={() => setSelectedId(item.id)}
+                onClick={() => setSelectedId(item.evidenceId)}
                 type="button"
               >
                 <FileText
@@ -310,16 +308,16 @@ export function CybercareRecordPanel({
                 />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold">
-                    {item.name}
+                    {item.title}
                   </span>
                   <span className="block truncate text-xs text-muted-foreground">
-                    {item.reference ? (
-                      <span className="font-mono">{item.reference}</span>
-                    ) : null}
-                    {item.reference ? " · " : ""}
+                    <span className="font-mono">{item.evidenceCode}</span>
+                    {item.controls[0]
+                      ? ` · ${item.controls[0].controlCode} ${item.controls[0].name}`
+                      : ""}
                     {item.review
-                      ? `${item.review.reviewedBy ?? "reviewed"}${item.review.reviewedAt ? ` · ${new Date(item.review.reviewedAt).toLocaleDateString()}` : ""}`
-                      : "not yet reviewed"}
+                      ? ` · ${item.review.approver ?? "reviewed"}${item.review.decidedAt ? `, ${new Date(item.review.decidedAt).toLocaleDateString()}` : ""}`
+                      : ""}
                   </span>
                 </span>
                 <StateChip item={item} />
@@ -330,15 +328,14 @@ export function CybercareRecordPanel({
 
         <div className="mt-auto border-t border-border/60 p-4">
           {selected ? (
-            <EvidenceReviewForm
-              binding={binding}
+            <GraphEvidenceReviewForm
               channelId={channel.id}
               communityId={communityId}
               config={config}
               evidence={selected}
               keyLinked={keyLinked}
               onReviewed={() => setReloadKey((k) => k + 1)}
-              statuses={statuses}
+              orgId={binding.orgId}
             />
           ) : (
             <p className="text-xs text-muted-foreground">

@@ -4,7 +4,10 @@ import { useChannelsQuery } from "@/features/channels/hooks";
 import { useCommunities } from "@/features/communities/useCommunities";
 import { useIdentityQuery } from "@/shared/api/hooks";
 import { relayClient } from "@/shared/api/relayClient";
-import { getCybercareSession, listCybercareEvidence } from "./cybercareApi";
+import {
+  getCybercareSession,
+  listCybercareGraphEvidence,
+} from "./cybercareApi";
 import {
   type EvidenceTask,
   type MyTask,
@@ -66,17 +69,23 @@ export function useMyTasks(options?: { fresh?: boolean }) {
       if (!config || !communityId) return [];
       const session = await getCybercareSession(communityId).catch(() => null);
       if (!session) return [];
+      // One read per organisation, shared by its channels.
+      const byOrg = new Map<string, Promise<number | null>>();
+      const awaitingFor = (orgId: string) => {
+        let pending = byOrg.get(orgId);
+        if (!pending) {
+          pending = listCybercareGraphEvidence(communityId, config, orgId)
+            .then((items) => items.filter((i) => !i.review).length)
+            .catch(() => null);
+          byOrg.set(orgId, pending);
+        }
+        return pending;
+      };
       const found = await Promise.all(
         boundIds.map(async (channelId): Promise<EvidenceTask | null> => {
           const binding = readRoomBinding(communityId, channelId);
           if (!binding) return null;
-          const items = await listCybercareEvidence(
-            communityId,
-            config,
-            binding.orgId,
-            binding.moduleId,
-          ).catch(() => null);
-          const awaiting = items?.filter((i) => !i.review).length ?? 0;
+          const awaiting = (await awaitingFor(binding.orgId)) ?? 0;
           return awaiting > 0
             ? {
                 kind: "evidence",

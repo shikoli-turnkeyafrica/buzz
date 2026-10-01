@@ -255,3 +255,78 @@ export function getCybercareActionStates(input: {
     actionIds: input.actionIds,
   });
 }
+
+/** A control a piece of graph evidence supports. */
+export type CybercareControl = { controlCode: string; name: string };
+
+/** A reviewer's latest decision on a graph evidence item. */
+export type CybercareGraphReview = {
+  reviewId: string;
+  decision: "approved" | "rejected" | string;
+  approver: string | null;
+  decidedAt: string | null;
+  rationale: string | null;
+  commonsEventId: string | null;
+};
+
+/**
+ * One item of the organisation's evidence of record (Cybercare's graph).
+ * `verificationStatus` / `hasArtefact` describe whether Cybercare holds the
+ * file; `review` is a person's decision. They are different things.
+ */
+export type CybercareGraphEvidence = {
+  evidenceId: string;
+  evidenceCode: string;
+  title: string;
+  evidenceType: string | null;
+  verificationStatus: string | null;
+  source: string | null;
+  validFrom: string | null;
+  validUntil: string | null;
+  hasArtefact: boolean;
+  controls: CybercareControl[];
+  review: CybercareGraphReview | null;
+};
+
+export function listCybercareGraphEvidence(
+  communityId: string,
+  config: CybercareConfig,
+  orgId: string,
+) {
+  return invoke<CybercareGraphEvidence[]>("cybercare_graph_evidence", {
+    communityId,
+    config: rustConfig(config),
+    orgId,
+  });
+}
+
+export type CybercareRecordedGraphReview = {
+  reviewId: string;
+  decision: string;
+  approver: string | null;
+  alreadyDecided: boolean;
+};
+
+/** Records a review decision in Cybercare, citing the signed decision. */
+export function reviewCybercareGraphEvidence(input: {
+  communityId: string;
+  config: CybercareConfig;
+  orgId: string;
+  evidenceId: string;
+  approve: boolean;
+  commonsEventId: string;
+  rationale: string;
+}) {
+  return invoke<CybercareRecordedGraphReview>(
+    "cybercare_review_graph_evidence",
+    {
+      communityId: input.communityId,
+      config: rustConfig(input.config),
+      orgId: input.orgId,
+      evidenceId: input.evidenceId,
+      approve: input.approve,
+      commonsEventId: input.commonsEventId,
+      rationale: input.rationale || null,
+    },
+  );
+}
