@@ -233,3 +233,25 @@ export function recordCybercareDecision(input: {
     approve: input.approve,
   });
 }
+
+/** An action's current state in Cybercare (read-only). */
+export type CybercareActionState = {
+  actionId: string;
+  status: string;
+  curatorApprovalId: string | null;
+};
+
+/** Reads remediation actions' current status, scoped to one organisation. */
+export function getCybercareActionStates(input: {
+  communityId: string;
+  config: CybercareConfig;
+  orgId: string;
+  actionIds: string[];
+}) {
+  return invoke<CybercareActionState[]>("cybercare_action_states", {
+    communityId: input.communityId,
+    config: rustConfig(input.config),
+    orgId: input.orgId,
+    actionIds: input.actionIds,
+  });
+}

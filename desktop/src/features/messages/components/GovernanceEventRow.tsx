@@ -343,6 +343,11 @@ export const GovernanceEventRow = React.memo(function GovernanceEventRow({
                 normalizePubkey(message.pubkey ?? "") ===
                   normalizePubkey(currentPubkey ?? "")
               }
+              isDecider={
+                Boolean(currentPubkey && proposalDecision?.pubkey) &&
+                normalizePubkey(proposalDecision?.pubkey ?? "") ===
+                  normalizePubkey(currentPubkey ?? "")
+              }
               proposal={proposal}
               proposalId={message.id}
             />

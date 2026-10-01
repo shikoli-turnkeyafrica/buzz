@@ -11684,6 +11684,15 @@ export function maybeInstallE2eTauriMocks() {
             },
           ]
         );
+      case "cybercare_action_states": {
+        const ids =
+          (payload as { actionIds?: string[] } | null)?.actionIds ?? [];
+        return ids.map((actionId) => ({
+          actionId,
+          status: "pending_approval",
+          curatorApprovalId: null,
+        }));
+      }
       case "cybercare_record_decision": {
         const ids =
           (payload as { actionIds?: string[] } | null)?.actionIds ?? [];

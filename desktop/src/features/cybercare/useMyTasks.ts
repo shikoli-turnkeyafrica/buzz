@@ -19,10 +19,12 @@ const LOOKBACK_SECONDS = 60 * 24 * 60 * 60;
 
 /**
  * Everything waiting on me in this community: proposals nobody has decided
- * yet, and evidence awaiting review in channels that have an assessment.
- * Only for communities connected to Cybercare. `fresh` makes a screen that
- * shows the list ask again when it opens instead of reusing the sidebar's
- * answer.
+ * yet and evidence awaiting review, both only in channels that have an
+ * assessment chosen (the channels doing Cybercare work), and only for
+ * communities connected to Cybercare. Proposals come from the relay every
+ * minute; evidence comes from Cybercare every five minutes. `fresh` makes a
+ * screen that shows the list ask again when it opens instead of reusing the
+ * sidebar's answer.
  */
 export function useMyTasks(options?: { fresh?: boolean }) {
   const { activeCommunity } = useCommunities();
@@ -31,30 +33,41 @@ export function useMyTasks(options?: { fresh?: boolean }) {
   const identity = useIdentityQuery();
   const me = identity.data?.pubkey ?? null;
   const channelsQuery = useChannelsQuery({ enabled: Boolean(config) });
-  const channels = (channelsQuery.data ?? []).filter(
-    (c) => c.isMember && !c.archivedAt,
-  );
-  const channelIds = channels.map((c) => c.id).sort();
+  const boundIds = (channelsQuery.data ?? [])
+    .filter((c) => c.isMember && !c.archivedAt)
+    .filter((c) => communityId && readRoomBinding(communityId, c.id))
+    .map((c) => c.id)
+    .sort();
+  const key = boundIds.join(",");
+  const enabled = Boolean(config && communityId && boundIds.length > 0);
 
-  return useQuery({
-    queryKey: ["cybercare-my-tasks", communityId, me, channelIds.join(",")],
-    enabled: Boolean(config && communityId && channelIds.length > 0),
+  const proposals = useQuery({
+    queryKey: ["cybercare-my-proposals", communityId, me, key],
+    enabled,
     refetchInterval: 60_000,
     staleTime: options?.fresh ? 0 : 30_000,
     queryFn: async (): Promise<MyTask[]> => {
       const events = (await relayClient.fetchEvents({
         kinds: [KIND_CYBOTA_PROPOSAL, KIND_CYBOTA_RATIFICATION],
-        "#h": channelIds,
+        "#h": boundIds,
         since: Math.floor(Date.now() / 1000) - LOOKBACK_SECONDS,
         limit: 500,
       })) as unknown as TaskEvent[];
-      const tasks: MyTask[] = openProposals(events, me);
+      return openProposals(events, me);
+    },
+  });
 
-      if (!config || !communityId) return tasks;
+  const evidence = useQuery({
+    queryKey: ["cybercare-my-evidence", communityId, key],
+    enabled,
+    refetchInterval: 5 * 60_000,
+    staleTime: options?.fresh ? 0 : 4 * 60_000,
+    queryFn: async (): Promise<EvidenceTask[]> => {
+      if (!config || !communityId) return [];
       const session = await getCybercareSession(communityId).catch(() => null);
-      if (!session) return tasks;
-      const evidence = await Promise.all(
-        channelIds.map(async (channelId): Promise<EvidenceTask | null> => {
+      if (!session) return [];
+      const found = await Promise.all(
+        boundIds.map(async (channelId): Promise<EvidenceTask | null> => {
           const binding = readRoomBinding(communityId, channelId);
           if (!binding) return null;
           const items = await listCybercareEvidence(
@@ -74,10 +87,20 @@ export function useMyTasks(options?: { fresh?: boolean }) {
             : null;
         }),
       );
-      return [
-        ...tasks,
-        ...evidence.filter((t): t is EvidenceTask => t !== null),
-      ];
+      return found.filter((t): t is EvidenceTask => t !== null);
     },
   });
+
+  return {
+    data:
+      proposals.data || evidence.data
+        ? [...(proposals.data ?? []), ...(evidence.data ?? [])]
+        : undefined,
+    isLoading: proposals.isLoading || evidence.isLoading,
+    isError: proposals.isError && evidence.isError,
+    isFetching: proposals.isFetching || evidence.isFetching,
+    refetch: async () => {
+      await Promise.all([proposals.refetch(), evidence.refetch()]);
+    },
+  };
 }

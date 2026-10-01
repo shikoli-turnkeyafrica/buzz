@@ -3,8 +3,10 @@ import { describe, it } from "node:test";
 
 import {
   buildProposalDecision,
+  decisionKey,
   decisionsByProposal,
   parseProposal,
+  signingProblem,
 } from "./proposal.ts";
 
 const proposalMessage = {
@@ -82,9 +84,21 @@ describe("decisionsByProposal", () => {
       { ...decision("x", "p1", "APPROVE", 150), tags: [["e", "p1"]] },
       { ...decision("y", "p1", "MAYBE", 120) },
     ]);
-    assert.equal(map.get("p1").eventId, "d1");
-    assert.equal(map.get("p1").approve, true);
+    assert.equal(map.get(decisionKey("ch", "p1")).eventId, "d1");
+    assert.equal(map.get(decisionKey("ch", "p1")).approve, true);
     assert.equal(map.size, 1);
+  });
+
+  it("does not let a decision in another channel answer the proposal", () => {
+    const elsewhere = {
+      ...decision("dx", "p1", "APPROVE", 200),
+      tags: [
+        ["h", "other"],
+        ["e", "p1", "", "proposal"],
+      ],
+    };
+    const map = decisionsByProposal([elsewhere]);
+    assert.equal(map.get(decisionKey("ch", "p1")), undefined);
   });
 });
 
@@ -131,5 +145,35 @@ describe("buildProposalDecision", () => {
     const rb = JSON.parse(r.content);
     assert.equal(rb.action, "REJECT");
     assert.equal(rb.note, undefined);
+  });
+});
+
+describe("signingProblem", () => {
+  const base = parseProposal(proposalMessage);
+  const org = "org";
+
+  it("refuses when the steps shown don't match the actions tagged", () => {
+    // proposalMessage shows a1 but tags a1 and a2.
+    assert.match(signingProblem(base, org), /don't match/);
+  });
+
+  it("allows a matching proposal on its own organisation", () => {
+    const ok = { ...base, actionIds: ["a1"] };
+    assert.equal(signingProblem(ok, org), null);
+  });
+
+  it("needs the channel's assessment before touching Cybercare", () => {
+    const ok = { ...base, actionIds: ["a1"] };
+    assert.match(signingProblem(ok, null), /Choose the assessment/);
+  });
+
+  it("refuses a proposal for another organisation", () => {
+    const ok = { ...base, actionIds: ["a1"] };
+    assert.match(signingProblem(ok, "someone-else"), /different organisation/);
+  });
+
+  it("allows a proposal with no Cybercare actions anywhere", () => {
+    const plain = { ...base, items: [{ label: "Talk to IT" }], actionIds: [] };
+    assert.equal(signingProblem(plain, null), null);
   });
 });

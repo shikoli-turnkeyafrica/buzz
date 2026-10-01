@@ -45,6 +45,39 @@ describe("openProposals", () => {
     assert.equal(tasks[0].channelId, "ch2");
     assert.equal(tasks[0].proposal.title, "Plan p2");
   });
+
+  it("ignores a decision posted in another channel", () => {
+    const elsewhere = {
+      ...decision("dx", "p1"),
+      tags: [
+        ["h", "ungoverned"],
+        ["e", "p1", "", "proposal"],
+      ],
+    };
+    const tasks = openProposals(
+      [proposal("p1", "agent", 100), elsewhere],
+      "me",
+    );
+    assert.deepEqual(
+      tasks.map((t) => t.id),
+      ["p1"],
+    );
+  });
+
+  it("counts only the channels it is told to", () => {
+    const tasks = openProposals(
+      [
+        proposal("p1", "agent", 100, "bound"),
+        proposal("p2", "agent", 200, "other"),
+      ],
+      "me",
+      (id) => id === "bound",
+    );
+    assert.deepEqual(
+      tasks.map((t) => t.id),
+      ["p1"],
+    );
+  });
 });
 
 describe("taskCount", () => {

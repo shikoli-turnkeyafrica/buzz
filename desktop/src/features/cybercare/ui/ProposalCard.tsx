@@ -8,13 +8,17 @@ import { cn } from "@/shared/lib/cn";
 import { Button } from "@/shared/ui/button";
 import {
   type CybercareActionOutcome,
+  type CybercareConfig,
+  getCybercareActionStates,
   recordCybercareDecision,
 } from "../cybercareApi";
 import {
   buildProposalDecision,
   type Proposal,
   type ProposalDecision,
+  signingProblem,
 } from "../proposal";
+import { readRoomBinding } from "../roomBinding";
 
 function errorText(reason: unknown) {
   const text =
@@ -29,9 +33,14 @@ function errorText(reason: unknown) {
     : text;
 }
 
+type SignedEvent = Awaited<ReturnType<typeof signRelayEvent>>;
+
 type Outcome =
   | { state: "idle" }
   | { state: "signing" }
+  // Signed but not confirmed by the relay: a retry re-sends THIS event, never
+  // a new signature, so a timeout can't produce two different decisions.
+  | { state: "unsent"; event: SignedEvent; approve: boolean; message: string }
   | { state: "recording"; decisionId: string; approve: boolean }
   | {
       state: "done";
@@ -43,10 +52,11 @@ type Outcome =
   | { state: "failed"; message: string };
 
 /**
- * An agent's proposal in the timeline: what it asks for, and, for anyone
- * but its author, Approve and sign / Reject and sign. The signature is the
- * decision; for remediation actions, Cybercare then records which decision
- * opened (or cancelled) them.
+ * An agent's proposal in the timeline. Anyone but its author gets Approve… /
+ * Reject…, but only when what the card shows is exactly what a decision
+ * would change in Cybercare (see `signingProblem`). The signature is the
+ * decision; Cybercare then records which decision opened or cancelled the
+ * actions, scoped to the organisation of this channel's assessment.
  */
 export function ProposalCard({
   proposalId,
@@ -55,6 +65,7 @@ export function ProposalCard({
   decision,
   deciderLabel,
   isAuthor,
+  isDecider,
 }: {
   proposalId: string;
   channelId: string | null;
@@ -62,24 +73,43 @@ export function ProposalCard({
   decision: ProposalDecision | undefined;
   deciderLabel: string | null;
   isAuthor: boolean;
+  /** The signed-in key made the decision shown. */
+  isDecider: boolean;
 }) {
   const { activeCommunity } = useCommunities();
+  const config = activeCommunity?.cybercare;
+  const communityId = activeCommunity?.id ?? null;
+  const boundOrgId =
+    communityId && channelId
+      ? (readRoomBinding(communityId, channelId)?.orgId ?? null)
+      : null;
+  const problem = signingProblem(proposal, boundOrgId);
   const [choice, setChoice] = React.useState<"approve" | "reject" | null>(null);
   const [note, setNote] = React.useState("");
   const [outcome, setOutcome] = React.useState<Outcome>({ state: "idle" });
 
   const recordInCybercare = async (decisionId: string, approve: boolean) => {
-    const config = activeCommunity?.cybercare;
-    if (proposal.actionIds.length === 0 || !config || !activeCommunity) {
+    if (proposal.actionIds.length === 0) {
       setOutcome({ state: "done", decisionId, approve, cybercare: null });
+      return;
+    }
+    if (!config || !communityId || !boundOrgId) {
+      setOutcome({
+        state: "done",
+        decisionId,
+        approve,
+        cybercare: null,
+        cybercareError:
+          "Cybercare isn't connected for this channel, so the actions weren't changed there.",
+      });
       return;
     }
     setOutcome({ state: "recording", decisionId, approve });
     try {
       const results = await recordCybercareDecision({
-        communityId: activeCommunity.id,
+        communityId,
         config,
-        orgId: proposal.orgId ?? proposal.subject?.orgId,
+        orgId: boundOrgId,
         actionIds: proposal.actionIds,
         decisionEventId: decisionId,
         approve,
@@ -96,30 +126,47 @@ export function ProposalCard({
     }
   };
 
-  const handleSign = async () => {
-    if (!choice || !channelId) return;
-    const approve = choice === "approve";
-    setOutcome({ state: "signing" });
+  const publish = async (event: SignedEvent, approve: boolean) => {
     try {
-      const unsigned = buildProposalDecision({
-        channelId,
-        proposalId,
-        proposal,
-        approve,
-        note,
-      });
       await relayClient.preconnect();
-      const event = await signRelayEvent(unsigned);
       await relayClient.publishEvent(
         event,
         "Timed out posting the decision to this channel.",
         "Couldn't post the decision to this channel.",
       );
-      setChoice(null);
-      await recordInCybercare(event.id, approve);
+    } catch (reason) {
+      setOutcome({
+        state: "unsent",
+        event,
+        approve,
+        message: errorText(reason),
+      });
+      return;
+    }
+    setChoice(null);
+    await recordInCybercare(event.id, approve);
+  };
+
+  const handleSign = async () => {
+    if (!choice || !channelId || problem) return;
+    const approve = choice === "approve";
+    setOutcome({ state: "signing" });
+    let event: SignedEvent;
+    try {
+      event = await signRelayEvent(
+        buildProposalDecision({
+          channelId,
+          proposalId,
+          proposal,
+          approve,
+          note,
+        }),
+      );
     } catch (reason) {
       setOutcome({ state: "failed", message: errorText(reason) });
+      return;
     }
+    await publish(event, approve);
   };
 
   const busy = outcome.state === "signing" || outcome.state === "recording";
@@ -152,29 +199,74 @@ export function ProposalCard({
           ))}
         </ol>
       ) : null}
+      {proposal.actionIds.length > 0 ? (
+        <p className="text-xs text-muted-foreground">
+          Signing changes {proposal.actionIds.length} remediation action
+          {proposal.actionIds.length === 1 ? "" : "s"} in Cybercare.
+        </p>
+      ) : null}
 
       {decision ? (
-        <p
-          className={cn(
-            "flex items-center gap-1.5 text-sm font-semibold",
-            decision.approve
-              ? "text-green-700 dark:text-green-500"
-              : "text-red-700 dark:text-red-500",
-          )}
-          data-testid="proposal-decided"
-        >
-          {decision.approve ? (
-            <Check aria-hidden className="h-4 w-4" />
-          ) : (
-            <X aria-hidden className="h-4 w-4" />
-          )}
-          {decision.approve ? "Approved" : "Rejected"}
-          {deciderLabel ? ` by ${deciderLabel}` : ""}
-        </p>
+        <>
+          <p
+            className={cn(
+              "flex items-center gap-1.5 text-sm font-semibold",
+              decision.approve
+                ? "text-green-700 dark:text-green-500"
+                : "text-red-700 dark:text-red-500",
+            )}
+            data-testid="proposal-decided"
+          >
+            {decision.approve ? (
+              <Check aria-hidden className="h-4 w-4" />
+            ) : (
+              <X aria-hidden className="h-4 w-4" />
+            )}
+            {decision.approve ? "Approved" : "Rejected"}
+            {deciderLabel ? ` by ${deciderLabel}` : ""}
+          </p>
+          {isDecider &&
+          outcome.state === "idle" &&
+          proposal.actionIds.length > 0 ? (
+            <CybercareCheck
+              actionIds={proposal.actionIds}
+              approve={decision.approve}
+              communityId={communityId}
+              config={config}
+              onRecord={() =>
+                void recordInCybercare(decision.eventId, decision.approve)
+              }
+              orgId={boundOrgId}
+            />
+          ) : null}
+        </>
       ) : isAuthor ? (
         <p className="text-xs text-muted-foreground">
           Waiting for an approver to sign off.
         </p>
+      ) : problem ? (
+        <p
+          className="flex gap-1.5 text-xs text-amber-700 dark:text-amber-400"
+          data-testid="proposal-problem"
+        >
+          <TriangleAlert aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          {problem}
+        </p>
+      ) : outcome.state === "unsent" ? (
+        <div className="space-y-1" role="alert">
+          <p className="text-xs text-destructive">
+            {outcome.message} Your decision is signed but not yet in the
+            channel.
+          </p>
+          <Button
+            onClick={() => void publish(outcome.event, outcome.approve)}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            Send it again
+          </Button>
+        </div>
       ) : choice ? (
         <div className="space-y-2">
           <label className="block space-y-1 text-xs font-medium text-muted-foreground">
@@ -224,6 +316,7 @@ export function ProposalCard({
       ) : outcome.state === "idle" || outcome.state === "failed" ? (
         <div className="flex items-center gap-2">
           <Button
+            aria-label={`Approve: ${proposal.title}`}
             data-testid="proposal-approve"
             disabled={!channelId}
             onClick={() => setChoice("approve")}
@@ -233,6 +326,7 @@ export function ProposalCard({
             Approve…
           </Button>
           <Button
+            aria-label={`Reject: ${proposal.title}`}
             data-testid="proposal-reject"
             disabled={!channelId}
             onClick={() => setChoice("reject")}
@@ -250,22 +344,90 @@ export function ProposalCard({
           {outcome.message}
         </p>
       ) : null}
-      {outcome.state === "recording" ? (
-        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <LoaderCircle aria-hidden className="h-3.5 w-3.5 animate-spin" />
-          Recording the decision in Cybercare…
-        </p>
-      ) : null}
-      {outcome.state === "done" ? (
-        <CybercareResult
-          approve={outcome.approve}
-          error={outcome.cybercareError}
-          onRetry={() =>
-            void recordInCybercare(outcome.decisionId, outcome.approve)
-          }
-          results={outcome.cybercare}
-        />
-      ) : null}
+      <div aria-live="polite" role="status">
+        {outcome.state === "recording" ? (
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <LoaderCircle aria-hidden className="h-3.5 w-3.5 animate-spin" />
+            Recording the decision in Cybercare…
+          </p>
+        ) : null}
+        {outcome.state === "done" ? (
+          <CybercareResult
+            approve={outcome.approve}
+            error={outcome.cybercareError}
+            onRetry={() =>
+              void recordInCybercare(outcome.decisionId, outcome.approve)
+            }
+            results={outcome.cybercare}
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * For the person who decided: whether Cybercare has caught up with the
+ * signed decision (it may not have, if the app closed before it answered),
+ * with a way to record it again. Read-only until they click.
+ */
+function CybercareCheck({
+  actionIds,
+  approve,
+  communityId,
+  config,
+  orgId,
+  onRecord,
+}: {
+  actionIds: string[];
+  approve: boolean;
+  communityId: string | null;
+  config: CybercareConfig | undefined;
+  orgId: string | null;
+  onRecord: () => void;
+}) {
+  const [waiting, setWaiting] = React.useState<number | null>(null);
+  const idsKey = actionIds.join(",");
+  React.useEffect(() => {
+    if (!config || !communityId || !orgId) return;
+    let cancelled = false;
+    getCybercareActionStates({
+      communityId,
+      config,
+      orgId,
+      actionIds: idsKey.split(","),
+    })
+      .then((states) => {
+        if (cancelled) return;
+        setWaiting(
+          states.filter((s) => s.status === "pending_approval").length,
+        );
+      })
+      .catch(() => !cancelled && setWaiting(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [communityId, config, orgId, idsKey]);
+
+  if (!config || !orgId) {
+    return (
+      <p className="text-xs text-amber-700 dark:text-amber-400">
+        Cybercare isn't connected for this channel, so these actions can't be
+        checked here.
+      </p>
+    );
+  }
+  if (!waiting) return null;
+  return (
+    <div className="space-y-1 text-xs" data-testid="proposal-cybercare-behind">
+      <p className="flex gap-1.5 text-amber-700 dark:text-amber-400">
+        <TriangleAlert aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        {waiting} action{waiting === 1 ? " is" : "s are"} still waiting in
+        Cybercare for this decision.
+      </p>
+      <Button onClick={onRecord} size="sm" type="button" variant="outline">
+        {approve ? "Open them in Cybercare" : "Cancel them in Cybercare"}
+      </Button>
     </div>
   );
 }

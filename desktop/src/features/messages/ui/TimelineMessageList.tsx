@@ -28,7 +28,12 @@ import { channelChrome } from "@/shared/layout/chromeLayout";
 import { DayDivider } from "./DayDivider";
 import { MessageRowItem, SystemRow } from "./TimelineMessageRow";
 import { GovernanceEventRow } from "@/features/messages/components/GovernanceEventRow";
-import { decisionsByProposal } from "@/features/cybercare/proposal";
+import {
+  channelOf,
+  decisionKey,
+  decisionsByProposal,
+  type ProposalDecision,
+} from "@/features/cybercare/proposal";
 import { TimelineRowShell } from "./TimelineRowShell";
 import { UnreadDivider } from "./UnreadDivider";
 import { useTimelineRetention } from "./useTimelineRetention";
@@ -203,11 +208,23 @@ export const TimelineMessageList = React.memo(function TimelineMessageList({
     () => buildTimelineItems(entries, firstUnreadMessageId),
     [entries, firstUnreadMessageId],
   );
-  // Which proposals in view already have a decision (a 46203 pointing at them).
-  const proposalDecisions = React.useMemo(
-    () => decisionsByProposal(entries.map((entry) => entry.message)),
-    [entries],
-  );
+  // Which proposals in view already have a decision (a 46203 pointing at them,
+  // in the same channel). An unchanged decision keeps its object so the
+  // proposal's memoized row doesn't re-render on every new message.
+  const decisionCacheRef = React.useRef(new Map<string, ProposalDecision>());
+  const proposalDecisions = React.useMemo(() => {
+    const next = decisionsByProposal(entries.map((entry) => entry.message));
+    const stable = new Map<string, ProposalDecision>();
+    for (const [key, decision] of next) {
+      const previous = decisionCacheRef.current.get(key);
+      stable.set(
+        key,
+        previous?.eventId === decision.eventId ? previous : decision,
+      );
+    }
+    decisionCacheRef.current = stable;
+    return stable;
+  }, [entries]);
   const dayGroups = React.useMemo(
     () => buildTimelineDayGroups(itemsResult.items),
     [itemsResult.items],
@@ -222,7 +239,12 @@ export const TimelineMessageList = React.memo(function TimelineMessageList({
             <div className="flex flex-col gap-1 pb-2.5">
               <GovernanceEventRow
                 message={item.entry.message}
-                proposalDecision={proposalDecisions.get(item.entry.message.id)}
+                proposalDecision={proposalDecisions.get(
+                  decisionKey(
+                    channelOf(item.entry.message) ?? "",
+                    item.entry.message.id,
+                  ),
+                )}
                 currentPubkey={currentPubkey}
                 profiles={profiles}
                 ownerProfiles={ownerProfiles}

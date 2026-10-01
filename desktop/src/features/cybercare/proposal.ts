@@ -117,8 +117,20 @@ export function decidedProposalId(message: GovernedMessage): string | null {
   return tag ? tag[1] : null;
 }
 
+/** Where a message was posted: its `h` tag. */
+export function channelOf(message: GovernedMessage): string | null {
+  return (message.tags ?? []).find((t) => t[0] === "h")?.[1] ?? null;
+}
+
+/** Key for "this proposal, in this channel". */
+export function decisionKey(channelId: string, proposalId: string): string {
+  return `${channelId}|${proposalId}`;
+}
+
 /**
- * The first decision for each proposal in these messages. A proposal is open
+ * The first decision for each proposal, keyed by {@link decisionKey}. A
+ * decision only answers a proposal in its own channel: a 46203 posted
+ * elsewhere (where anyone may post one) cannot close it. A proposal is open
  * until one exists; later decisions are history, not a change of outcome.
  */
 export function decisionsByProposal(
@@ -128,7 +140,10 @@ export function decisionsByProposal(
   const ordered = [...messages].sort((a, b) => a.createdAt - b.createdAt);
   for (const message of ordered) {
     const proposalId = decidedProposalId(message);
-    if (!proposalId || decisions.has(proposalId)) continue;
+    const channelId = channelOf(message);
+    if (!proposalId || !channelId) continue;
+    const key = decisionKey(channelId, proposalId);
+    if (decisions.has(key)) continue;
     let action: unknown;
     let note: string | undefined;
     try {
@@ -139,7 +154,7 @@ export function decisionsByProposal(
       continue;
     }
     if (action !== "APPROVE" && action !== "REJECT") continue;
-    decisions.set(proposalId, {
+    decisions.set(key, {
       eventId: message.id,
       approve: action === "APPROVE",
       pubkey: message.pubkey,
@@ -148,6 +163,41 @@ export function decisionsByProposal(
     });
   }
   return decisions;
+}
+
+/**
+ * Why a proposal must not be signed, or null when it may be. The card shows
+ * the steps from the proposal's text, but a decision acts on its
+ * `cybercare_action` tags; both are written by whoever filed it. They must
+ * name exactly the same actions, so what the approver reads is what Cybercare
+ * opens. `boundOrgId` is the organisation of the assessment chosen for this
+ * channel: the only organisation an approval here may touch.
+ */
+export function signingProblem(
+  proposal: Proposal,
+  boundOrgId: string | null,
+): string | null {
+  const shown = proposal.items
+    .map((item) => item.actionId)
+    .filter((id): id is string => Boolean(id));
+  const tagged = proposal.actionIds;
+  const same =
+    shown.length === tagged.length &&
+    new Set(shown).size === shown.length &&
+    new Set(tagged).size === tagged.length &&
+    shown.every((id) => tagged.includes(id));
+  if (!same) {
+    return "This proposal's steps don't match the Cybercare actions it would change, so it can't be signed. Ask the agent's owner to file it again.";
+  }
+  if (tagged.length === 0) return null;
+  if (!boundOrgId) {
+    return "Choose the assessment for this channel first (Evidence button), so Cybercare knows which organisation this decision is for.";
+  }
+  const claimed = proposal.orgId ?? proposal.subject?.orgId;
+  if (claimed && claimed.toLowerCase() !== boundOrgId.toLowerCase()) {
+    return "This proposal is for a different organisation than this channel's assessment, so it can't be signed here.";
+  }
+  return null;
 }
 
 export type ProposalDecisionInput = {

@@ -4,6 +4,7 @@
 //! then opens the action (Gemini G3).
 
 use serde::Serialize;
+use serde_json::Value;
 
 use super::auth::{access_token, CybercareConfig};
 use super::platform::{check_uuid, v2_data};
@@ -110,11 +111,93 @@ pub(crate) async fn cybercare_record_decision(
     Ok(outcomes)
 }
 
+/// One action's state in Cybercare, for the card's "did Cybercare record it" check.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ActionState {
+    pub action_id: String,
+    pub status: String,
+    pub curator_approval_id: Option<String>,
+}
+
+pub(crate) fn states_from(data: &Value) -> Vec<ActionState> {
+    data.as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| {
+                    Some(ActionState {
+                        action_id: item.get("actionId")?.as_str()?.to_owned(),
+                        status: item.get("status")?.as_str()?.to_owned(),
+                        curator_approval_id: item
+                            .get("curatorApprovalId")
+                            .and_then(Value::as_str)
+                            .map(str::to_owned),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Reads the actions' current status (read-only), scoped to one organisation.
+#[tauri::command]
+pub(crate) async fn cybercare_action_states(
+    app_state: tauri::State<'_, crate::app_state::AppState>,
+    community_id: String,
+    config: CybercareConfig,
+    org_id: String,
+    action_ids: Vec<String>,
+) -> Result<Vec<ActionState>, String> {
+    check_uuid(&org_id, "organisation")?;
+    if action_ids.is_empty() || action_ids.len() > 100 {
+        return Err("between 1 and 100 actions can be checked at once".to_owned());
+    }
+    for id in &action_ids {
+        check_uuid(id, "action")?;
+    }
+    let url = format!(
+        "{}/api/v2/remediation-action/status?ids={}&orgId={org_id}",
+        config.gateway()?,
+        action_ids.join(",")
+    );
+    let token = access_token(&app_state.http_client, &config, &community_id).await?;
+    let response = app_state
+        .http_client
+        .get(url)
+        .bearer_auth(token)
+        .timeout(HTTP_TIMEOUT)
+        .send()
+        .await
+        .map_err(|error| format!("Cybercare unreachable: {error}"))?;
+    let status = response.status().as_u16();
+    let body = response.text().await.unwrap_or_default();
+    match status {
+        200..=299 => Ok(states_from(&v2_data(&body)?)),
+        401 => Err("Cybercare did not accept your session. Sign out and sign in again.".into()),
+        _ => Err(format!("Cybercare answered HTTP {status}")),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     const ID: &str = "b0c5193d0361e461622ad75cb439079d5bdd27addad4a9aa86267f9773fc966f";
+
+    #[test]
+    fn action_states_read_the_status_list() {
+        let data = serde_json::json!([
+            {"actionId": "a1", "status": "open", "curatorApprovalId": "d1", "title": "Patch"},
+            {"actionId": "a2", "status": "pending_approval"},
+            {"status": "open"}
+        ]);
+        let states = states_from(&data);
+        assert_eq!(states.len(), 2);
+        assert_eq!(states[0].curator_approval_id.as_deref(), Some("d1"));
+        assert_eq!(states[1].status, "pending_approval");
+        assert!(states_from(&serde_json::json!({"x": 1})).is_empty());
+    }
 
     #[test]
     fn decision_ids_must_be_lowercase_event_ids() {

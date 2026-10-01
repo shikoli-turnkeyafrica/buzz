@@ -1,4 +1,6 @@
 import {
+  channelOf,
+  decisionKey,
   decisionsByProposal,
   type GovernedMessage,
   KIND_CYBOTA_PROPOSAL,
@@ -47,12 +49,16 @@ function toMessage(event: TaskEvent): GovernedMessage {
 
 /**
  * Proposals that still wait for a decision, newest first. My own proposals
- * are not my task (someone else signs off), and a proposal leaves the list
- * as soon as any decision in its channel points at it.
+ * are not my task (someone else signs off), a proposal leaves the list as
+ * soon as a decision in its own channel points at it, and only channels
+ * `includeChannel` accepts are counted (the app passes the channels that
+ * have an assessment chosen, so a stray proposal elsewhere can't fill
+ * everyone's list).
  */
 export function openProposals(
   events: readonly TaskEvent[],
   myPubkey: string | null,
+  includeChannel: (channelId: string) => boolean = () => true,
 ): OpenProposalTask[] {
   const messages = events.map(toMessage);
   const decided = decisionsByProposal(messages);
@@ -61,13 +67,13 @@ export function openProposals(
     .filter(
       (m) =>
         m.kind === KIND_CYBOTA_PROPOSAL &&
-        !decided.has(m.id) &&
+        !decided.has(decisionKey(channelOf(m) ?? "", m.id)) &&
         (m.pubkey ?? "").toLowerCase() !== me,
     )
     .flatMap((m): OpenProposalTask[] => {
       const proposal = parseProposal(m);
       const channelId = m.tags?.find((t) => t[0] === "h")?.[1];
-      return proposal && channelId
+      return proposal && channelId && includeChannel(channelId)
         ? [
             {
               kind: "proposal",

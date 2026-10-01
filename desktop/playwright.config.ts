@@ -19,6 +19,7 @@ export default defineConfig({
     {
       name: "smoke",
       testMatch: [
+        "**/cybercare-proposals.spec.ts",
         "**/smoke.spec.ts",
         "**/sidebar-offcanvas-rail.spec.ts",
         "**/search-scope-screenshots.spec.ts",
