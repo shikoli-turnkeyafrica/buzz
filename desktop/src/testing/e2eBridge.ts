@@ -10401,6 +10401,22 @@ function sendToMockSocket(args: {
       return;
     }
 
+    // A filter over several channels (My tasks) — the relay serves every
+    // listed channel; the single-channel pager below serves only the first.
+    const channelIds = filter["#h"] ?? [];
+    if (channelIds.length > 1) {
+      for (const id of channelIds) {
+        for (const event of getMockMessageStore(id)) {
+          if (filter.kinds && !filter.kinds.includes(event.kind)) continue;
+          if (filter.since !== undefined && event.created_at < filter.since)
+            continue;
+          sendWsText(socket.handler, ["EVENT", subId, event]);
+        }
+      }
+      sendWsText(socket.handler, ["EOSE", subId]);
+      return;
+    }
+
     emitMockHistory(socket, subId, channelId, filter);
     return;
   }

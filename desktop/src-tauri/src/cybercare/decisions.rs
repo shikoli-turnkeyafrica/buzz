@@ -64,11 +64,15 @@ pub(crate) async fn cybercare_record_decision(
     app_state: tauri::State<'_, crate::app_state::AppState>,
     community_id: String,
     config: CybercareConfig,
+    org_id: Option<String>,
     action_ids: Vec<String>,
     decision_event_id: String,
     approve: bool,
 ) -> Result<Vec<ActionOutcome>, String> {
     check_event_id(&decision_event_id)?;
+    if let Some(id) = &org_id {
+        check_uuid(id, "organisation")?;
+    }
     for id in &action_ids {
         check_uuid(id, "action")?;
     }
@@ -83,6 +87,8 @@ pub(crate) async fn cybercare_record_decision(
             .json(&serde_json::json!({
                 "actionId": action_id,
                 "curatorApprovalId": decision_event_id,
+                // Limits the decision to the proposal's organisation.
+                "orgId": org_id,
             }))
             .timeout(HTTP_TIMEOUT)
             .send()

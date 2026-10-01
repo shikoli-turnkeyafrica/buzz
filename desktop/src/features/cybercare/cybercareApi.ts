@@ -219,6 +219,7 @@ export type CybercareActionOutcome = {
 export function recordCybercareDecision(input: {
   communityId: string;
   config: CybercareConfig;
+  orgId?: string;
   actionIds: string[];
   decisionEventId: string;
   approve: boolean;
@@ -226,6 +227,7 @@ export function recordCybercareDecision(input: {
   return invoke<CybercareActionOutcome[]>("cybercare_record_decision", {
     communityId: input.communityId,
     config: rustConfig(input.config),
+    orgId: input.orgId ?? null,
     actionIds: input.actionIds,
     decisionEventId: input.decisionEventId,
     approve: input.approve,

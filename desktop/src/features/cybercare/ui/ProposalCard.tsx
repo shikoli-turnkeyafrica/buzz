@@ -79,6 +79,7 @@ export function ProposalCard({
       const results = await recordCybercareDecision({
         communityId: activeCommunity.id,
         config,
+        orgId: proposal.orgId ?? proposal.subject?.orgId,
         actionIds: proposal.actionIds,
         decisionEventId: decisionId,
         approve,

@@ -1,6 +1,7 @@
 import { Activity, Bot, Folders, Inbox, Zap } from "lucide-react";
 
 import { TopbarSearch } from "@/features/search/ui/TopbarSearch";
+import { MyTasksMenuItem } from "@/features/cybercare/ui/MyTasksMenuItem";
 import { SidebarProjectsSection } from "@/features/sidebar/ui/SidebarProjectsSection";
 import { FeatureGate } from "@/shared/features";
 import type { Channel, SearchHit } from "@/shared/api/types";
@@ -20,7 +21,8 @@ type SidebarSelectedView =
   | "agents"
   | "workflows"
   | "pulse"
-  | "projects";
+  | "projects"
+  | "tasks";
 
 type AppSidebarPinnedHeaderProps = {
   channelLabels: Record<string, string>;
@@ -124,6 +126,7 @@ export function AppSidebarPrimaryMenu({
               </SidebarMenuBadge>
             ) : null}
           </SidebarMenuItem>
+          <MyTasksMenuItem isActive={selectedView === "tasks"} />
           <FeatureGate feature="pulse">
             <SidebarMenuItem>
               <SidebarMenuButton
